@@ -7,6 +7,53 @@ import { NotFoundError, ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 
+const DOORS_CATEGORY_NAME = 'Межкомнатные двери';
+
+/**
+ * Строит selection для конфигуратора дверей из properties_data товара.
+ * Формат совпадает с ожиданием POST /api/price/doors и формы на /doors.
+ */
+function buildDoorsSelection(properties: Record<string, unknown>): Record<string, unknown> {
+  const style = properties['Domeo_Стиль Web'] ?? properties['Стиль Domeo (Web)'];
+  const model = properties['Код модели Domeo (Web)'] ?? properties['Артикул поставщика'] ?? properties['Domeo_Название модели для Web'];
+  const finish = properties['Тип покрытия'];
+  const color = properties['Domeo_Цвет'];
+  const width = properties['Ширина/мм'];
+  const height = properties['Высота/мм'];
+
+  const selection: Record<string, unknown> = {
+    style: style != null ? String(style).trim() : 'Классика',
+    model: model != null ? String(model).trim() : '',
+    finish: finish != null ? String(finish).trim() : 'Эмаль',
+    color: color != null ? String(color).trim() : '',
+    width: typeof width === 'number' ? width : (typeof width === 'string' ? parseInt(String(width), 10) : 800) || 800,
+    height: typeof height === 'number' ? height : (typeof height === 'string' ? parseInt(String(height), 10) : 2000) || 2000
+  };
+  // Опции, если нужны для предзаполнения
+  if (properties['Domeo_Кромка_базовая_цвет'] != null) {
+    selection.edge_id = String(properties['Domeo_Кромка_базовая_цвет']).trim();
+  }
+  return selection;
+}
+
+/**
+ * Универсальный fallback для не-дверей (ручки, наличники и т.д.).
+ */
+function buildGenericSelection(
+  product: { model: string | null; series: string | null },
+  properties: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    style: (properties.style as string) || product.series || 'Классика',
+    model: product.model || product.series || 'Стандарт',
+    finish: (properties.finish as string) || 'Эмаль',
+    color: (properties.color as string) || 'Белый',
+    type: (properties.type as string) || 'Глухая',
+    width: (properties.width as number) ?? 800,
+    height: (properties.height as number) ?? 2000
+  };
+}
+
 // GET /api/catalog/doors/sku-to-selection - Получить информацию о продукте по SKU
 async function getHandler(
   req: NextRequest,
@@ -27,7 +74,6 @@ async function getHandler(
     });
   }
 
-  // Ищем продукт по SKU в базе данных
   const product = await prisma.product.findUnique({
     where: { sku },
     select: {
@@ -38,7 +84,8 @@ async function getHandler(
       series: true,
       brand: true,
       base_price: true,
-      properties_data: true
+      properties_data: true,
+      catalog_category: { select: { name: true } }
     }
   });
 
@@ -50,20 +97,22 @@ async function getHandler(
     );
   }
 
-  // Парсим свойства продукта
-  const properties = product.properties_data ? 
-    (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
+  const properties: Record<string, unknown> = product.properties_data
+    ? (typeof product.properties_data === 'string'
+        ? JSON.parse(product.properties_data) as Record<string, unknown>
+        : product.properties_data as Record<string, unknown>)
+    : {};
 
-  // Возвращаем данные для предзаполнения формы
-  const selection = {
-    style: properties.style || product.series || "Классика",
-    model: product.model || product.series || "Стандарт",
-    finish: properties.finish || "Эмаль",
-    color: properties.color || "Белый",
-    type: properties.type || "Глухая",
-    width: properties.width || 800,
-    height: properties.height || 2000
-  };
+  const isDoors = product.catalog_category?.name === DOORS_CATEGORY_NAME;
+  const selection = isDoors
+    ? buildDoorsSelection(properties)
+    : buildGenericSelection(product, properties);
+
+  logger.debug('sku-to-selection: выборка по SKU', 'catalog/doors/sku-to-selection/GET', {
+    sku,
+    isDoors,
+    selectionModel: selection.model
+  }, loggingContext);
 
   return apiSuccess({
     product: {
@@ -98,7 +147,6 @@ export async function POST(
         throw new ValidationError('SKU не предоставлен');
       }
 
-      // Ищем продукт по SKU в базе данных
       const product = await prisma.product.findUnique({
         where: { sku },
         select: {
@@ -109,7 +157,8 @@ export async function POST(
           series: true,
           brand: true,
           base_price: true,
-          properties_data: true
+          properties_data: true,
+          catalog_category: { select: { name: true } }
         }
       });
 
@@ -117,20 +166,16 @@ export async function POST(
         throw new NotFoundError('Продукт', sku);
       }
 
-      // Парсим свойства продукта
-      const properties = product.properties_data ? 
-        (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
+      const properties: Record<string, unknown> = product.properties_data
+        ? (typeof product.properties_data === 'string'
+            ? JSON.parse(product.properties_data) as Record<string, unknown>
+            : product.properties_data as Record<string, unknown>)
+        : {};
 
-      // Возвращаем данные для предзаполнения формы
-      const selection = {
-        style: properties.style || product.series || "Классика",
-        model: product.model || product.series || "Стандарт",
-        finish: properties.finish || "Эмаль",
-        color: properties.color || "Белый",
-        type: properties.type || "Глухая",
-        width: properties.width || 800,
-        height: properties.height || 2000
-      };
+      const isDoors = product.catalog_category?.name === DOORS_CATEGORY_NAME;
+      const selection = isDoors
+        ? buildDoorsSelection(properties)
+        : buildGenericSelection(product, properties);
 
       return apiSuccess({ selection });
     }),

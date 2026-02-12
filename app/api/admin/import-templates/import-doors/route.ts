@@ -8,6 +8,7 @@ import { ValidationError } from '@/lib/api/errors';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 import { DoorsImportService } from '@/lib/services/doors-import.service';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 /**
  * POST /api/admin/import-templates/import-doors
@@ -20,7 +21,10 @@ async function postHandler(
   const loggingContext = getLoggingContextFromRequest(req);
   const formData = await req.formData();
   const file = formData.get('file') as File;
-  const categoryId = formData.get('categoryId') as string;
+  let categoryId = (formData.get('categoryId') as string)?.trim() || undefined;
+  if (!categoryId) {
+    categoryId = (await getDoorsCategoryId()) ?? undefined;
+  }
   const mode = (formData.get('mode') as string) || 'preview'; // 'preview' или 'import'
   const updateMode = (formData.get('updateMode') as string) || 'merge'; // 'replace' | 'merge' | 'add_new'
 

@@ -3,27 +3,30 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
-import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getHardwareKitsCategoryId, getHandlesCategoryId, getLimitersCategoryId, getCategoryIdByName } from '@/lib/catalog-categories';
 
 async function getHandler(
   request: NextRequest
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const url = new URL(request.url);
-  const type = url.searchParams.get('type'); // 'kits' или 'handles'
+  const type = url.searchParams.get('type'); // 'kits' | 'handles' | 'limiters' | 'architraves'
 
   logger.debug('Загрузка данных фурнитуры', 'catalog/hardware/GET', { type }, loggingContext);
 
   if (type === 'kits') {
-    // Получаем комплекты фурнитуры
+    const categoryId = await getHardwareKitsCategoryId();
+    if (!categoryId) {
+      return apiSuccess([]);
+    }
     const kits = await prisma.product.findMany({
       where: {
-        catalog_category_id: 'cmg50xchh0024v7mn2b5ri4qy', // ID категории "Комплекты фурнитуры"
+        catalog_category_id: categoryId,
       },
       select: {
         id: true,
         name: true,
+        base_price: true,
         properties_data: true,
       },
     });
@@ -42,7 +45,7 @@ async function getHandler(
         id: kit.id,
         name: (props['Наименование для Web'] as string) || kit.name,
         description: (props['Описание комплекта для Web'] as string) || '',
-        price: parseFloat((props['Группа_цена'] as string) || '0'),
+        price: parseFloat((props['Группа_цена'] as string) || '0') || Number(kit.base_price) || 0,
         priceGroup: (props['Ценовая группа'] as string) || '',
         isBasic: (props['Ценовая группа'] as string) === 'Базовый',
       };
@@ -52,15 +55,23 @@ async function getHandler(
   }
 
   if (type === 'handles') {
-    // Получаем ручки
+    const categoryId = await getHandlesCategoryId();
+    if (!categoryId) {
+      return apiSuccess({});
+    }
     const handles = await prisma.product.findMany({
       where: {
-        catalog_category_id: 'cmg50xchb001wv7mnbzhw5y9r', // ID категории "Ручки"
+        catalog_category_id: categoryId,
       },
       select: {
         id: true,
         name: true,
+        base_price: true,
         properties_data: true,
+        images: {
+          select: { url: true },
+          orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }],
+        },
       },
     });
 
@@ -75,54 +86,28 @@ async function getHandler(
         props = {};
       }
       
-      // Получаем фотографии из properties_data
-      let photos: (string | null)[] = [];
-      
-      // Проверяем разные форматы хранения фото
-      if (props.photos) {
+      let photos: string[] = (handle.images?.map((i) => i.url) ?? []).filter(Boolean);
+      // Фото: сначала из ProductImage, при отсутствии — из properties_data
+      if (photos.length === 0 && props.photos) {
         if (typeof props.photos === 'object' && props.photos !== null && 'cover' in props.photos) {
-          // Формат { cover: "...", gallery: [...] }
           const photosObj = props.photos as { cover?: string; gallery?: string[] };
-          const coverPhoto = photosObj.cover;
-          const galleryPhotos = photosObj.gallery || [];
-          
-          // Нормализуем пути к фото
           const normalizePhoto = (photo: string | null | undefined): string | null => {
             if (!photo) return null;
-            // Если путь начинается с "products/", добавляем "/uploads/"
-            if (photo.startsWith('products/')) {
-              return `/uploads/${photo}`;
-            }
-            // Если уже начинается с "/uploads/", возвращаем как есть
-            if (photo.startsWith('/uploads/')) {
-              return photo;
-            }
-            // Если не начинается с "/", добавляем префикс
-            if (!photo.startsWith('/')) {
-              return `/uploads/products/${photo}`;
-            }
+            if (photo.startsWith('http://') || photo.startsWith('https://')) return photo;
+            if (photo.startsWith('products/')) return `/uploads/${photo}`;
+            if (photo.startsWith('/uploads/')) return photo;
+            if (!photo.startsWith('/')) return `/uploads/products/${photo}`;
             return photo;
           };
-          
-          photos = [
-            normalizePhoto(coverPhoto),
-            ...galleryPhotos.map(normalizePhoto)
-          ].filter((photo): photo is string => photo !== null);
+          photos = [normalizePhoto(photosObj.cover), ...(photosObj.gallery || []).map(normalizePhoto)].filter((p): p is string => p !== null);
         } else if (Array.isArray(props.photos)) {
-          // Массив фото - нормализуем каждый
-          photos = (props.photos as string[]).map((photo: string) => {
-            if (!photo) return null;
-            if (photo.startsWith('products/')) {
-              return `/uploads/${photo}`;
-            }
-            if (photo.startsWith('/uploads/')) {
-              return photo;
-            }
-            if (!photo.startsWith('/')) {
-              return `/uploads/products/${photo}`;
-            }
-            return photo;
-          }).filter((photo): photo is string => photo !== null);
+          photos = (props.photos as string[]).map((p: string) => {
+            if (!p) return null;
+            if (p.startsWith('http://') || p.startsWith('https://')) return p;
+            if (p.startsWith('products/')) return `/uploads/${p}`;
+            if (p.startsWith('/uploads/')) return p;
+            return p.startsWith('/') ? p : `/uploads/products/${p}`;
+          }).filter((p): p is string => p !== null);
         }
       }
       
@@ -132,7 +117,7 @@ async function getHandler(
           (props['Domeo_наименование ручки_1С'] as string) || 
           handle.name,
         group: (props['Группа'] as string) || 'Без группы',
-        price: parseFloat((props['Domeo_цена группы Web'] as string) || '0'),
+        price: parseFloat((props['Domeo_цена группы Web'] as string) || '0') || Number(handle.base_price) || 0,
         isBasic: (props['Группа'] as string) === 'Базовый',
         showroom: (props['Наличие в шоуруме'] as string) === 'да' || 
           (props['Наличие в шоуруме'] as string) === 'Да',
@@ -156,9 +141,99 @@ async function getHandler(
     return apiSuccess(groupedHandles);
   }
 
+  if (type === 'limiters') {
+    const categoryId = await getLimitersCategoryId();
+    if (!categoryId) {
+      return apiSuccess([]);
+    }
+    const limiters = await prisma.product.findMany({
+      where: { catalog_category_id: categoryId },
+      select: {
+        id: true,
+        name: true,
+        base_price: true,
+        properties_data: true,
+        images: { select: { url: true }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }] },
+      },
+    });
+    const normalizePhoto = (url: string | null | undefined): string | null => {
+      if (!url || typeof url !== 'string') return null;
+      const t = url.trim();
+      if (t.startsWith('http://') || t.startsWith('https://')) return t;
+      if (t.startsWith('/uploads/')) return t;
+      if (t.startsWith('uploads/')) return `/${t}`;
+      return `/${t.replace(/^\//, '')}`;
+    };
+    const formatted = limiters.map((p) => {
+      let props: Record<string, unknown> = {};
+      try {
+        props = typeof p.properties_data === 'string' ? JSON.parse(p.properties_data) : p.properties_data || {};
+      } catch {
+        // ignore
+      }
+      const photoFromImage = (p.images?.[0]?.url) ?? null;
+      const photoFromProps = (props['Фото (путь)'] ?? props['Фото'] ?? props['photo']) as string | undefined;
+      const photo = photoFromImage ?? (photoFromProps ? normalizePhoto(photoFromProps) : null);
+      const price = parseFloat((props['Цена РРЦ'] as string) || '') || Number(p.base_price) || 0;
+      return {
+        id: p.id,
+        name: (props['Наименование для Web'] as string) || p.name,
+        photo_path: photo,
+        price_rrc: price,
+        price_opt: price,
+      };
+    });
+    return apiSuccess(formatted);
+  }
+
+  if (type === 'architraves') {
+    const categoryId = await getCategoryIdByName('Наличники');
+    if (!categoryId) {
+      return apiSuccess([]);
+    }
+    const products = await prisma.product.findMany({
+      where: { catalog_category_id: categoryId },
+      select: {
+        id: true,
+        name: true,
+        base_price: true,
+        properties_data: true,
+        images: { select: { url: true }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }] },
+      },
+    });
+    const normalizePhoto = (url: string | null | undefined): string | null => {
+      if (!url || typeof url !== 'string') return null;
+      const t = url.trim();
+      if (t.startsWith('http://') || t.startsWith('https://')) return t;
+      if (t.startsWith('/uploads/')) return t;
+      if (t.startsWith('uploads/')) return `/${t}`;
+      return `/${t.replace(/^\//, '')}`;
+    };
+    const formatted = products.map((p) => {
+      let props: Record<string, unknown> = {};
+      try {
+        props = typeof p.properties_data === 'string' ? JSON.parse(p.properties_data) : p.properties_data || {};
+      } catch {
+        // ignore
+      }
+      const photoFromImage = (p.images?.[0]?.url) ?? null;
+      const photoFromProps = (props['Наличник: Фото (ссылка)'] ?? props['Фото (ссылка)'] ?? props['Фото'] ?? props['photo']) as string | undefined;
+      const photo = photoFromImage ?? (photoFromProps ? normalizePhoto(photoFromProps) : null);
+      const price = parseFloat((props['Цена РРЦ'] as string) || '') || Number(p.base_price) || 0;
+      return {
+        id: p.id,
+        option_type: 'наличники',
+        option_name: (props['Наличник: Название'] as string) || p.name,
+        price_surcharge: price,
+        photo_path: photo,
+      };
+    });
+    return apiSuccess(formatted);
+  }
+
   return apiError(
     ApiErrorCode.VALIDATION_ERROR,
-    'Неверный параметр type. Используйте "kits" или "handles"',
+    'Неверный параметр type. Используйте "kits", "handles", "limiters" или "architraves"',
     400
   );
 }

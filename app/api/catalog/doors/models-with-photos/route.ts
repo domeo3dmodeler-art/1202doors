@@ -5,6 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для моделей с фото
 const modelsWithPhotosCache = new Map<string, { data: any, timestamp: number }>();
@@ -33,10 +34,15 @@ async function getHandler(
     style: style || 'все'
   }, loggingContext);
 
+  const doorsCategoryId = await getDoorsCategoryId();
+  if (!doorsCategoryId) {
+    return apiSuccess({ models: [], cached: false });
+  }
+
   // Оптимизированный запрос к БД с фильтрацией на уровне БД
   const products = await prisma.product.findMany({
     where: {
-      catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo', // ID категории "Межкомнатные двери"
+      catalog_category_id: doorsCategoryId,
       is_active: true // Добавляем фильтр активных товаров
     },
     select: {

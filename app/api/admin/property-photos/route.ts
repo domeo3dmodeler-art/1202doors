@@ -6,6 +6,9 @@ import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api
 import { ValidationError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 
+const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
+const DOOR_CODE_PROPERTY = 'Артикул поставщика';
+
 // GET /api/admin/property-photos - Получить фото для свойств
 async function getHandler(request: NextRequest) {
   try {
@@ -63,21 +66,110 @@ async function postHandler(request: NextRequest) {
       photoType = 'cover',
       originalFilename,
       fileSize,
-      mimeType
+      mimeType,
+      scope, // 'color' | 'code'
+      coverPath,
+      galleryPaths,
     } = body;
 
-    if (!categoryId || !propertyName || !propertyValue || !photoPath) {
+    const resolvedPropertyName =
+      propertyName
+      || (scope === 'color' ? DOOR_COLOR_PROPERTY : null)
+      || (scope === 'code' ? DOOR_CODE_PROPERTY : null);
+
+    const hasBulkGalleryPayload =
+      (typeof coverPath === 'string' && coverPath.trim().length > 0)
+      || (Array.isArray(galleryPaths) && galleryPaths.length > 0);
+
+    if (hasBulkGalleryPayload) {
+      if (!categoryId || !resolvedPropertyName || !propertyValue) {
+        throw new ValidationError('Для загрузки cover/gallery укажите categoryId, propertyValue и propertyName/scope');
+      }
+
+      const safeCover = typeof coverPath === 'string' && coverPath.trim().length > 0 ? coverPath.trim() : null;
+      const safeGallery = Array.isArray(galleryPaths)
+        ? galleryPaths.filter((p: unknown): p is string => typeof p === 'string' && p.trim().length > 0)
+        : [];
+
+      const photos = await prisma.$transaction(async (tx) => {
+        if (safeCover) {
+          await tx.propertyPhoto.upsert({
+            where: {
+              categoryId_propertyName_propertyValue_photoType: {
+                categoryId,
+                propertyName: resolvedPropertyName,
+                propertyValue,
+                photoType: 'cover'
+              }
+            },
+            update: {
+              photoPath: safeCover,
+              updatedAt: new Date()
+            },
+            create: {
+              categoryId,
+              propertyName: resolvedPropertyName,
+              propertyValue,
+              photoPath: safeCover,
+              photoType: 'cover'
+            }
+          });
+        }
+
+        await tx.propertyPhoto.deleteMany({
+          where: {
+            categoryId,
+            propertyName: resolvedPropertyName,
+            propertyValue,
+            photoType: { startsWith: 'gallery_' }
+          }
+        });
+
+        for (let i = 0; i < safeGallery.length; i++) {
+          await tx.propertyPhoto.create({
+            data: {
+              categoryId,
+              propertyName: resolvedPropertyName,
+              propertyValue,
+              photoPath: safeGallery[i],
+              photoType: `gallery_${i + 1}`
+            }
+          });
+        }
+
+        return tx.propertyPhoto.findMany({
+          where: { categoryId, propertyName: resolvedPropertyName, propertyValue },
+          orderBy: [{ photoType: 'asc' }]
+        });
+      });
+
+      logger.info('Галерея свойства сохранена', 'admin/property-photos', {
+        userId: user.userId,
+        categoryId,
+        propertyName: resolvedPropertyName,
+        propertyValue,
+        hasCover: !!safeCover,
+        galleryCount: safeGallery.length
+      });
+
+      return apiSuccess({
+        photos,
+        message: 'Галерея фото сохранена'
+      });
+    }
+
+    if (!categoryId || !resolvedPropertyName || !propertyValue || !photoPath) {
       throw new ValidationError('Не указаны обязательные поля: categoryId, propertyName, propertyValue, photoPath');
     }
 
-    logger.info('Добавление фото свойства', 'admin/property-photos', { userId: user.userId, categoryId, propertyName, propertyValue, photoType });
+    logger.info('Добавление фото свойства', 'admin/property-photos', { userId: user.userId, categoryId, propertyName: resolvedPropertyName, propertyValue, photoType });
 
     // Проверяем, есть ли уже фото для этого свойства и типа
     const existingPhoto = await prisma.propertyPhoto.findUnique({
       where: {
         categoryId_propertyName_propertyValue_photoType: {
           categoryId,
-          propertyName,
+          propertyName: resolvedPropertyName,
           propertyValue,
           photoType
         }
@@ -103,7 +195,7 @@ async function postHandler(request: NextRequest) {
       photo = await prisma.propertyPhoto.create({
         data: {
           categoryId,
-          propertyName,
+          propertyName: resolvedPropertyName,
           propertyValue,
           photoPath,
           photoType,

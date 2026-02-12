@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { logger } from '@/lib/logging/logger';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Простое кэширование в памяти (для продакшена лучше использовать Redis)
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -36,10 +37,13 @@ async function getHandler(
       });
     }
     
-    // Загружаем все товары (оптимизация будет в кэшировании)
+    const doorsCategoryId = await getDoorsCategoryId();
+    if (!doorsCategoryId) {
+      return NextResponse.json({ styles: [], models: [], finishes: [], colors: [], types: [], widths: [], heights: [], edges: [] }, { status: 200 });
+    }
     const products = await prisma.product.findMany({
       where: {
-        catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo' // ID категории "Межкомнатные двери"
+        catalog_category_id: doorsCategoryId
       },
       select: {
         properties_data: true
@@ -55,8 +59,8 @@ async function getHandler(
       // Применяем фильтры по порядку
       if (style && properties['Domeo_Стиль Web'] !== style) return false;
       
-      // Ищем по полному названию модели (как в калькуляторе)
-      if (model && properties['Domeo_Название модели для Web'] !== model) return false;
+      // Модель: по коду Domeo (Web) или по фабричному названию
+      if (model && properties['Код модели Domeo (Web)'] !== model && properties['Domeo_Название модели для Web'] !== model) return false;
       if (finish && properties['Тип покрытия'] !== finish) return false;
       if (color && properties['Domeo_Цвет'] !== color) return false;
       if (type && properties['Тип конструкции'] !== type) return false;

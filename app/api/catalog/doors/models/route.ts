@@ -5,6 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для моделей
 const modelsCache = new Map<string, { models: any[], timestamp: number }>();
@@ -50,10 +51,12 @@ async function getHandler(
     products = allProductsCache;
   } else {
     logger.debug('API models - загружаем товары из БД', 'catalog/doors/models/GET', {}, loggingContext);
-    
-    // Используем ID категории для надежности (SQLite может быть чувствителен к регистру/кодировке)
-    const DOORS_CATEGORY_ID = 'cmg50xcgs001cv7mn0tdyk1wo'; // ID категории "Межкомнатные двери"
-    
+
+    const DOORS_CATEGORY_ID = await getDoorsCategoryId();
+    if (!DOORS_CATEGORY_ID) {
+      return apiSuccess({ models: [], cached: false });
+    }
+
     products = await prisma.product.findMany({
       where: {
         catalog_category_id: DOORS_CATEGORY_ID,

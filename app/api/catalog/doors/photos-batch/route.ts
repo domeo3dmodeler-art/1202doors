@@ -7,6 +7,7 @@ import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api
 import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для фото
 const photoCache = new Map<string, { data: any; timestamp: number }>();
@@ -75,6 +76,11 @@ async function postHandler(
 
     // Загружаем только не кэшированные модели
     if (uncachedModels.length > 0) {
+      const doorsCategoryId = await getDoorsCategoryId();
+      if (!doorsCategoryId) {
+        return apiSuccess({ results: Object.fromEntries(models.map(m => [m, { photos: [], count: 0 }])) });
+      }
+
       // Оптимизация: фильтруем товары по нужным моделям на уровне БД
       // Создаем условия для поиска моделей в properties_data
       const modelSearchConditions = uncachedModels.map(model => ({
@@ -86,7 +92,7 @@ async function postHandler(
       // Получаем только товары с нужными моделями
       const products = await prisma.product.findMany({
         where: {
-          catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo', // ID категории "Межкомнатные двери"
+          catalog_category_id: doorsCategoryId,
           OR: modelSearchConditions.length > 0 ? modelSearchConditions : undefined
         },
         select: {
@@ -161,7 +167,7 @@ async function postHandler(
         // Получаем фотографии для этой модели из PropertyPhoto
         // Сначала ищем по "Артикул поставщика" (т.к. фото привязаны по артикулу)
         let propertyPhotos = await getPropertyPhotos(
-          'cmg50xcgs001cv7mn0tdyk1wo', // ID категории "Межкомнатные двери"
+          doorsCategoryId,
           'Артикул поставщика',
           normalizedPropertyValue
         );
@@ -178,7 +184,7 @@ async function postHandler(
         for (let i = 1; i <= 10; i++) {
           const variantArticle = `${propertyValue}_${i}`;
           const variantPhotos = await getPropertyPhotos(
-            'cmg50xcgs001cv7mn0tdyk1wo',
+            doorsCategoryId,
             'Артикул поставщика',
             variantArticle.toLowerCase()
           );
@@ -196,7 +202,7 @@ async function postHandler(
         if (propertyPhotos.length === 0) {
           logger.debug('Фото не найдено, пробуем поиск по названию модели', 'catalog/doors/photos-batch/POST', { modelName }, loggingContext);
           propertyPhotos = await getPropertyPhotos(
-            'cmg50xcgs001cv7mn0tdyk1wo', // ID категории "Межкомнатные двери"
+            doorsCategoryId,
             'Domeo_Название модели для Web',
             normalizedPropertyValue
           );

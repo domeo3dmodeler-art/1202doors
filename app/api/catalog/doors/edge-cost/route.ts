@@ -5,6 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 async function getHandler(
   req: NextRequest,
@@ -30,10 +31,15 @@ async function getHandler(
     height
   }, loggingContext);
 
+  const doorsCategoryId = await getDoorsCategoryId();
+  if (!doorsCategoryId) {
+    return apiSuccess({ edgeCost: 0, message: 'Категория дверей не найдена' });
+  }
+
   // Получаем все товары категории двери
   const products = await prisma.product.findMany({
     where: {
-      catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo' // ID категории "Межкомнатные двери"
+      catalog_category_id: doorsCategoryId
     },
     select: {
       properties_data: true

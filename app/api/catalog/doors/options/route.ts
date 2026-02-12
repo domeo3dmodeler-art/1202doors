@@ -5,6 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для опций дверей
 const optionsCache = new Map<string, { data: any, timestamp: number }>();
@@ -38,10 +39,28 @@ async function getHandler(
     // Проверяем подключение к БД
     await prisma.$connect();
 
+    const doorsCategoryId = await getDoorsCategoryId();
+    if (!doorsCategoryId) {
+      return apiSuccess({
+        domain: {
+          style: [],
+          model: [],
+          finish: [],
+          color: [],
+          type: [],
+          width: [],
+          height: [],
+          kits: [],
+          handles: []
+        },
+        cached: false
+      });
+    }
+
     // Получаем только нужные поля для оптимизации
     const products = await prisma.product.findMany({
       where: {
-        catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo' // ID категории "Межкомнатные двери"
+        catalog_category_id: doorsCategoryId
       },
       select: {
         properties_data: true

@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Rate limiting
+    // Rate limiting (в development для localhost не ограничиваем)
     const clientIP = getClientIP(req);
-    if (!authRateLimiter.isAllowed(clientIP)) {
+    const isLocalDev = process.env.NODE_ENV === 'development' && (clientIP === 'unknown' || clientIP === '127.0.0.1' || clientIP === '::1' || req.headers.get('host')?.startsWith('localhost'));
+    if (!isLocalDev && !authRateLimiter.isAllowed(clientIP)) {
       return createRateLimitResponse(authRateLimiter, clientIP);
     }
 
@@ -103,6 +104,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('Login 401: пользователь не найден', 'auth/login', { email }, loggingContext);
+      }
       return NextResponse.json(
         { error: 'Неверный email или пароль' },
         { status: 401 }
@@ -119,6 +123,9 @@ export async function POST(req: NextRequest) {
     // Проверяем пароль
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('Login 401: неверный пароль', 'auth/login', { email: user.email }, loggingContext);
+      }
       return NextResponse.json(
         { error: 'Неверный email или пароль' },
         { status: 401 }

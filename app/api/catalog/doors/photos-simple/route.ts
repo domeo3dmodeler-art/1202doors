@@ -6,6 +6,7 @@ import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api
 import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 async function getHandler(
   req: NextRequest,
@@ -21,10 +22,15 @@ async function getHandler(
 
   logger.debug('API photos-simple - поиск фотографий для модели', 'catalog/doors/photos-simple/GET', { model }, loggingContext);
 
+  const doorsCategoryId = await getDoorsCategoryId();
+  if (!doorsCategoryId) {
+    return apiSuccess({ model, photos: [], count: 0 });
+  }
+
   // Простой запрос к БД
   const products = await prisma.product.findMany({
     where: {
-      catalog_category_id: 'cmg50xcgs001cv7mn0tdyk1wo', // ID категории "Межкомнатные двери"
+      catalog_category_id: doorsCategoryId,
       is_active: true
     },
     select: {
