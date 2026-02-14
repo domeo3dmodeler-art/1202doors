@@ -292,7 +292,7 @@ export function CartManager({
     if (!item) return;
     
     // Для ручек просто переводим в режим редактирования без загрузки параметров
-    if (item.handleId || item.type === 'handle') {
+    if (item.itemType === 'handle' || (item.handleId && item.itemType !== 'door')) {
       setEditingItem(itemId);
       // ИСПРАВЛЕНИЕ #2: Сбрасываем сохраненную цену при начале редактирования
       setEditingItemPrice(null);
@@ -770,16 +770,24 @@ export function CartManager({
                     const items = cart.map(item => {
                       // Формируем полное название товара точно как в корзине
                       let fullName = '';
-                      if (item.type === 'handle' || item.handleId) {
-                        // Ручка
+                      if (item.itemType === 'handle') {
                         try {
                           const handle = handles ? findHandleById(handles, item.handleId) : undefined;
                           const handleName = handle?.name || item.handleName || 'Неизвестная ручка';
                           fullName = `Ручка ${handleName}`;
                         } catch (e) {
-                          // Если handles недоступен, используем handleName из item
                           fullName = `Ручка ${item.handleName || 'Неизвестная ручка'}`;
                         }
+                      } else if (item.itemType === 'backplate') {
+                        try {
+                          const handle = handles ? findHandleById(handles, item.handleId) : undefined;
+                          const handleName = handle?.name || item.handleName || 'Завертка';
+                          fullName = `Завертка ${handleName}`;
+                        } catch (e) {
+                          fullName = `Завертка ${item.handleName || 'Завертка'}`;
+                        }
+                      } else if (item.itemType === 'limiter') {
+                        fullName = `Ограничитель ${item.limiterName || 'Ограничитель'}`;
                       } else {
                         // Дверь
                         try {
@@ -948,8 +956,8 @@ export function CartManager({
                 const delta = getItemDelta(item.id);
                 const isEditing = editingItem === item.id;
                 
-                if (item.handleId) {
-                  // ИСПРАВЛЕНИЕ: Всегда используем актуальное имя из каталога, а не item.handleName
+                // Ручка — отдельная строка с редактируемым количеством
+                if (item.itemType === 'handle') {
                   const handle = getHandleById(item.handleId);
                   const currentHandleName = handle?.name || item.handleName || "Ручка";
                   return (
@@ -1082,24 +1090,122 @@ export function CartManager({
                     </div>
                   );
                 }
+
+                // Завертка — отдельная строка с редактируемым количеством
+                if (item.itemType === 'backplate') {
+                  const handle = getHandleById(item.handleId);
+                  const currentHandleName = handle?.name || item.handleName || "Завертка";
+                  return (
+                    <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-black text-sm truncate">
+                            Завертка {currentHandleName}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4 ml-6">
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
+                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
+                            <button
+                              onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
+                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-black text-sm">
+                              {fmtInt(item.unitPrice * item.qty)} ₽
+                            </div>
+                            {delta !== 0 && (
+                              <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3 ml-4">
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                            title="Удалить"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Ограничитель — отдельная строка с редактируемым количеством
+                if (item.itemType === 'limiter') {
+                  const limiterName = item.limiterName || 'Ограничитель';
+                  return (
+                    <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-black text-sm truncate">
+                            Ограничитель {limiterName}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4 ml-6">
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
+                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
+                            <button
+                              onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
+                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-black text-sm">
+                              {fmtInt(item.unitPrice * item.qty)} ₽
+                            </div>
+                            {delta !== 0 && (
+                              <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3 ml-4">
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                            title="Удалить"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
                 
+                // Дверь (полная конфигурация)
                 return (
                   <div key={item.id} className="border border-gray-200 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-black text-sm truncate">
-                          {item.type === 'handle' 
-                            ? (() => {
-                              const displayHandle = getHandleById(item.handleId);
-                              return `Ручка ${displayHandle?.name || item.handleName || 'Неизвестная ручка'}`;
-                            })()
-                            : `Дверь DomeoDoors ${item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель'}`
-                          }
+                          {`Дверь DomeoDoors ${item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель'}`}
                         </div>
                         <div className="text-xs text-gray-600 truncate">
-                          {item.type === 'handle' 
-                            ? `Ручка для двери`
-                            : `${item.finish}, ${item.color}, ${item.width} × ${item.height} мм, Фурнитура: ${(() => {
+                          {`${item.finish}, ${item.color}, ${item.width} × ${item.height} мм, Фурнитура: ${(() => {
                                 if (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId) {
                                   return item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый';
                                 }

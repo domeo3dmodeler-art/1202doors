@@ -1,4 +1,4 @@
-// app/api/users/route.ts
+﻿// app/api/users/route.ts
 // API endpoint для получения списка пользователей из базы данных
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,7 +13,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // GET /api/users - Получение списка пользователей
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   

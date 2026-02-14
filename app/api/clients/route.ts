@@ -9,12 +9,12 @@ import { createClientSchema, findClientsSchema } from '@/lib/validation/client.s
 import { validateRequest } from '@/lib/validation/middleware';
 import { clientRepository } from '@/lib/repositories/client.repository';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/clients - получить список клиентов
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   
@@ -217,7 +217,7 @@ export const GET = withErrorHandling(
 // POST /api/clients - создать нового клиента
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const body = await request.json();

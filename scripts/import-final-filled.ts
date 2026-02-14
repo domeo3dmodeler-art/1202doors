@@ -5,9 +5,15 @@
  *
  * Опции:
  *   --dry-run     только показать, что будет сделано
- *   --no-doors    не импортировать двери (только наличники, фурнитура, ручки, ограничители)
+ *   --no-doors           не импортировать двери (только наличники, фурнитура, ручки, ограничители)
+ *   --only-nalichniki    импортировать только наличники (лист «Наличники»)
  *
- * Запуск: npx tsx scripts/import-final-filled.ts [--dry-run] [--no-doors]
+ * Запуск: npx tsx scripts/import-final-filled.ts [--dry-run] [--no-doors] [--only-nalichniki]
+ *
+ * Лист «04 Ручки Завертки» — маппинг:
+ *   Цена ручки  = колонка «Цена продажи (руб)» → base_price, Domeo_цена группы Web, Цена продажи (руб)
+ *   Цена завертки = колонка «Завертка, цена РРЦ» → properties_data['Завертка, цена РРЦ'] (число)
+ *   Ожидаемые колонки: см. scripts/audit-excel-sheets.ts → '04 Ручки Завертки'
  */
 import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
@@ -94,6 +100,7 @@ function getColumn(row: Record<string, unknown>, logicalName: string): string {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const noDoors = process.argv.includes('--no-doors');
+  const onlyNalichniki = process.argv.includes('--only-nalichniki');
 
   if (!fs.existsSync(FILE_PATH)) {
     console.error('Файл не найден:', FILE_PATH);
@@ -112,8 +119,12 @@ async function main() {
   const ruchkiCatId = ids['Ручки и завертки'];
   const limitersCatId = ids['Ограничители'];
 
-  if (!nalichnikiCatId || !furnituraCatId || !ruchkiCatId || !limitersCatId) {
-    console.error('Не найдены ID категорий. Запустите seed-catalog-tree.ts');
+  if (!nalichnikiCatId) {
+    console.error('Не найден ID категории «Наличники». Запустите seed-catalog-tree.ts');
+    process.exit(1);
+  }
+  if (!onlyNalichniki && (!furnituraCatId || !ruchkiCatId || !limitersCatId)) {
+    console.error('Не найдены ID категорий (фурнитура/ручки/ограничители). Запустите seed-catalog-tree.ts');
     process.exit(1);
   }
 
@@ -130,6 +141,7 @@ async function main() {
   let stats = { nalichniki: 0, furnitura: 0, ruchki: 0, limiters: 0, doors: 0, doorColors: 0, images: 0 };
 
   // ——— Наличники ———
+  // SKU включает поставщика: у разных поставщиков бывают одинаковые названия (Прямой 70мм и т.д.), без поставщика один перезаписывал бы другого.
   const nalichnikiRows = toJson('Наличники');
   for (const row of nalichnikiRows) {
     const name = getColumn(row, 'Наличник: Название');
@@ -137,7 +149,7 @@ async function main() {
     const photoUrl = String(row['Наличник: Фото (ссылка)'] ?? '').trim();
     const supplier = String(row['Поставщик'] ?? '').trim();
     if (!name) continue;
-    const sku = `nal_${slug(name)}`;
+    const sku = `nal_${slug(supplier || 'unknown')}_${slug(name)}`;
     if (dryRun) {
       console.log('[dry-run] Наличник:', sku, name);
       stats.nalichniki++;
@@ -154,6 +166,8 @@ async function main() {
         base_price: 0,
         properties_data: JSON.stringify({
           Поставщик: supplier || null,
+          'Наличник: Фото (ссылка)': photoUrl || null,
+          'Фото (ссылка)': photoUrl || null,
         }),
         dimensions: '{}',
       },
@@ -162,6 +176,8 @@ async function main() {
         description: desc || null,
         properties_data: JSON.stringify({
           Поставщик: supplier || null,
+          'Наличник: Фото (ссылка)': photoUrl || null,
+          'Фото (ссылка)': photoUrl || null,
         }),
       },
     });
@@ -187,6 +203,11 @@ async function main() {
     }
   }
   console.log('Наличники:', stats.nalichniki);
+
+  if (onlyNalichniki) {
+    console.log('Импорт только наличников завершён.');
+    return;
+  }
 
   // ——— Фурнитура ———
   const furnituraRows = toJson('Фурнитура');
@@ -219,6 +240,7 @@ async function main() {
   console.log('Фурнитура:', stats.furnitura);
 
   // ——— Ручки и завертки ———
+  // Цена ручки = Цена продажи (руб). Цена завертки = Завертка, цена РРЦ.
   const ruchkiRows = toJson('04 Ручки Завертки');
   for (const row of ruchkiRows) {
     const name = String(row['Название (Domeo_наименование для Web)'] ?? '').trim();
@@ -226,6 +248,7 @@ async function main() {
     const priceRrc = parseNum(row['Цена РРЦ (руб)']);
     const priceSale = parseNum(row['Цена продажи (руб)']);
     const pricePurchase = parseNum(row['Цена закупки (руб)']);
+    const backplateRrc = parseNum(row['Завертка, цена РРЦ']);
     const sortOrder = parseInt(String(row['Порядок сортировки'] ?? '').trim(), 10);
     const photoUrl = String(row['Фото (ссылка)'] ?? '').trim();
     const photoZaverтка = String(row['Фото завертки (ссылка)'] ?? '').trim();
@@ -233,12 +256,22 @@ async function main() {
     if (!name) continue;
     const sku = `handle_${slug(name)}`;
     if (dryRun) {
-      console.log('[dry-run] Ручка:', sku, name, priceRrc);
+      console.log('[dry-run] Ручка:', sku, name, 'продажа:', priceSale, 'завертка:', backplateRrc);
       stats.ruchki++;
       if (photoUrl) stats.images++;
       if (photoZaverтка) stats.images++;
       continue;
     }
+    const propsData = {
+      'Тип (Ручка/Завертка)': row['Тип (Ручка/Завертка)'],
+      Группа: row['Группа'],
+      'Завертка, цена РРЦ': backplateRrc,
+      'Цена продажи (руб)': priceSale,
+      'Цена РРЦ (руб)': priceRrc,
+      'Цена закупки (руб)': pricePurchase,
+      'Порядок сортировки': Number.isNaN(sortOrder) ? null : sortOrder,
+      'Domeo_цена группы Web': priceSale,
+    };
     const product = await prisma.product.upsert({
       where: { sku },
       create: {
@@ -246,31 +279,17 @@ async function main() {
         sku,
         name,
         description: desc || null,
-        base_price: priceRrc,
+        base_price: priceSale,
         is_active: active,
-        properties_data: JSON.stringify({
-          'Тип (Ручка/Завертка)': row['Тип (Ручка/Завертка)'],
-          Группа: row['Группа'],
-          'Завертка, цена РРЦ': row['Завертка, цена РРЦ'],
-          'Цена продажи (руб)': priceSale,
-          'Цена закупки (руб)': pricePurchase,
-          'Порядок сортировки': Number.isNaN(sortOrder) ? null : sortOrder,
-        }),
+        properties_data: JSON.stringify(propsData),
         dimensions: '{}',
       },
       update: {
         name,
         description: desc || null,
-        base_price: priceRrc,
+        base_price: priceSale,
         is_active: active,
-        properties_data: JSON.stringify({
-          'Тип (Ручка/Завертка)': row['Тип (Ручка/Завертка)'],
-          Группа: row['Группа'],
-          'Завертка, цена РРЦ': row['Завертка, цена РРЦ'],
-          'Цена продажи (руб)': priceSale,
-          'Цена закупки (руб)': pricePurchase,
-          'Порядок сортировки': Number.isNaN(sortOrder) ? null : sortOrder,
-        }),
+        properties_data: JSON.stringify(propsData),
       },
     });
     stats.ruchki++;

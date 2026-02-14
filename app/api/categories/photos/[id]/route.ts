@@ -40,7 +40,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logger.error('Error deleting photo', 'categories/photos/[id]', error instanceof Error ? { error: error.message, stack: error.stack, photoId } : { error: String(error), photoId });
+    logger.error('Error deleting photo', 'categories/photos/[id]', error instanceof Error ? { error: error.message, stack: error.stack, photoId: params.id } : { error: String(error), photoId: params.id });
     return NextResponse.json({ error: 'Ошибка при удалении фото' }, { status: 500 });
   }
 }

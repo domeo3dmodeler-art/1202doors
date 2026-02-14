@@ -255,13 +255,15 @@ async function getHandler(request: NextRequest) {
       totalUsers 
     });
 
-    return apiSuccess(analyticsData, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+    const res = NextResponse.json({
+      success: true,
+      data: analyticsData,
+      meta: { timestamp: new Date().toISOString() }
+    }, { status: 200 });
+    res.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.headers.set('Pragma', 'no-cache');
+    res.headers.set('Expires', '0');
+    return res;
 
   } catch (error) {
     logger.error('Error fetching analytics', 'admin/analytics', error instanceof Error ? { error: error.message, stack: error.stack } : { error: String(error) });

@@ -21,14 +21,6 @@ export async function GET(
     const template = await prisma.importTemplate.findUnique({
       where: { id: templateId },
       include: {
-        frontend_category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            description: true
-          }
-        },
         catalog_category: {
           select: {
             id: true,
@@ -55,12 +47,7 @@ export async function GET(
       id: template.id,
       name: template.name,
       description: template.description,
-      frontendCategory: template.frontend_category ? {
-        id: template.frontend_category.id,
-        name: template.frontend_category.name,
-        slug: template.frontend_category.slug,
-        description: template.frontend_category.description
-      } : null,
+      frontendCategory: null as { id: string; name: string; slug: string; description: string | null } | null,
       catalogCategory: template.catalog_category ? {
         id: template.catalog_category.id,
         name: template.catalog_category.name,
@@ -160,7 +147,7 @@ export async function PUT(
         id: updatedTemplate.id,
         name: updatedTemplate.name,
         description: updatedTemplate.description,
-        frontendCategoryId: updatedTemplate.frontend_category_id,
+        frontendCategoryId: null as string | null,
         catalogCategoryId: updatedTemplate.catalog_category_id,
         templateConfig: JSON.parse(updatedTemplate.template_config || '{}'),
         fieldMappings: JSON.parse(updatedTemplate.field_mappings || '[]'),
@@ -202,7 +189,6 @@ export async function DELETE(
     const existingTemplate = await prisma.importTemplate.findUnique({
       where: { id: templateId },
       include: {
-        frontend_category: true,
         import_history: true
       }
     });
@@ -211,14 +197,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Шаблон загрузки не найден' },
         { status: 404 }
-      );
-    }
-
-    // Проверяем, не используется ли шаблон в FrontendCategory
-    if (existingTemplate.frontend_category) {
-      return NextResponse.json(
-        { error: 'Нельзя удалить шаблон, который используется в категории конфигуратора' },
-        { status: 400 }
       );
     }
 

@@ -6,7 +6,7 @@ import { clientLogger } from '@/lib/logging/client-logger';
 
 export default function DebugPage() {
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [debugInfo, setDebugInfo] = useState('');
 
@@ -115,7 +115,7 @@ export default function DebugPage() {
       
     } catch (error) {
       clientLogger.error('Error testing photo search:', error);
-      setDebugInfo(debugInfo + `\nОшибка тестирования поиска: ${error.message}`);
+      setDebugInfo(debugInfo + `\nОшибка тестирования поиска: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 

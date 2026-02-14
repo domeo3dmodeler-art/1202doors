@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FormulaEngine, Variable, Formula } from '@/lib/calculator/FormulaEngine';
+import { FormulaEngine, type Variable, type Formula } from '@/lib/calculator/FormulaEngine';
 import { catalogDataSource } from '@/lib/calculator/CatalogDataSource';
 import { logger } from '@/lib/logging/logger';
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         const engineVariable: Variable = {
           id: variable.id,
           name: variable.name,
-          type: variable.type,
+          type: variable.type as Variable['type'],
           value: values[variable.id] !== undefined ? values[variable.id] : variable.defaultValue,
           source: 'input'
         };
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
           
           engine.addFormula(engineFormula);
           const result = engine.calculate(formula.id);
-          results[formula.id] = result;
+          results[formula.id] = result as number | CalculationResult;
         } catch (error) {
           logger.error('Ошибка вычисления формулы', 'calculator/execute', { formulaId: formula.id, error: error instanceof Error ? error.message : String(error) });
           results[formula.id] = { error: error instanceof Error ? error.message : 'Ошибка вычисления' };
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
             
             engine.addFormula(engineFormula);
             const result = engine.calculate(element.id);
-            results[element.id] = result;
+            results[element.id] = result as number | CalculationResult;
           } catch (error) {
             logger.error('Ошибка вычисления элемента', 'calculator/execute', { elementId: element.id, error: error instanceof Error ? error.message : String(error) });
             results[element.id] = { error: error instanceof Error ? error.message : 'Ошибка вычисления' };
@@ -135,9 +135,10 @@ export async function POST(req: NextRequest) {
  * 📊 Получить данные из каталога для калькулятора
  */
 export async function GET(req: NextRequest) {
+  let action: string | null = null;
   try {
     const { searchParams } = new URL(req.url);
-    const action = searchParams.get('action');
+    action = searchParams.get('action');
     
     switch (action) {
       case 'categories':
@@ -194,7 +195,7 @@ export async function GET(req: NextRequest) {
     }
 
   } catch (error) {
-    logger.error('Ошибка получения данных каталога', 'calculator/execute', error instanceof Error ? { error: error.message, stack: error.stack, action } : { error: String(error), action });
+    logger.error('Ошибка получения данных каталога', 'calculator/execute', error instanceof Error ? { error: error.message, stack: error.stack, action: action ?? undefined } : { error: String(error), action: action ?? undefined });
     return NextResponse.json(
       { 
         error: 'Ошибка при получении данных каталога',

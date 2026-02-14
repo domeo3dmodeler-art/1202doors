@@ -4,7 +4,7 @@ import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import ExcelJS from 'exceljs';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 
@@ -32,7 +32,7 @@ async function findHandleById(handleId: string) {
 // GET /api/supplier-orders/[id]/excel - Экспорт заказа у поставщика в Excel
 async function handler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -195,7 +195,7 @@ async function handler(
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await handler(request, user, { params });
     }),
     'supplier-orders/[id]/excel'

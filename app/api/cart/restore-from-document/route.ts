@@ -3,9 +3,12 @@ import { logger } from '@/lib/logging/logger';
 
 // POST /api/cart/restore-from-document - Восстановить корзину из документа
 export async function POST(request: NextRequest) {
+  let documentId: string | undefined;
+  let documentType: string | undefined;
   try {
     const body = await request.json();
-    const { documentId, documentType } = body;
+    documentId = body.documentId;
+    documentType = body.documentType;
 
     if (!documentId || !documentType) {
       return NextResponse.json({ error: 'Document ID and type are required' }, { status: 400 });

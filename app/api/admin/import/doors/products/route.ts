@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { logger } from '@/lib/logging/logger';
 
-async function getHandler(req: NextRequest) {
+async function getHandler(req: NextRequest, user: AuthenticatedUser): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser(req);
     const { searchParams } = new URL(req.url);
     const format = searchParams.get("format") || "json";
     const limit = parseInt(searchParams.get("limit") || "50");
@@ -86,7 +85,7 @@ async function getHandler(req: NextRequest) {
         csvRows.push(row.join(","));
       });
       
-      return new Response(csvRows.join("\n"), {
+      return new NextResponse(csvRows.join("\n"), {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': 'attachment; filename="imported_products.csv"',

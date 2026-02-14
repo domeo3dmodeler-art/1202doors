@@ -1,23 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { ValidationError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { validateImageFile, generateUniqueFileName } from '../../../../../lib/validation/file-validation';
-import { uploadRateLimiter, getClientIP, createRateLimitResponse } from '../../../../../lib/security/rate-limiter';
+import { uploadRateLimiter, getClientIP, createNextRateLimitResponse } from '../../../../../lib/security/rate-limiter';
 
 // POST /api/admin/import/photos-improved - Улучшенная загрузка фотографий товаров
-async function postHandler(request: NextRequest) {
+async function postHandler(request: NextRequest, user: AuthenticatedUser): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser(request);
     // Rate limiting
     const clientIP = getClientIP(request);
     if (!uploadRateLimiter.isAllowed(clientIP)) {
-      return createRateLimitResponse(uploadRateLimiter, clientIP);
+      return createNextRateLimitResponse(uploadRateLimiter, clientIP);
     }
 
     const formData = await request.formData();

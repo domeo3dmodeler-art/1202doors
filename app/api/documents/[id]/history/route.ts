@@ -7,8 +7,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     
     // Получаем историю изменений для документа
     const history = await prisma.documentHistory.findMany({
@@ -28,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({ history });
   } catch (error) {
-    logger.error('Error fetching history', 'documents/[id]/history', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Error fetching history', 'documents/[id]/history', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to fetch history' },
       { status: 500 }
@@ -41,8 +43,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     const body = await request.json();
     const { action, old_value, new_value, user_id, details } = body;
 
@@ -107,7 +111,7 @@ export async function POST(
 
     return NextResponse.json({ historyEntry });
   } catch (error) {
-    logger.error('Error creating history entry', 'documents/[id]/history', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Error creating history entry', 'documents/[id]/history', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to create history entry' },
       { status: 500 }

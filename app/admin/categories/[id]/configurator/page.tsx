@@ -87,6 +87,7 @@ export default function CategoryConfiguratorPage() {
     id: 'default',
     name: 'Базовый конфигуратор',
     description: 'Стандартный конфигуратор товаров',
+    category: categoryId,
     layout: {
       type: 'grid',
       columns: 3,

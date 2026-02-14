@@ -6,12 +6,12 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { ConflictError, ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/catalog/products - Получить все товары
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   
@@ -52,6 +52,8 @@ async function getHandler(
         stock_quantity: true,
         brand: true,
         model: true,
+        dimensions: true,
+        tags: true,
         properties_data: true,
         catalog_category_id: true,
         created_at: true,
@@ -94,17 +96,19 @@ async function getHandler(
     if (product.properties_data) {
       const parsed = typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data;
       // Исправляем кодировку в свойствах товара
-      propertiesData = validateAndFixData(parsed);
+      propertiesData = validateAndFixData(parsed) as Record<string, unknown>;
       
       specifications = propertiesData;
     }
     
+    const dimensions = 'dimensions' in product && product.dimensions ? (typeof product.dimensions === 'string' ? JSON.parse(product.dimensions) : product.dimensions) : {};
+    const tags = 'tags' in product && product.tags ? (typeof product.tags === 'string' ? JSON.parse(product.tags) : product.tags) : [];
     return {
       ...product,
       specifications,
       properties_data: propertiesData,
-      dimensions: product.dimensions ? JSON.parse(product.dimensions as string) : {},
-      tags: product.tags ? JSON.parse(product.tags as string) : [],
+      dimensions,
+      tags,
       images: product.images || []
     };
   });
@@ -152,7 +156,7 @@ export const GET = withErrorHandling(
 // POST /api/catalog/products - Создать новый товар
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const body = await request.json();
@@ -190,8 +194,8 @@ async function postHandler(
       brand,
       model,
       series,
-      price: parseFloat(price),
-      properties_data: properties_data ? JSON.stringify(properties_data) : null
+      base_price: parseFloat(price),
+      properties_data: properties_data ? JSON.stringify(properties_data) : '{}'
     },
     include: {
       catalog_category: {

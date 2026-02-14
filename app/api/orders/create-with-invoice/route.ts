@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCartSessionId } from '@/lib/utils/cart-session';
 import { logger } from '@/lib/logging/logger';
@@ -37,7 +37,7 @@ async function generateOrderNumber(): Promise<string> {
 // Этот endpoint оставлен для обратной совместимости, но теперь просто создает Order
 async function postHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const body = await req.json();

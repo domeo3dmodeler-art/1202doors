@@ -3,9 +3,10 @@ import { AnalyticsService } from '../../../lib/analytics/analytics-service';
 import { logger } from '../../../lib/logging/logger';
 
 export async function GET(request: NextRequest) {
+  let type = 'general';
   try {
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type') || 'general';
+    type = searchParams.get('type') || 'general';
 
     const analyticsService = AnalyticsService.getInstance();
     let data;
@@ -46,8 +47,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let type: string | undefined;
   try {
-    const { type } = await request.json();
+    const body = await request.json();
+    type = body.type;
 
     if (!type) {
       return NextResponse.json(
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     const analyticsService = AnalyticsService.getInstance();
-    const buffer = await analyticsService.exportAnalytics(type);
+    const buffer = await analyticsService.exportAnalytics(type as 'general' | 'categories' | 'users' | 'documents');
 
     const filename = `analytics_${type}_${new Date().toISOString().split('T')[0]}.xlsx`;
     

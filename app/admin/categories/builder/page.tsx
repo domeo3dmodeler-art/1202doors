@@ -193,22 +193,22 @@ export default function CategoryBuilderPage() {
 
   // Функции экспорта
   const handleExport = (format: 'pdf' | 'xlsx' | 'csv') => {
-    clientLogger.debug(`Экспорт в формате ${format}:`, cartItems);
+    clientLogger.debug(`Экспорт в формате ${format}:`, { cartItems });
     alert(`Экспорт в формате ${format.toUpperCase()} выполнен!`);
   };
 
   const handleCreateQuote = () => {
-    clientLogger.debug('Создание КП:', cartItems);
+    clientLogger.debug('Создание КП:', { cartItems });
     alert('Коммерческое предложение создано!');
   };
 
   const handleCreateInvoice = () => {
-    clientLogger.debug('Создание счета:', cartItems);
+    clientLogger.debug('Создание счета:', { cartItems });
     alert('Счет создан!');
   };
 
   const handleCreateFactoryOrder = () => {
-    clientLogger.debug('Создание заказа на фабрику:', cartItems);
+    clientLogger.debug('Создание заказа на фабрику:', { cartItems });
     alert('Заказ на фабрику создан!');
   };
 

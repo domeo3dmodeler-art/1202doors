@@ -10,12 +10,12 @@ import { NotFoundError, InvalidStateError, ForbiddenError } from '@/lib/api/erro
 import { changeStatusSchema } from '@/lib/validation/status.schemas';
 import { validateRequest } from '@/lib/validation/middleware';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // PATCH /api/documents/[id]/status - Изменение статуса документа
 async function handler(
   req: NextRequest, 
-  user: Awaited<ReturnType<typeof getAuthenticatedUser>>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -133,7 +133,7 @@ async function handler(
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await handler(request, user, { params });
     }),
     'documents/[id]/status'

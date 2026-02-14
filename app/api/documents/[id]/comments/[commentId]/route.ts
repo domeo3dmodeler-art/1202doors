@@ -7,8 +7,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
+  let id: string | undefined;
+  let commentId: string | undefined;
   try {
-    const { id, commentId } = await params;
+    const resolved = await params;
+    id = resolved.id;
+    commentId = resolved.commentId;
     const body = await request.json();
     const { text } = body;
 
@@ -53,7 +57,7 @@ export async function PUT(
 
     return NextResponse.json({ comment: updatedComment });
   } catch (error) {
-    logger.error('Error updating comment', 'documents/[id]/comments/[commentId]', error instanceof Error ? { error: error.message, stack: error.stack, id, commentId } : { error: String(error), id, commentId });
+    logger.error('Error updating comment', 'documents/[id]/comments/[commentId]', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined, commentId: commentId ?? undefined } : { error: String(error), id: id ?? undefined, commentId: commentId ?? undefined });
     return NextResponse.json(
       { error: 'Failed to update comment' },
       { status: 500 }
@@ -66,8 +70,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
+  let id: string | undefined;
+  let commentId: string | undefined;
   try {
-    const { id, commentId } = await params;
+    const resolved = await params;
+    id = resolved.id;
+    commentId = resolved.commentId;
 
     // Проверяем, существует ли комментарий
     const existingComment = await prisma.documentComment.findUnique({
@@ -89,7 +97,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logger.error('Error deleting comment', 'documents/[id]/comments/[commentId]', error instanceof Error ? { error: error.message, stack: error.stack, id, commentId } : { error: String(error), id, commentId });
+    logger.error('Error deleting comment', 'documents/[id]/comments/[commentId]', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined, commentId: commentId ?? undefined } : { error: String(error), id: id ?? undefined, commentId: commentId ?? undefined });
     return NextResponse.json(
       { error: 'Failed to delete comment' },
       { status: 500 }

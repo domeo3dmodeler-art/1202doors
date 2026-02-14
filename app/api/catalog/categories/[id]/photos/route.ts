@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 
 async function deleteHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -91,7 +91,7 @@ export async function DELETE(
 ) {
   return withErrorHandling(
     requireAuthAndPermission(
-      async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+      async (req: NextRequest, user: AuthenticatedUser) => {
         return await deleteHandler(req, user, { params });
       },
       'ADMIN'

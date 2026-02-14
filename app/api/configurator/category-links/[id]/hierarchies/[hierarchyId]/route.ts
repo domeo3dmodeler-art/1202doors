@@ -5,13 +5,13 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // PUT /api/configurator/category-links/[id]/hierarchies/[hierarchyId] - Обновить иерархию
 async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; hierarchyId: string }> },
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { id, hierarchyId } = await params;
@@ -56,7 +56,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; hierarchyId: string }> }
 ) {
   return withErrorHandling(
-    requireAuth(async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (req: NextRequest, user: AuthenticatedUser) => {
       return await putHandler(req, { params }, user);
     }),
     'configurator/category-links/[id]/hierarchies/[hierarchyId]/PUT'
@@ -67,7 +67,7 @@ export async function PUT(
 async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; hierarchyId: string }> },
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { id, hierarchyId } = await params;
@@ -92,7 +92,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; hierarchyId: string }> }
 ) {
   return withErrorHandling(
-    requireAuth(async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (req: NextRequest, user: AuthenticatedUser) => {
       return await deleteHandler(req, { params }, user);
     }),
     'configurator/category-links/[id]/hierarchies/[hierarchyId]/DELETE'

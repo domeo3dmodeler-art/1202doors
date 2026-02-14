@@ -180,7 +180,8 @@ async function main() {
     const relPath = `Наличники/${supplierDir}/${fileName}`.replace(/\\/g, '/');
     const photoUrl = `/uploads/final-filled/${relPath}`;
 
-    const sku = `nal_${slug(name)}`;
+    // SKU как в import-final-filled: nal_<поставщик>_<название>
+    const sku = `nal_${slug(supplier || 'unknown')}_${slug(name)}`;
     let product = await prisma.product.findFirst({
       where: { sku, catalog_category_id: nalichnikiCatId.id },
       select: { id: true },
@@ -196,9 +197,9 @@ async function main() {
       const variants = nameVariants(name);
       const allNal = await prisma.product.findMany({
         where: { catalog_category_id: nalichnikiCatId.id },
-        select: { id: true, name: true },
+        select: { id: true, name: true, sku: true },
       });
-      product = allNal.find((p) => variants.includes(normNameForMatch(p.name))) ?? null;
+      product = allNal.find((p) => p.sku === sku || variants.includes(normNameForMatch(p.name))) ?? null;
     }
     if (!product) {
       console.warn('Товар не найден в БД:', sku, name);

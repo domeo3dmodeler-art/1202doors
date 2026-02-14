@@ -4,8 +4,10 @@ import { logger } from '@/lib/logging/logger';
 
 // GET /api/documents/[id]/children - Получение дочерних документов
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
 
     logger.debug('Получаем дочерние документы', 'documents/[id]/children', { id });
 
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
   } catch (error) {
-    logger.error('Ошибка получения дочерних документов', 'documents/[id]/children', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Ошибка получения дочерних документов', 'documents/[id]/children', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Ошибка при получении дочерних документов' },
       { status: 500 }

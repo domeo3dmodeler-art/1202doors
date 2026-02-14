@@ -131,45 +131,43 @@ async function getHandler(req: NextRequest) {
       ...(hasPriceOpt ? [] : ['Цена опт'])
     ];
     
-    const data = [];
+    const data: (string | number)[][] = [];
 
     // Добавляем данные товаров
-    products.forEach((product, index) => {
-      const row = [];
+    products.forEach((product) => {
+      const row: (string | number)[] = [];
 
       // Парсим свойства товара с исправлением кодировки
-      let properties = {};
+      let properties: Record<string, unknown> = {};
       if (product.properties_data) {
         try {
           const rawProperties = typeof product.properties_data === 'string' 
-            ? JSON.parse(product.properties_data) 
-            : product.properties_data;
-          properties = validateAndFixData(rawProperties);
+            ? JSON.parse(product.properties_data) as Record<string, unknown>
+            : (product.properties_data as Record<string, unknown>);
+          properties = validateAndFixData(rawProperties) as Record<string, unknown>;
         } catch (e) {
           logger.error(`Ошибка парсинга свойств для товара`, 'admin/export/price-list', { productId: product.id, error: e instanceof Error ? e.message : String(e) });
         }
       }
 
       // SKU внутреннее всегда первое - берем из properties, если есть, иначе из product.sku
-      const skuValue = hasSkuInternal 
-        ? (properties[skuInternalField] || product.sku || '')
-        : (product.sku || '');
-      row.push(skuValue || '-');
+      const skuRaw = hasSkuInternal ? properties[skuInternalField] : undefined;
+      const skuValue = (typeof skuRaw === 'string' || typeof skuRaw === 'number' ? String(skuRaw) : product.sku || '') || '-';
+      row.push(skuValue);
 
       // Добавляем все поля свойств в том же порядке (без "SKU внутреннее" и цен, если они были)
-      sortedPropertyFields.forEach(field => {
+      sortedPropertyFields.forEach((field: string) => {
         const value = properties[field];
         
-        // Обрабатываем пустые значения
+        // Обрабатываем пустые значения (в ячейку только string | number)
         if (value === undefined || value === null || value === '') {
           row.push('-');
+        } else if (typeof value === 'number') {
+          row.push(value);
+        } else if (typeof value === 'string') {
+          row.push(!isNaN(Number(value)) ? Number(value) : value);
         } else {
-          // Проверяем, является ли значение числом
-          if (typeof value === 'number' || !isNaN(Number(value))) {
-            row.push(Number(value));
-          } else {
-            row.push(String(value));
-          }
+          row.push(JSON.stringify(value));
         }
       });
 

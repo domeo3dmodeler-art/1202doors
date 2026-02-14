@@ -5,12 +5,12 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, BusinessRuleError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/quotes/[id] - Получить КП по ID
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -86,7 +86,7 @@ async function getHandler(
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await getHandler(request, user, { params });
     }),
     'quotes/[id]/GET'
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // PUT /api/quotes/[id] - Обновить КП
 async function putHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -148,7 +148,7 @@ async function putHandler(
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await putHandler(request, user, { params });
     }),
     'quotes/[id]/PUT'
@@ -158,7 +158,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 // DELETE /api/quotes/[id] - Удалить КП
 async function deleteHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -188,7 +188,7 @@ async function deleteHandler(
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await deleteHandler(request, user, { params });
     }),
     'quotes/[id]/DELETE'

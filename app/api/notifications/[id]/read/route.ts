@@ -5,12 +5,12 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // PUT /api/notifications/[id]/read - Отметить уведомление как прочитанное
 async function putHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { ValidationError, NotFoundError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 
 async function putHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -112,7 +112,7 @@ export async function PUT(
 ) {
   return withErrorHandling(
     requireAuthAndPermission(
-      async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+      async (request: NextRequest, user: AuthenticatedUser) => {
         return await putHandler(request, user, { params });
       },
       'ADMIN'

@@ -6,7 +6,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/api/errors';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiValidator } from '@/lib/api-validator';
 
 // Временная реализация функции fixAllEncoding
@@ -32,7 +32,7 @@ function fixAllEncoding(data: any): any {
 
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);
@@ -44,7 +44,7 @@ async function getHandler(
   // Получаем шаблон для категории
   logger.debug('Поиск шаблона для категории', 'admin/templates/GET', { catalogCategoryId }, loggingContext);
   const template = await prisma.importTemplate.findUnique({
-    where: { catalog_category_id: catalogCategoryId },
+    where: { catalog_category_id: catalogCategoryId! },
     include: {
       catalog_category: {
         select: { name: true }
@@ -76,7 +76,7 @@ async function getHandler(
   
   // Исправляем название и описание шаблона
   const fixedName = fixFieldEncoding(template.name);
-  const fixedDescription = fixFieldEncoding(template.description || '');
+  const fixedDescription = fixFieldEncoding(template.description ?? '') ?? undefined;
   
   logger.debug('Поля после исправления кодировки', 'admin/templates/GET', {
     requiredFieldsCount: requiredFields.length,
@@ -90,7 +90,7 @@ async function getHandler(
       name: fixedName,
       description: fixedDescription,
       catalogCategoryId: template.catalog_category_id,
-      catalogCategoryName: template.catalog_category?.name,
+      catalogCategoryName: (template as { catalog_category?: { name: string } }).catalog_category?.name,
       requiredFields,
       calculatorFields,
       exportFields,
@@ -108,7 +108,7 @@ export const GET = withErrorHandling(
 
 async function putHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const body = await req.json();
@@ -192,7 +192,7 @@ export const PUT = withErrorHandling(
 
 async function postHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const body = await req.json();

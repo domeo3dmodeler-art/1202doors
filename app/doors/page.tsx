@@ -947,6 +947,7 @@ export default function FigmaExactReplicaPage() {
           clientId: selectedClient,
           items: cart.map(item => ({
             id: item.id,
+            type: item.itemType ?? (item.limiterId ? 'limiter' : item.handleId ? 'handle' : 'door'),
             model: item.model,
             style: item.style,
             color: item.color,
@@ -974,23 +975,32 @@ export default function FigmaExactReplicaPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        
         if (type === 'order') {
           a.download = `Заказ_${new Date().toISOString().split('T')[0]}.xlsx`;
         } else {
           a.download = `${type === 'quote' ? 'КП' : 'Счет'}_${new Date().toISOString().split('T')[0]}.pdf`;
         }
-        
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert('Ошибка при генерации документа');
+        let message = 'Ошибка при генерации документа';
+        try {
+          const json = await response.json();
+          if (json?.error?.message) message = json.error.message;
+          if (json?.error?.details && typeof json.error.details === 'object') {
+            clientLogger.error('Document generation validation details', { details: json.error.details });
+          }
+        } catch {
+          if (response.statusText) message = `${message}: ${response.statusText}`;
+        }
+        alert(message);
       }
     } catch (error) {
       clientLogger.error('Error generating document:', error);
-      alert('Ошибка при генерации документа');
+      const message = error instanceof Error ? error.message : 'Сеть или сервер недоступны';
+      alert(`Ошибка при генерации документа: ${message}`);
     }
   };
 

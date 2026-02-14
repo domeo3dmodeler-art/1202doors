@@ -21,10 +21,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
+  let documentType: string | null = null;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     const { searchParams } = new URL(request.url);
-    const documentType = searchParams.get('type'); // 'quote', 'invoice', 'order', 'supplier_order'
+    documentType = searchParams.get('type'); // 'quote', 'invoice', 'order', 'supplier_order'
 
     if (!documentType) {
       return NextResponse.json({ error: 'Document type is required' }, { status: 400 });
@@ -96,7 +99,7 @@ export async function GET(
     });
 
   } catch (error: unknown) {
-    logger.error('Error fetching cart data', 'documents/[id]/cart-data', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Error fetching cart data', 'documents/[id]/cart-data', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to fetch cart data' },
       { status: 500 }
@@ -109,10 +112,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
+  let documentType: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     const body = await request.json();
-    const { documentType, cartData } = body;
+    documentType = body.documentType;
+    const { cartData } = body;
 
     if (!documentType || !cartData) {
       return NextResponse.json({ error: 'Document type and cart data are required' }, { status: 400 });
@@ -163,7 +170,7 @@ export async function POST(
     });
 
   } catch (error: unknown) {
-    logger.error('Error saving cart data', 'documents/[id]/cart-data', error instanceof Error ? { error: error.message, stack: error.stack, id, documentType } : { error: String(error), id, documentType });
+    logger.error('Error saving cart data', 'documents/[id]/cart-data', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined, documentType: documentType ?? undefined } : { error: String(error), id: id ?? undefined, documentType: documentType ?? undefined });
     return NextResponse.json(
       { error: 'Failed to save cart data' },
       { status: 500 }

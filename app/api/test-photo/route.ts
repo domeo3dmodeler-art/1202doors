@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -10,7 +10,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // POST /api/test-photo - Тестирование загрузки фото
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { categoryId, mappingProperty, fileName } = await request.json();

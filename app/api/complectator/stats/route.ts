@@ -4,11 +4,11 @@ import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   
@@ -28,7 +28,7 @@ async function getHandler(
 
   // Получаем статистику счетов
   const totalInvoices = await prisma.invoice.count({
-    where: { isActive: true }
+    where: { status: { not: 'CANCELLED' } }
   }).catch(() => 0);
 
   // Получаем статистику товаров из каталога

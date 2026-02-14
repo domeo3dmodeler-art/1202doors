@@ -18,16 +18,18 @@ interface ChainDocument extends Document {
 
 // GET /api/documents/[id]/chain - Получение полной цепочки документов
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
 
     logger.debug('Получаем полную цепочку документов', 'documents/[id]/chain', { id });
 
     // Получаем все документы клиента для построения цепочки
     const allDocuments = await getAllClientDocuments(id);
     
-    // Строим цепочку связей
-    const chain = buildDocumentChain(allDocuments, id);
+    // Строим цепочку связей (приводим к Document[])
+    const chain = buildDocumentChain(allDocuments as Document[], id);
 
     logger.debug('Построена цепочка документов', 'documents/[id]/chain', { id, chainLength: chain.length });
 
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
   } catch (error) {
-    logger.error('Ошибка построения цепочки документов', 'documents/[id]/chain', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Ошибка построения цепочки документов', 'documents/[id]/chain', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Ошибка при построении цепочки документов' },
       { status: 500 }
@@ -100,8 +102,7 @@ async function getAllClientDocuments(documentId: string) {
     return [];
   }
 
-  // Получаем все документы клиента
-  const [quotes, invoices, orders, supplierOrders] = await Promise.all([
+  const [quotes, invoices, orders, supplierOrdersRaw] = await Promise.all([
     prisma.quote.findMany({
       where: { client_id: clientId },
       include: { client: { select: { firstName: true, lastName: true } } },
@@ -117,16 +118,16 @@ async function getAllClientDocuments(documentId: string) {
       include: { client: { select: { firstName: true, lastName: true } } },
       orderBy: { created_at: 'asc' }
     }),
-    prisma.supplierOrder.findMany({
-      where: { order: { client_id: clientId } },
-      include: { 
-        order: { 
-          include: { client: { select: { firstName: true, lastName: true } } } 
-        } 
-      },
-      orderBy: { created_at: 'asc' }
+    prisma.order.findMany({ where: { client_id: clientId }, select: { id: true } }).then((clientOrders) => {
+      const orderIds = clientOrders.map((o) => o.id);
+      if (orderIds.length === 0) return [];
+      return prisma.supplierOrder.findMany({
+        where: { parent_document_id: { in: orderIds } },
+        orderBy: { created_at: 'asc' }
+      });
     })
   ]);
+  const supplierOrders = supplierOrdersRaw;
 
   return [
     ...quotes.map(q => ({ ...q, documentType: 'quote' })),

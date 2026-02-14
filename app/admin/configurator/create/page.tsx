@@ -77,22 +77,22 @@ export default function CreateConfiguratorCategoryPage() {
 
   // Функции экспорта
   const handleExport = (format: 'pdf' | 'xlsx' | 'csv') => {
-    clientLogger.debug(`Экспорт в формате ${format}:`, cartItems);
+    clientLogger.debug(`Экспорт в формате ${format}:`, { cartItems });
     alert(`Экспорт в формате ${format.toUpperCase()} выполнен!`);
   };
 
   const handleCreateQuote = () => {
-    clientLogger.debug('Создание КП:', cartItems);
+    clientLogger.debug('Создание КП:', { cartItems });
     alert('Коммерческое предложение создано!');
   };
 
   const handleCreateInvoice = () => {
-    clientLogger.debug('Создание счета:', cartItems);
+    clientLogger.debug('Создание счета:', { cartItems });
     alert('Счет создан!');
   };
 
   const handleCreateFactoryOrder = () => {
-    clientLogger.debug('Создание заказа на фабрику:', cartItems);
+    clientLogger.debug('Создание заказа на фабрику:', { cartItems });
     alert('Заказ на фабрику создан!');
   };
 
@@ -127,7 +127,7 @@ export default function CreateConfiguratorCategoryPage() {
                       ? 'border-green-500 bg-green-500 text-white'
                       : 'border-gray-300 bg-white text-gray-400'
                 }`}>
-                  <span className="text-sm">{step.icon}</span>
+                  <span className="text-sm">{step.label[0]}</span>
                 </div>
                 <span className={`ml-2 text-sm font-medium ${
                   isActive ? 'text-black' : isCompleted ? 'text-green-600' : 'text-gray-500'
@@ -187,7 +187,7 @@ export default function CreateConfiguratorCategoryPage() {
                 </Button>
               </div>
             </div>
-            <CategoryBuilder />
+            <CategoryBuilder categoryData={{ id: '', name: 'Новая категория' }} onComplete={() => {}} />
           </Card>
         </div>
       )}

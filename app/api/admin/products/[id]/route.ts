@@ -5,7 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiValidator } from '@/lib/api-validator';
 import { fixFieldEncoding } from '@/lib/encoding-utils';
 
@@ -33,7 +33,7 @@ function fixAllEncoding(data: any): any {
 // Получить товар по ID
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -65,7 +65,7 @@ export async function GET(
 ) {
   return withErrorHandling(
     requireAuthAndPermission(
-      async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+      async (request: NextRequest, user: AuthenticatedUser) => {
         return await getHandler(request, user, { params });
       },
       'ADMIN'
@@ -77,7 +77,7 @@ export async function GET(
 // Обновить товар
 async function putHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -142,7 +142,7 @@ export async function PUT(
 ) {
   return withErrorHandling(
     requireAuthAndPermission(
-      async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+      async (request: NextRequest, user: AuthenticatedUser) => {
         return await putHandler(request, user, { params });
       },
       'ADMIN'
@@ -154,7 +154,7 @@ export async function PUT(
 // Удалить товар
 async function deleteHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -192,7 +192,7 @@ export async function DELETE(
 ) {
   return withErrorHandling(
     requireAuthAndPermission(
-      async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+      async (request: NextRequest, user: AuthenticatedUser) => {
         return await deleteHandler(request, user, { params });
       },
       'ADMIN'

@@ -4,9 +4,10 @@ import { logger } from '../../../../lib/logging/logger';
 
 // GET /api/catalog/properties - Получить все свойства
 export async function GET(request: NextRequest) {
+  let categoryId: string | null = null;
   try {
     const { searchParams } = new URL(request.url);
-    const categoryId = searchParams.get('categoryId');
+    categoryId = searchParams.get('categoryId');
     const showAll = searchParams.get('showAll') === 'true';
 
     // Формируем условия для фильтрации
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error fetching properties', 'catalog/properties', error instanceof Error ? { error: error.message, stack: error.stack, categoryId } : { error: String(error), categoryId });
+    logger.error('Error fetching properties', 'catalog/properties', error instanceof Error ? { error: error.message, stack: error.stack, categoryId: categoryId ?? undefined } : { error: String(error), categoryId: categoryId ?? undefined });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

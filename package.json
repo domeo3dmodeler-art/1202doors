@@ -17,7 +17,8 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
-    "test": "echo 'No tests configured yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -41,6 +42,8 @@
     "collect:photo-entries": "tsx scripts/collect-photo-entries.ts",
     "bind:final-filled-from-json": "tsx scripts/bind-photos-from-json.ts",
     "build:resolved-from-disk": "tsx scripts/build-resolved-from-disk.ts",
+    "fill:handles-excel-colors": "tsx scripts/fill-handles-excel-colors.ts",
+    "import:handles-color-description": "tsx scripts/import-handles-color-and-description.ts",
     "photos:bind:stable": "tsx scripts/build-resolved-from-disk.ts && tsx scripts/bind-photos-from-json.ts && tsx scripts/fix-problematic-photo-placeholders.ts && tsx scripts/verify-photo-download-and-binding.ts",
     "db:init": "npm run prisma:generate && npm run prisma:migrate:deploy && npm run prisma:seed",
     "db:reset": "prisma migrate reset --force",
@@ -120,7 +123,8 @@
     "prisma": "^6.18.0",
     "tailwindcss": "3.4.10",
     "tsx": "^4.7.0",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "^2.1.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

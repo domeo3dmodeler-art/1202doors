@@ -5,12 +5,13 @@ import { logger } from '@/lib/logging/logger';
 import { createDocumentRequestSchema } from '@/lib/validation/document.schemas';
 import { validateRequest } from '@/lib/validation/middleware';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
-import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { requirePermission } from '@/lib/auth/middleware';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { UserRole } from '@/lib/auth/roles';
 import type { CreateDocumentRequest } from '@/lib/types/documents';
 
 // POST /api/documents/create - Универсальное создание документов с автоматическими связями
-async function handler(req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>): Promise<NextResponse> {
+async function handler(req: NextRequest, user: AuthenticatedUser): Promise<NextResponse> {
   const body = await req.json();
   
   // Валидация через Zod
@@ -36,10 +37,7 @@ async function handler(req: NextRequest, user: ReturnType<typeof getAuthenticate
   const finalCreatedBy = validatedBody.created_by || user.userId || 'system';
 
   // Используем Document Service для создания документа
-  const request: CreateDocumentRequest = {
-    ...validatedBody,
-    created_by: finalCreatedBy
-  };
+  const request = { ...validatedBody, created_by: finalCreatedBy } as CreateDocumentRequest;
 
   const result = await documentService.createDocument(request);
 
@@ -62,6 +60,6 @@ async function handler(req: NextRequest, user: ReturnType<typeof getAuthenticate
 }
 
 export const POST = withErrorHandling(
-  requireAuthAndPermission(canUserCreateDocument, handler),
+  requirePermission((role: string) => canUserCreateDocument(role as UserRole, 'quote'), handler),
   'documents/create'
 );

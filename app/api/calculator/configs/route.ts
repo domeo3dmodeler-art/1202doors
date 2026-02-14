@@ -21,7 +21,7 @@ async function postHandler(req: NextRequest) {
     logger.info('Создание конфигурации калькулятора', 'calculator/configs', { userId: user.userId, name: config.name });
 
     // Создаем новую конфигурацию калькулятора
-    const calculatorConfig = await prisma.calculatorConfig.create({
+    const constructorConfig = await prisma.constructorConfig.create({
       data: {
         name: config.name,
         description: config.description || '',
@@ -32,10 +32,10 @@ async function postHandler(req: NextRequest) {
       }
     });
 
-    logger.info('Конфигурация калькулятора создана', 'calculator/configs', { configId: calculatorConfig.id });
+    logger.info('Конфигурация калькулятора создана', 'calculator/configs', { configId: constructorConfig.id });
 
     return apiSuccess({
-      id: calculatorConfig.id,
+      id: constructorConfig.id,
       message: 'Калькулятор сохранен успешно'
     });
 
@@ -64,7 +64,7 @@ async function getHandler(req: NextRequest) {
 
     if (id) {
       // Получить конкретный калькулятор
-      const calculator = await prisma.calculatorConfig.findUnique({
+      const calculator = await prisma.constructorConfig.findUnique({
         where: { id }
       });
 
@@ -87,7 +87,7 @@ async function getHandler(req: NextRequest) {
       });
     } else {
       // Получить все калькуляторы
-      const calculators = await prisma.calculatorConfig.findMany({
+      const calculators = await prisma.constructorConfig.findMany({
         where: { is_active: true },
         orderBy: { created_at: 'desc' },
         select: {
@@ -132,7 +132,7 @@ async function putHandler(req: NextRequest) {
 
     logger.info('Обновление конфигурации калькулятора', 'calculator/configs', { userId: user.userId, configId: id });
 
-    const updatedCalculator = await prisma.calculatorConfig.update({
+    const _updatedCalculator = await prisma.constructorConfig.update({
       where: { id },
       data: {
         name: config.name,
@@ -178,7 +178,7 @@ async function deleteHandler(req: NextRequest) {
     logger.info('Удаление конфигурации калькулятора', 'calculator/configs', { userId: user.userId, configId: id });
 
     // Мягкое удаление
-    await prisma.calculatorConfig.update({
+    await prisma.constructorConfig.update({
       where: { id },
       data: { is_active: false }
     });

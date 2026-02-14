@@ -7,12 +7,13 @@ import { logger } from '@/lib/logging/logger';
 
 // GET /api/analytics/quotes - Получить аналитику КП
 export async function GET(req: NextRequest) {
+  let type: string = 'full';
+  const filters: AnalyticsFilters = {};
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type') || 'full';
+    type = searchParams.get('type') || 'full';
     
     // Построение фильтров из query параметров
-    const filters: AnalyticsFilters = {};
     
     if (searchParams.get('dateFrom')) {
       filters.dateFrom = searchParams.get('dateFrom')!;

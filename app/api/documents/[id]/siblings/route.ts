@@ -4,8 +4,10 @@ import { logger } from '@/lib/logging/logger';
 
 // GET /api/documents/[id]/siblings - Получение документов из той же корзины
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
 
     logger.debug('Получаем документы из той же корзины', 'documents/[id]/siblings', { id });
 
@@ -131,7 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
   } catch (error) {
-    logger.error('Ошибка получения документов из корзины', 'documents/[id]/siblings', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Ошибка получения документов из корзины', 'documents/[id]/siblings', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Ошибка при получении документов из корзины' },
       { status: 500 }

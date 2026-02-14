@@ -122,7 +122,7 @@ export default function ConstraintsManagementPage() {
     if (!confirm('Вы уверены, что хотите удалить это ограничение?')) return;
 
     try {
-      clientLogger.debug('Deleting constraint:', constraintId);
+      clientLogger.debug('Deleting constraint:', { constraintId });
       setConstraints(prev => prev.filter(c => c.id !== constraintId));
     } catch (err: any) {
       setError(err.message);
@@ -131,7 +131,7 @@ export default function ConstraintsManagementPage() {
 
   const handleToggleStatus = async (constraintId: string) => {
     try {
-      clientLogger.debug('Toggling constraint status:', constraintId);
+      clientLogger.debug('Toggling constraint status:', { constraintId });
       setConstraints(prev => prev.map(c => 
         c.id === constraintId ? { ...c, isActive: !c.isActive } : c
       ));

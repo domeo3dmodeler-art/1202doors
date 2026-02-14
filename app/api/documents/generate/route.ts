@@ -9,7 +9,8 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { generateDocumentFromDoorsSchema } from '@/lib/validation/document.schemas';
 
 interface ClientData {
   firstName: string;
@@ -18,14 +19,19 @@ interface ClientData {
   address: string;
 }
 
+type DocumentItemType = 'door' | 'handle' | 'backplate' | 'limiter';
+
 interface DocumentItem {
+  type?: DocumentItemType;
   sku?: string;
-  name: string;
+  name?: string;
   unitPrice: number;
-  quantity: number;
-  total: number;
+  quantity?: number;
+  total?: number;
+  qty?: number;
   properties_data?: string | Record<string, unknown>;
   handleId?: string;
+  limiterId?: string;
   description?: string;
   model?: string;
   finish?: string;
@@ -383,36 +389,52 @@ function extractSupplierSku(propertiesData: string | Record<string, unknown> | u
 
 // Функция для формирования наименования товара
 function buildProductName(item: DocumentItem): string {
-  if (item.handleId) {
-    // Для ручек - простое название из description
-    return item.description || 'Ручка';
+  const t = (item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door')) as DocumentItemType;
+  if (t === 'handle' || t === 'backplate') {
+    return item.description || (t === 'backplate' ? 'Завертка' : 'Ручка');
   }
-  
-  // Для дверей - полное описание по формату: Дверь Model (finish, color, width × height мм, Фурнитура - kit)
+  if (t === 'limiter') {
+    return item.description || 'Ограничитель';
+  }
+  // door: полное описание по формату
   const parts = [
     'Дверь',
     item.model || 'Unknown',
     `(${item.finish || 'Unknown'}, ${item.color || 'Unknown'}, ${item.width || 0} × ${item.height || 0} мм`
   ];
-  
-  // Добавляем информацию о фурнитуре если есть
   if (item.hardwareKitId) {
     parts[parts.length - 1] += `, Фурнитура - ${item.hardwareKitName || 'Базовый комплект'}`;
   }
-  
   parts[parts.length - 1] += ')';
-  
   return parts.join(' ');
 }
 
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
-  const body = await request.json();
-  const { type, clientId, items, totalAmount } = body;
-  
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return apiError(ApiErrorCode.VALIDATION_ERROR, 'Неверный JSON в теле запроса', 400, undefined, loggingContext?.requestId);
+  }
+
+  const parseResult = generateDocumentFromDoorsSchema.safeParse(body);
+  if (!parseResult.success) {
+    const issues = parseResult.error.flatten();
+    return apiError(
+      ApiErrorCode.VALIDATION_ERROR,
+      'Ошибка валидации данных',
+      400,
+      { fieldErrors: issues.fieldErrors, formErrors: issues.formErrors },
+      loggingContext?.requestId
+    );
+  }
+  const { type, clientId, items, totalAmount } = parseResult.data;
+
   logger.info('Генерация документа', 'documents/generate', {
     type, 
     clientId, 
@@ -426,7 +448,7 @@ async function postHandler(
     } : null
   }, loggingContext);
 
-  // Получаем данные клиента
+  // Получаем данные клиента (в текущей схеме клиенты общие для всех авторизованных пользователей)
   const client = await prisma.client.findUnique({
     where: { id: clientId }
   });
@@ -520,42 +542,26 @@ async function postHandler(
           // Ищем товар в БД для получения SKU поставщика
           let supplierSku = 'N/A';
           
-          if (item.type === 'door') {
-            // Для дверей ищем по конфигурации
+          const itemType = (item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door')) as DocumentItemType;
+          if (itemType === 'door') {
             const product = await prisma.product.findFirst({
-              where: {
-                catalog_category: {
-                  name: 'Межкомнатные двери'
-                },
-                name: item.model
-              },
-              select: {
-                properties_data: true
-              }
+              where: { catalog_category: { name: 'Межкомнатные двери' }, name: item.model },
+              select: { properties_data: true }
             });
-            
-            if (product) {
-              supplierSku = extractSupplierSku(product.properties_data);
-            }
-          } else if (item.type === 'handle') {
-            // Для ручек ищем по ID
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
+          } else if (itemType === 'handle' || itemType === 'backplate') {
             const product = await prisma.product.findFirst({
-              where: {
-                catalog_category: {
-                  name: 'Ручки'
-                },
-                id: item.handleId
-              },
-              select: {
-                properties_data: true
-              }
+              where: { catalog_category: { name: { in: ['Ручки', 'Ручки и завертки'] } }, id: item.handleId },
+              select: { properties_data: true }
             });
-            
-            if (product) {
-              supplierSku = extractSupplierSku(product.properties_data);
-            }
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
+          } else if (itemType === 'limiter' && item.limiterId) {
+            const product = await prisma.product.findFirst({
+              where: { catalog_category: { name: 'Ограничители' }, id: item.limiterId },
+              select: { properties_data: true }
+            });
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
           }
-          
           return {
             rowNumber: i + 1,
             sku: supplierSku,
@@ -625,42 +631,26 @@ async function postHandler(
           // Ищем товар в БД для получения SKU поставщика
           let supplierSku = 'N/A';
           
-          if (item.type === 'door') {
-            // Для дверей ищем по конфигурации
+          const itemType = (item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door')) as DocumentItemType;
+          if (itemType === 'door') {
             const product = await prisma.product.findFirst({
-              where: {
-                catalog_category: {
-                  name: 'Межкомнатные двери'
-                },
-                name: item.model
-              },
-              select: {
-                properties_data: true
-              }
+              where: { catalog_category: { name: 'Межкомнатные двери' }, name: item.model },
+              select: { properties_data: true }
             });
-            
-            if (product) {
-              supplierSku = extractSupplierSku(product.properties_data);
-            }
-          } else if (item.type === 'handle') {
-            // Для ручек ищем по ID
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
+          } else if (itemType === 'handle' || itemType === 'backplate') {
             const product = await prisma.product.findFirst({
-              where: {
-                catalog_category: {
-                  name: 'Ручки'
-                },
-                id: item.handleId
-              },
-              select: {
-                properties_data: true
-              }
+              where: { catalog_category: { name: { in: ['Ручки', 'Ручки и завертки'] } }, id: item.handleId },
+              select: { properties_data: true }
             });
-            
-            if (product) {
-              supplierSku = extractSupplierSku(product.properties_data);
-            }
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
+          } else if (itemType === 'limiter' && item.limiterId) {
+            const product = await prisma.product.findFirst({
+              where: { catalog_category: { name: 'Ограничители' }, id: item.limiterId },
+              select: { properties_data: true }
+            });
+            if (product) supplierSku = extractSupplierSku(product.properties_data);
           }
-          
           return {
             rowNumber: i + 1,
             sku: supplierSku,
@@ -723,8 +713,26 @@ async function postHandler(
 
       // Получаем полные данные товаров из БД по точной конфигурации
       const enrichedItems = await Promise.all(items.map(async (item, i) => {
-        // Ищем товар в БД по точной конфигурации (стиль, модель, покрытие, цвет, размеры)
+        const itemType = (item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door')) as DocumentItemType;
         let productData = null;
+
+        if (itemType !== 'door') {
+          return {
+            rowNumber: i + 1,
+            sku: item.sku_1c || 'N/A',
+            name: buildProductName(item),
+            finish: item.finish,
+            color: item.color,
+            width: item.width,
+            height: item.height,
+            quantity: item.qty || item.quantity || 1,
+            hardwareKitName: item.hardwareKitName,
+            unitPrice: item.unitPrice || 0,
+            total: (item.qty || item.quantity || 1) * (item.unitPrice || 0),
+            properties_data: null,
+            configuration: { style: item.style, model: item.model, finish: item.finish, color: item.color, width: item.width, height: item.height }
+          };
+        }
         
         if (item.sku_1c) {
           // Сначала пробуем найти по SKU

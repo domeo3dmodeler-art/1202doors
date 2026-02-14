@@ -4,8 +4,10 @@ import { logger } from '@/lib/logging/logger';
 
 // POST /api/documents/[id]/send - Отправка документа клиенту
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
 
 
     // Ищем документ в разных таблицах
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
   } catch (error) {
-    logger.error('Ошибка отправки документа', 'documents/[id]/send', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Ошибка отправки документа', 'documents/[id]/send', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Ошибка при отправке документа' },
       { status: 500 }

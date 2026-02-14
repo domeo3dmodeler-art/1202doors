@@ -5,7 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 const DOORS_CATEGORY_NAME = 'Межкомнатные двери';
 
@@ -57,7 +57,7 @@ function buildGenericSelection(
 // GET /api/catalog/doors/sku-to-selection - Получить информацию о продукте по SKU
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);
@@ -135,7 +135,7 @@ export const GET = withErrorHandling(
 
 export async function POST(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   return withErrorHandling(
     requireAuth(async (request, user) => {

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
-import { getPropertyPhotos, structurePropertyPhotos, getPropertyPhotosByValuePrefix, DOOR_COLOR_PROPERTY } from '../../../../../lib/property-photos';
+import { getPropertyPhotos, structurePropertyPhotos, getPropertyPhotosByValuePrefix, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../../../../../lib/property-photos';
 import { getDoorsCategoryId } from '../../../../../lib/catalog-categories';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // Кэширование
 const completeDataCache = new Map<string, { data: any, timestamp: number }>();
@@ -15,7 +15,7 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 минут
 // DELETE - очистка кэша
 async function deleteHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   completeDataCache.clear();
@@ -34,11 +34,12 @@ async function getHandler(
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);
   const style = searchParams.get('style');
+  const forceRefresh = searchParams.get('refresh') === '1';
 
   const cacheKey = style || 'all';
   
-  // Проверяем кэш
-  const cached = completeDataCache.get(cacheKey);
+  // Проверяем кэш (пропускаем при ?refresh=1 для принудительного обновления после правок в БД)
+  const cached = !forceRefresh && completeDataCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     logger.debug('API complete-data - используем кэш', 'catalog/doors/complete-data/GET', { cacheKey }, loggingContext);
     const res = apiSuccess({
@@ -103,6 +104,7 @@ async function getHandler(
       const displayName = modelKey;
       const styleString = typeof productStyle === 'string' ? productStyle : String(productStyle || 'Классика');
       const factoryName = typeof modelName === 'string' ? modelName.trim() : '';
+      const supplier = String(properties['Поставщик'] ?? '').trim();
 
       if (!modelKey) return;
       if (style && styleString !== style) return;
@@ -115,7 +117,8 @@ async function getHandler(
           modelKey: modelKey,
           style: styleString,
           products: [],
-          factoryModelNames: new Set<string>()
+          factoryModelNames: new Set<string>(),
+          suppliers: new Set<string>()
         });
       }
 
@@ -126,6 +129,7 @@ async function getHandler(
         properties: properties
       });
       if (factoryName) modelData.factoryModelNames.add(factoryName);
+      if (supplier) modelData.suppliers.add(supplier);
     } catch (error) {
       logger.warn(`Ошибка обработки товара`, 'catalog/doors/complete-data/GET', { sku: product.sku, error }, loggingContext);
     }
@@ -170,20 +174,22 @@ async function getHandler(
     logger.debug(`Получаем фото для модели`, 'catalog/doors/complete-data/GET', { model: modelData.model, modelKey }, loggingContext);
 
     let modelPhotos: any[] = [];
-    const factoryNames = Array.from(modelData.factoryModelNames || []);
+    const factoryNames: string[] = Array.from((modelData.factoryModelNames as Set<string>) || []);
 
-    // Обложка модели: привязка по Код модели Domeo (Web). В БД обложки хранятся в PropertyPhoto с propertyName="Артикул поставщика", propertyValue=код (lowercase).
+    // Обложка модели: привязка по коду (Код модели Domeo (Web)); устаревший «Артикул поставщика» — fallback.
     if (modelKey && typeof modelKey === 'string' && modelKey.trim() !== '') {
       const normalized = modelKey.toLowerCase();
-      let byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', normalized);
+      let byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, normalized);
+      if (byCode.length === 0) byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', normalized);
       for (let i = 1; i <= 10; i++) {
-        const variantPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', `${normalized}_${i}`);
+        let variantPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, `${normalized}_${i}`);
+        if (variantPhotos.length === 0) variantPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', `${normalized}_${i}`);
         if (variantPhotos.length > 0) byCode = byCode.concat(variantPhotos);
       }
       modelPhotos = byCode;
     }
     if (modelPhotos.length === 0 && factoryNames.length > 0) {
-      const firstFactory = factoryNames[0];
+      const firstFactory = factoryNames[0] as string;
       modelPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Domeo_Название модели для Web', firstFactory);
     }
 
@@ -227,7 +233,7 @@ async function getHandler(
       }
     };
     for (const factoryName of factoryNames) {
-      const name = (factoryName || '').trim();
+      const name = String(factoryName || '').trim();
       if (!name) continue;
       const colorPhotos = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, name + '|');
       addColorPhotos(colorPhotos);
@@ -352,6 +358,7 @@ async function getHandler(
       model: modelData.model,
       modelKey: modelData.modelKey, // Код модели Domeo (Web) — для связи вкладок и расчёта цены
       style: modelData.style,
+      suppliers: Array.from(modelData.suppliers || new Set<string>()).filter(Boolean), // поставщики по коду модели (для фильтра наличников и выбора варианта для заказа)
       photo: normalizedCover,
       photos: {
         cover: normalizedCover,

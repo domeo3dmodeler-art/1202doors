@@ -46,9 +46,10 @@ export function useConfiguratorData() {
         setLoading(true);
         setError(null);
 
-        // Параллельная загрузка: модели и вся фурнитура одновременно
+        // При ?refresh=1 в URL запрашиваем данные без кэша (после правок в БД)
+        const refreshQ = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refresh') === '1' ? '?refresh=1' : '';
         const [modelsResponse, handlesRes, limitersRes, architravesRes, kitsRes] = await Promise.all([
-          fetch('/api/catalog/doors/complete-data'),
+          fetch('/api/catalog/doors/complete-data' + refreshQ),
           fetch('/api/catalog/hardware?type=handles'),
           fetch('/api/catalog/hardware?type=limiters'),
           fetch('/api/catalog/hardware?type=architraves'),
@@ -342,7 +343,8 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
       try {
         setLoading(true);
 
-        const response = await fetch('/api/catalog/doors/complete-data');
+        const refreshQ = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refresh') === '1' ? '?refresh=1' : '';
+        const response = await fetch('/api/catalog/doors/complete-data' + refreshQ);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

@@ -175,8 +175,9 @@ export default function ClientSelector({ onClientSelect, onClose }: ClientSelect
             )}
           </div>
         )}
+        </div>
 
-          {/* Actions */}
+        {/* Actions */}
           <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
             <button
               onClick={onClose}
@@ -200,7 +201,7 @@ export default function ClientSelector({ onClientSelect, onClose }: ClientSelect
           onClose={() => setShowCreateClientForm(false)}
           onClientCreated={(client) => {
             setSelectedClient(client);
-            fetchClients(); // Обновляем список клиентов
+            fetchClients();
           }}
         />
       </div>

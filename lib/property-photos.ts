@@ -64,6 +64,12 @@ export async function getPropertyPhotos(
 export const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
 
 /**
+ * Свойство для обложек моделей дверей по коду модели (актуальное).
+ * Устаревший вариант — «Артикул поставщика» (хранил тот же код в propertyValue).
+ */
+export const DOOR_MODEL_CODE_PROPERTY = 'Код модели Domeo (Web)';
+
+/**
  * Получает фото по префиксу значения свойства (для списка цветов/покрытий по модели)
  */
 export async function getPropertyPhotosByValuePrefix(

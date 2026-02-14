@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 
 export async function GET(request: NextRequest) {
+  let configuratorCategoryId: string | null = null;
   try {
     const { searchParams } = new URL(request.url);
-    const configuratorCategoryId = searchParams.get('configuratorCategoryId');
+    configuratorCategoryId = searchParams.get('configuratorCategoryId');
 
     if (!configuratorCategoryId) {
       return NextResponse.json(
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const links = await prisma.categoryLink.findMany({
+    const links = await (prisma as unknown as { categoryLink: { findMany: (args: unknown) => Promise<unknown[]> } }).categoryLink.findMany({
       where: { configurator_category_id: configuratorCategoryId },
       include: {
         catalog_category: {
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error fetching category links', 'configurator/category-links', error instanceof Error ? { error: error.message, stack: error.stack, configuratorCategoryId } : { error: String(error), configuratorCategoryId });
+    logger.error('Error fetching category links', 'configurator/category-links', error instanceof Error ? { error: error.message, stack: error.stack, configuratorCategoryId: configuratorCategoryId ?? undefined } : { error: String(error), configuratorCategoryId: configuratorCategoryId ?? undefined });
     return NextResponse.json(
       { error: 'Failed to fetch category links' },
       { status: 500 }
@@ -44,12 +45,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let configurator_category_id: string | undefined;
+  let catalog_category_id: string | undefined;
   try {
     const data = await request.json();
     
     const {
-      configurator_category_id,
-      catalog_category_id,
+      configurator_category_id: cfgCatId,
+      catalog_category_id: catId,
       link_type,
       display_order,
       is_required,
@@ -57,6 +60,8 @@ export async function POST(request: NextRequest) {
       formula,
       export_as_separate
     } = data;
+    configurator_category_id = cfgCatId;
+    catalog_category_id = catId;
 
     if (!configurator_category_id || !catalog_category_id || !link_type) {
       return NextResponse.json(
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Проверяем, что связь не существует
-    const existingLink = await prisma.categoryLink.findFirst({
+    const existingLink = await (prisma as unknown as { categoryLink: { findFirst: (args: unknown) => Promise<unknown> } }).categoryLink.findFirst({
       where: {
         configurator_category_id,
         catalog_category_id,
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // Проверяем, что не более одной основной категории
     if (link_type === 'main') {
-      const existingMainLink = await prisma.categoryLink.findFirst({
+      const existingMainLink = await (prisma as unknown as { categoryLink: { findFirst: (args: unknown) => Promise<unknown> } }).categoryLink.findFirst({
         where: {
           configurator_category_id,
           link_type: 'main'
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const link = await prisma.categoryLink.create({
+    const link = await (prisma as unknown as { categoryLink: { create: (args: unknown) => Promise<unknown> } }).categoryLink.create({
       data: {
         configurator_category_id,
         catalog_category_id,
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error creating category link', 'configurator/category-links', error instanceof Error ? { error: error.message, stack: error.stack, configurator_category_id, catalog_category_id } : { error: String(error), configurator_category_id, catalog_category_id });
+    logger.error('Error creating category link', 'configurator/category-links', error instanceof Error ? { error: error.message, stack: error.stack, configurator_category_id: configurator_category_id ?? undefined, catalog_category_id: catalog_category_id ?? undefined } : { error: String(error), configurator_category_id: configurator_category_id ?? undefined, catalog_category_id: catalog_category_id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to create category link' },
       { status: 500 }

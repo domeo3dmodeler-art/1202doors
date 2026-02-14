@@ -48,9 +48,10 @@ export async function GET(req: NextRequest) {
 
 // POST /api/admin/database/optimization - Выполнение операций оптимизации
 export async function POST(req: NextRequest) {
+  let action: string | null = null;
   try {
     const { searchParams } = new URL(req.url);
-    const action = searchParams.get('action');
+    action = searchParams.get('action');
 
     if (!action) {
       return NextResponse.json(
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (error) {
-    logger.error(`Ошибка при выполнении действия`, 'admin/database/optimization', { action, error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
+    logger.error(`Ошибка при выполнении действия`, 'admin/database/optimization', { action: action ?? 'unknown', error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { 
         error: 'Ошибка при выполнении операции оптимизации',

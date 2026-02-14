@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCartSessionId } from '@/lib/utils/cart-session';
 import { logger } from '@/lib/logging/logger';
@@ -11,7 +11,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // POST /api/supplier-orders - Создание заказа поставщика
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const body = await request.json();
@@ -181,7 +181,7 @@ export const POST = withErrorHandling(
 // GET /api/supplier-orders - Получение списка заказов поставщика
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { searchParams } = new URL(request.url);

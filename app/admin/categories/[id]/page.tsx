@@ -424,12 +424,14 @@ export default function CategoryEditorPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Основная информация</h3>
               
               <div className="space-y-4">
-                <Input
-                  label="Название категории"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Введите название категории"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Название категории</label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Введите название категории"
+                  />
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -444,12 +446,14 @@ export default function CategoryEditorPage() {
                   />
                 </div>
 
-                <Input
-                  label="Иконка (эмодзи)"
-                  value={formData.icon}
-                  onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
-                  placeholder="🚪"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Иконка (эмодзи)</label>
+                  <Input
+                    value={formData.icon}
+                    onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
+                    placeholder="🚪"
+                  />
+                </div>
               </div>
             </Card>
 

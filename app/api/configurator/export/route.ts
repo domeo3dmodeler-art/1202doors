@@ -6,7 +6,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 interface ConfiguratorCategory {
   id: string;
@@ -56,12 +56,13 @@ interface ExportData {
   cart_items: CartItem[];
   export_type: 'quote' | 'invoice' | 'order';
   total_price: number;
+  export_setting_id?: string;
 }
 
 // POST /api/configurator/export - Экспорт документов
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const body: ExportData = await request.json();
@@ -85,11 +86,12 @@ async function postHandler(
     });
     
     if (setting) {
+      const displayConfig = (setting.display_config && JSON.parse(setting.display_config)) as Record<string, unknown> | null;
       exportSettings = {
         fields_config: JSON.parse(setting.fields_config),
-        display_options: JSON.parse(setting.display_options),
-        header_config: JSON.parse(setting.header_config),
-        footer_config: JSON.parse(setting.footer_config)
+        display_options: displayConfig ?? {},
+        header_config: (displayConfig?.header_config as Record<string, unknown>) ?? {},
+        footer_config: (displayConfig?.footer_config as Record<string, unknown>) ?? {}
       };
       logger.debug('Настройки экспорта загружены', 'configurator/export/POST', {
         exportSettingId: export_setting_id
@@ -241,7 +243,7 @@ async function postHandler(
       
       // Применяем налог если настроен
       if (exportSettings?.display_options?.show_tax) {
-        const taxRate = exportSettings.display_options.tax_rate || 0;
+        const taxRate = Number((exportSettings.display_options as Record<string, unknown>)?.tax_rate) || 0;
         const taxAmount = total_price * (taxRate / 100);
         const totalWithTax = total_price + taxAmount;
         

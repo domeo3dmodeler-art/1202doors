@@ -5,12 +5,12 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, ConflictError, ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/catalog/products/[id] - Получить товар по ID
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -50,7 +50,7 @@ export async function GET(
 // PUT /api/catalog/products/[id] - Обновить товар
 async function putHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -97,12 +97,12 @@ async function putHandler(
       catalog_category_id,
       sku,
       name,
-      description,
-      brand,
-      model,
-      series,
-      price: price ? parseFloat(price) : undefined,
-      properties_data: properties_data ? JSON.stringify(properties_data) : null
+      description: description ?? undefined,
+      brand: brand ?? undefined,
+      model: model ?? undefined,
+      series: series ?? undefined,
+      base_price: price ? parseFloat(price) : undefined,
+      properties_data: properties_data ? JSON.stringify(properties_data) : undefined
     },
     include: {
       catalog_category: {
@@ -132,7 +132,7 @@ export async function PUT(
 // DELETE /api/catalog/products/[id] - Удалить товар
 async function deleteHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);

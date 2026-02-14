@@ -348,7 +348,7 @@ export default function ExportSettingsPage() {
                   </label>
                   <Select
                     value={newSetting.document_type}
-                    onValueChange={(value: 'quote' | 'invoice' | 'order') => setNewSetting({ ...newSetting, document_type: value })}
+                    onValueChange={(value: string) => setNewSetting({ ...newSetting, document_type: value as 'quote' | 'invoice' | 'order' })}
                   >
                     <option value="quote">Коммерческое предложение</option>
                     <option value="invoice">Счет</option>
@@ -414,9 +414,9 @@ export default function ExportSettingsPage() {
                       </label>
                       <Select
                         value={newSetting.template_config.discount_type}
-                        onValueChange={(value: 'percentage' | 'fixed') => setNewSetting({
+                        onValueChange={(value: string) => setNewSetting({
                           ...newSetting,
-                          template_config: { ...newSetting.template_config, discount_type: value }
+                          template_config: { ...newSetting.template_config, discount_type: value as 'percentage' | 'fixed' }
                         })}
                       >
                         <option value="percentage">Процент</option>

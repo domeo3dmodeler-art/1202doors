@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           productCount: category.products_count || 0,
           imageUrl: category.image_url || null,
           description: category.description || null,
-          isActive: category.is_active,
+          isActive: category.is_active ?? false,
           sortOrder: category.sort_order || 0
         });
         

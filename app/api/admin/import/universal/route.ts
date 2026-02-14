@@ -36,6 +36,10 @@ interface FieldMapping {
   targetField?: string;
   required?: boolean;
   isForCalculator?: boolean;
+  displayName?: string;
+  dataType?: string;
+  isRequired?: boolean;
+  isVisible?: boolean;
 }
 
 interface ProductData {
@@ -47,6 +51,9 @@ interface ProductData {
   model?: string;
   description?: string;
   properties_data?: Record<string, unknown>;
+  specifications?: Record<string, unknown>;
+  row_number?: number;
+  category?: string;
 }
 
 interface FailedProduct {
@@ -64,6 +71,7 @@ interface ImportResult {
   success: boolean;
   message?: string;
   note?: string;
+  category?: string;
   category_properties?: PropertyInfo[];
   required_fields?: string[];
   headers?: string[];
@@ -82,6 +90,7 @@ interface ImportResult {
   error_stats?: Record<string, number>;
   failed_products_sample?: FailedProduct[];
   save_message?: string;
+  [key: string]: unknown;
 }
 
 // Функция для создания динамической схемы категории на основе заголовков прайса
@@ -121,7 +130,7 @@ async function createDynamicSchema(categoryId: string, headers: string[]) {
   });
   
   // Создаем import_mapping
-  const import_mapping = {};
+  const import_mapping: Record<string, string> = {};
   headers.forEach((header, index) => {
     import_mapping[`field_${index + 1}`] = header;
   });
@@ -268,7 +277,7 @@ async function postHandler(req: NextRequest) {
       logger.debug('Headers mode - processing file', 'admin/import/universal', { fileName: file.name, fileType: file.type, fileSize: file.size });
       try {
         const buffer = await file.arrayBuffer();
-        let workbook;
+        let workbook: XLSX.WorkBook;
         
         if (file.type === 'text/csv' || isCsvFile) {
           logger.debug('Processing CSV file', 'admin/import/universal');
@@ -475,7 +484,7 @@ async function postHandler(req: NextRequest) {
               
               if (rawData.length > 0) {
                 const firstRow = rawData[0];
-                const rawHeaders = Object.keys(firstRow);
+                const rawHeaders = Object.keys(firstRow as object);
                 logger.debug('Raw headers from object keys', 'admin/import/universal', { rawHeaders });
                 
                 // Фильтруем пустые заголовки и заголовки типа _EMPTY_X
@@ -581,10 +590,10 @@ async function postHandler(req: NextRequest) {
     }
 
     // Парсим mapping если предоставлен
-    let mappingConfig = categoryInfo.import_mapping; // Используем дефолтный mapping
+    let mappingConfig: Record<string, unknown> = (categoryInfo.import_mapping ?? {}) as Record<string, unknown>;
     if (mapping) {
       try {
-        mappingConfig = JSON.parse(mapping);
+        mappingConfig = JSON.parse(mapping) as Record<string, unknown>;
       } catch (e) {
         throw new ValidationError('Неверный формат mapping JSON');
       }
@@ -593,7 +602,7 @@ async function postHandler(req: NextRequest) {
     // Если настройки импорта уже существуют, используем их
     if (categoryInfo.import_mapping && Object.keys(categoryInfo.import_mapping).length > 0) {
       logger.debug('Using existing import mapping', 'admin/import/universal', { importMapping: categoryInfo.import_mapping });
-      mappingConfig = categoryInfo.import_mapping;
+      mappingConfig = categoryInfo.import_mapping as Record<string, unknown>;
     }
 
     // Если есть шаблон импорта, используем его данные для маппинга
@@ -618,15 +627,17 @@ async function postHandler(req: NextRequest) {
         const calculatorFields = templateFields.map((field: FieldMapping) => field.fieldName || field.sourceField || '');
         
         mappingConfig = {
+          ...mappingConfig,
           calculator_fields: calculatorFields,
-          frontend_price: calculatorFields[0] // Используем первое поле как цену
+          frontend_price: calculatorFields[0] ?? ''
         };
         
         // Также обновляем categoryInfo.properties для совместимости
         categoryInfo.properties = templateFields.map((field: FieldMapping) => ({
-          key: field.fieldName || field,
-          name: field.displayName || field.fieldName || field,
-          required: true
+          key: field.fieldName || field.sourceField || '',
+          name: (field as FieldMapping & { displayName?: string }).displayName || field.fieldName || field.sourceField || '',
+          type: (field as FieldMapping & { dataType?: string }).dataType || 'string',
+          required: field.required ?? true
         }));
 
         // ОБНОВЛЯЕМ ШАБЛОН с fieldMappings
@@ -645,11 +656,13 @@ async function postHandler(req: NextRequest) {
           }
 
           // Подготавливаем fieldMappings для сохранения
-          const fieldMappingsData = (mappingConfig.fieldMappings as FieldMapping[]).map((mapping: FieldMapping) => ({
+          const rawMappings = mappingConfig.fieldMappings;
+          const mappingsArray = Array.isArray(rawMappings) ? rawMappings : (typeof rawMappings === 'string' ? (JSON.parse(rawMappings || '[]') as FieldMapping[]) : []);
+          const fieldMappingsData = mappingsArray.map((mapping: FieldMapping) => ({
             fieldName: mapping.fieldName,
             displayName: mapping.displayName,
             dataType: mapping.dataType,
-            isRequired: mapping.isRequired,
+            isRequired: mapping.isRequired ?? mapping.required,
             isVisible: mapping.isVisible !== undefined ? mapping.isVisible : true
           }));
 
@@ -1065,18 +1078,19 @@ async function postHandler(req: NextRequest) {
       });
       
       // Ищем поле с ценой для product.price - используем точный маппинг из шаблона
-      if (mappingConfig && mappingConfig.fieldMappings) {
+      const fieldMappingsArr = mappingConfig?.fieldMappings && Array.isArray(mappingConfig.fieldMappings) ? mappingConfig.fieldMappings : (typeof mappingConfig?.fieldMappings === 'string' ? (JSON.parse(mappingConfig.fieldMappings || '[]') as FieldMapping[]) : []);
+      if (mappingConfig && fieldMappingsArr.length > 0) {
         // Находим поле цены из шаблона
-        const priceMapping = mappingConfig.fieldMappings.find(field => 
-          field.dataType === 'number' && 
-          (field.displayName.toLowerCase().includes('цена') || 
-           field.fieldName.toLowerCase().includes('цена'))
+        const priceMapping = fieldMappingsArr.find((field: FieldMapping) => 
+          (field.dataType === 'number' || !field.dataType) && 
+          ((field.displayName && field.displayName.toLowerCase().includes('цена')) || 
+           (field.fieldName && field.fieldName.toLowerCase().includes('цена')))
         );
         
-        if (priceMapping) {
+        if (priceMapping && priceMapping.fieldName) {
           const priceValue = specifications[priceMapping.fieldName];
           if (priceValue !== undefined && priceValue !== null && priceValue !== '') {
-            product.price = priceValue;
+            product.price = (typeof priceValue === 'string' || typeof priceValue === 'number' ? priceValue : String(priceValue)) as string | number;
             if (index < 5) {
               logger.debug(`Found price from template mapping`, 'admin/import/universal', {
                 fieldName: priceMapping.fieldName,
@@ -1114,16 +1128,16 @@ async function postHandler(req: NextRequest) {
       }
       
       // Извлекаем основные поля товара используя маппинг из шаблона
-      if (mappingConfig && mappingConfig.fieldMappings) {
-        const fieldMappings = mappingConfig.fieldMappings;
+      if (fieldMappingsArr.length > 0) {
+        const fieldMappings = fieldMappingsArr;
         
         // Ищем поле для названия товара
-        const nameMapping = fieldMappings.find(f => 
+        const nameMapping = fieldMappings.find((f: FieldMapping) => 
           f.displayName && f.displayName.toLowerCase().includes('наименование')
         );
         
-        if (nameMapping && specifications[nameMapping.fieldName]) {
-          product.name = specifications[nameMapping.fieldName].toString().trim();
+        if (nameMapping && nameMapping.fieldName && specifications[nameMapping.fieldName]) {
+          product.name = String(specifications[nameMapping.fieldName]).trim();
           if (index < 5) {
             logger.debug(`Found product name from template`, 'admin/import/universal', { productName: product.name });
           }
@@ -1134,8 +1148,8 @@ async function postHandler(req: NextRequest) {
           f.displayName && f.displayName.toLowerCase().includes('артикул')
         );
         
-        if (skuMapping && specifications[skuMapping.fieldName]) {
-          product.sku = specifications[skuMapping.fieldName].toString().trim();
+        if (skuMapping && skuMapping.fieldName && specifications[skuMapping.fieldName]) {
+          product.sku = String(specifications[skuMapping.fieldName]).trim();
           if (index < 5) {
             logger.debug(`Found product SKU from template`, 'admin/import/universal', { productSku: product.sku });
           }
@@ -1186,7 +1200,7 @@ async function postHandler(req: NextRequest) {
           const missingRequiredFields: string[] = [];
           
           templateRequiredFields.forEach((field: FieldMapping) => {
-            const fieldName = field.fieldName || field;
+            const fieldName = (field.fieldName || field.sourceField || '') as string;
             if (!specifications[fieldName] || specifications[fieldName] === '') {
               missingRequiredFields.push(fieldName);
             }
@@ -1261,8 +1275,9 @@ async function postHandler(req: NextRequest) {
     });
 
     const result: ImportResult = {
+      success: true,
       message: "Файл успешно обработан",
-      category: categoryInfo,
+      category: typeof categoryInfo === 'string' ? categoryInfo : (categoryInfo?.name ?? category),
       filename: file.name,
       size: file.size,
       type: file.type,
@@ -1282,7 +1297,7 @@ async function postHandler(req: NextRequest) {
       error_rows: errors.length,
       debug: {
         first_row: rows[0],
-        mapping_config: mappingConfig,
+        mapping_config: mappingConfig as Record<string, string>,
         sample_product: products[0] || null
       }
     };

@@ -75,7 +75,7 @@ async function postHandler(req: NextRequest) {
                     sku: '',
                     name: '',
                     catalog_category_id: categoryId,
-                    properties_data: {},
+                    properties_data: {} as Record<string, unknown>,
                     base_price: 0,
                     currency: 'RUB',
                     stock_quantity: 0,

@@ -67,7 +67,7 @@ export async function POST(req: Request, { params }: { params: { category: strin
 
   const code = params.category.toLowerCase();
   const isDoors = code === 'doors';
-  const cat = !isDoors ? await prisma.category.findFirst({ where: { code }, include: { attributes: true } }) : null;
+  const cat = !isDoors ? await (prisma as unknown as { category: { findFirst: (args: { where: { code: string }; include: { attributes: true } }) => Promise<{ id: string; code: string; attributes: Array<{ key: string; type: string; required: boolean; enumValues?: unknown[] }> } | null> } }).category.findFirst({ where: { code }, include: { attributes: true } }) : null;
   if (!isDoors && !cat) return NextResponse.json({ error: 'Неизвестная категория' }, { status: 400 });
 
   const raw = await parseAnyTable(file);
@@ -78,7 +78,7 @@ export async function POST(req: Request, { params }: { params: { category: strin
     { dest: 'base_price', type: 'number', required: true },
     { dest: 'currency', type: 'enum', required: true, enumValues: ['RUB','EUR'] },
     { dest: 'valid_from', type: 'date', required: false },
-    ...(cat!.attributes.map(a => ({ dest: a.key, type: a.type as any, required: a.required, enumValues: a.enumValues })))
+    ...(cat!.attributes.map((a: { key: string; type: string; required: boolean; enumValues?: unknown[] }) => ({ dest: a.key, type: a.type as 'string' | 'number' | 'date' | 'enum', required: a.required, enumValues: a.enumValues })))
   ] as any);
 
   const mapped = raw.map(r => autoMap(r, schema as any, defaults));
@@ -118,9 +118,18 @@ export async function POST(req: Request, { params }: { params: { category: strin
       const data: Record<string, any> = {};
       Object.keys(r).forEach(k => { if (!reserved.has(k)) data[k] = (r as any)[k]; });
 
-      const existing = await tx.genericProduct.findFirst({ where: { categoryId: catId, sku: upper.sku }, select: { id: true }});
-      if (existing) await tx.genericProduct.update({ where: { id: existing.id }, data: { ...upper, data } });
-      else await tx.genericProduct.create({ data: { categoryId: catId, ...upper, data } });
+      const productPayload = {
+        catalog_category_id: catId,
+        sku: upper.sku,
+        name: String(upper.series || upper.sku),
+        base_price: upper.base_price,
+        currency: upper.currency,
+        series: upper.series,
+        properties_data: JSON.stringify({ ...data, valid_from: upper.valid_from })
+      };
+      const existing = await tx.product.findFirst({ where: { catalog_category_id: catId, sku: upper.sku }, select: { id: true }});
+      if (existing) await tx.product.update({ where: { id: existing.id }, data: productPayload });
+      else await tx.product.create({ data: productPayload });
       c++;
     }
     return c;

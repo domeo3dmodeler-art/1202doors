@@ -1,6 +1,8 @@
 // lib/security/rate-limiter.ts
 // Простой rate limiter для API endpoints
 
+import { NextResponse } from 'next/server';
+
 interface RateLimitEntry {
   count: number;
   resetTime: number;
@@ -97,6 +99,29 @@ export function createRateLimitResponse(limiter: RateLimiter, identifier: string
   const resetTime = limiter.getResetTime(identifier);
   
   return new Response(
+    JSON.stringify({
+      error: 'Too Many Requests',
+      message: 'Превышен лимит запросов. Попробуйте позже.',
+      retryAfter: Math.ceil((resetTime - Date.now()) / 1000)
+    }),
+    {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': limiter['maxRequests'].toString(),
+        'X-RateLimit-Remaining': remaining.toString(),
+        'X-RateLimit-Reset': resetTime.toString(),
+        'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+      }
+    }
+  );
+}
+
+/** NextResponse variant for use in Next.js API routes that require NextResponse. */
+export function createNextRateLimitResponse(limiter: RateLimiter, identifier: string): NextResponse {
+  const remaining = limiter.getRemainingRequests(identifier);
+  const resetTime = limiter.getResetTime(identifier);
+  return new NextResponse(
     JSON.stringify({
       error: 'Too Many Requests',
       message: 'Превышен лимит запросов. Попробуйте позже.',

@@ -4,7 +4,7 @@ import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для моделей с фото
@@ -13,7 +13,7 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 минут - увеличиваем вр
 
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);

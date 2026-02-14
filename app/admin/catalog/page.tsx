@@ -401,7 +401,7 @@ export default function CatalogPage() {
             <div className="text-sm text-gray-500">Загрузка категорий...</div>
           ) : (
             <CatalogTree
-              categories={categories}
+              categories={categories.map(c => ({ ...c, parent_id: c.parent_id ?? undefined }))}
               selectedCategoryId={selectedCategoryId}
               onCategorySelect={setSelectedCategoryId}
               searchTerm={categorySearch}

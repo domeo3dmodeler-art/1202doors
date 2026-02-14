@@ -5,13 +5,13 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError, ConflictError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/configurator/category-links/[id]/hierarchies - Получить иерархии для связи
 async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { id } = await params;
@@ -53,7 +53,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandling(
-    requireAuth(async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (req: NextRequest, user: AuthenticatedUser) => {
       return await getHandler(req, { params }, user);
     }),
     'configurator/category-links/[id]/hierarchies/GET'
@@ -64,7 +64,7 @@ export async function GET(
 async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { id } = await params;
@@ -132,7 +132,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withErrorHandling(
-    requireAuth(async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (req: NextRequest, user: AuthenticatedUser) => {
       return await postHandler(req, { params }, user);
     }),
     'configurator/category-links/[id]/hierarchies/POST'

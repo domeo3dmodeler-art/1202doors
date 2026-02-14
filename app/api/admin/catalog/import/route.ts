@@ -53,16 +53,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ожидаем структуру: id, name, parent_id, level, description
-    const categories = data.map((row: ImportRow) => ({
-      id: row.id || row.ID || '',
-      name: row.name || row.Name || row.название || '',
-      parentId: row.parent_id || row.parentId || row.parent_ID || null,
-      level: parseInt(row.level || row.Level || row.уровень || '1'),
-      description: row.description || row.Description || row.описание || '',
-      slug: row.slug || row.Slug || '',
+    // Ожидаем структуру: id, name, parent_id, level
+    const categories = (data as ImportRow[]).map((row) => ({
+      id: String(row.id || row.ID || ''),
+      name: String(row.name || row.Name || row.название || ''),
+      parentId: row.parent_id ?? row.parentId ?? row.parent_ID ?? null,
+      level: parseInt(String(row.level ?? row.Level ?? row.уровень ?? '1'), 10),
+      slug: String(row.slug || row.Slug || ''),
       isActive: row.isActive !== false && row.active !== false,
-      sortOrder: parseInt(row.sortOrder || row.sort_order || row.порядок || '0')
+      sortOrder: parseInt(String(row.sortOrder ?? row.sort_order ?? row.порядок ?? '0'), 10)
     })).filter(cat => cat.id && cat.name);
 
     // Создаем категории каталога
@@ -76,13 +75,9 @@ export async function POST(request: NextRequest) {
             name: category.name,
             parent_id: category.parentId,
             level: category.level,
-            description: category.description,
-            slug: category.slug || category.name.toLowerCase().replace(/\s+/g, '-'),
-            isActive: category.isActive,
-            sort_order: category.sortOrder,
-            propertiesSchema: JSON.stringify({}), // Пустая схема по умолчанию
-            createdAt: new Date(),
-            updatedAt: new Date()
+            path: category.slug || category.name.toLowerCase().replace(/\s+/g, '-'),
+            is_active: category.isActive,
+            sort_order: category.sortOrder
           }
         });
         
@@ -119,13 +114,13 @@ export async function GET() {
         { name: 'asc' }
       ],
       include: {
-        children: {
+        subcategories: {
           orderBy: { sort_order: 'asc' }
         },
         _count: {
           select: {
             products: true,
-            children: true
+            subcategories: true
           }
         }
       }

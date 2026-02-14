@@ -22,7 +22,7 @@ export async function GET(
       success: true,
       setting: {
         ...setting,
-        template_config: JSON.parse(setting.template_config)
+        template_config: setting.display_config ? JSON.parse(setting.display_config) : {}
       }
     });
 
@@ -42,14 +42,13 @@ export async function PUT(
   try {
     const data = await request.json();
     
-    const { name, document_type, template_config } = data;
+    const { document_type, template_config } = data;
 
     const setting = await prisma.exportSetting.update({
       where: { id: params.id },
       data: {
-        ...(name && { name }),
-        ...(document_type && { document_type }),
-        ...(template_config && { template_config: JSON.stringify(template_config) })
+        ...(document_type && { export_type: document_type }),
+        ...(template_config !== undefined && { display_config: JSON.stringify(template_config) })
       }
     });
 
@@ -57,7 +56,7 @@ export async function PUT(
       success: true,
       setting: {
         ...setting,
-        template_config: JSON.parse(setting.template_config)
+        template_config: setting.display_config ? JSON.parse(setting.display_config) : {}
       }
     });
 

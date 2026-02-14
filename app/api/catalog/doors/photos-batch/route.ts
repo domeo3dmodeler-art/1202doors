@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
-import { getPropertyPhotos, structurePropertyPhotos } from '@/lib/property-photos';
+import { getPropertyPhotos, structurePropertyPhotos, DOOR_MODEL_CODE_PROPERTY } from '@/lib/property-photos';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Кэш для фото
@@ -16,7 +16,7 @@ const PHOTO_CACHE_TTL = 30 * 60 * 1000; // 30 минут для фото
 // DELETE - очистка кэша
 async function deleteHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   photoCache.clear();
@@ -44,7 +44,7 @@ async function postHandler(
       error: jsonError instanceof Error ? jsonError.message : String(jsonError),
       stack: jsonError instanceof Error ? jsonError.stack : undefined
     }, loggingContext);
-    return apiError('Неверный формат JSON в теле запроса', ApiErrorCode.VALIDATION_ERROR, 400);
+    return apiError(ApiErrorCode.VALIDATION_ERROR, 'Неверный формат JSON в теле запроса', 400);
   }
   
   if (!models || !Array.isArray(models)) {
@@ -164,15 +164,21 @@ async function postHandler(
           normalizedPropertyValue
         }, loggingContext);
         
-        // Получаем фотографии для этой модели из PropertyPhoto
-        // Сначала ищем по "Артикул поставщика" (т.к. фото привязаны по артикулу)
+        // Получаем фотографии для этой модели из PropertyPhoto (по коду модели; устаревший «Артикул поставщика» — fallback)
         let propertyPhotos = await getPropertyPhotos(
           doorsCategoryId,
-          'Артикул поставщика',
+          DOOR_MODEL_CODE_PROPERTY,
           normalizedPropertyValue
         );
+        if (propertyPhotos.length === 0) {
+          propertyPhotos = await getPropertyPhotos(
+            doorsCategoryId,
+            'Артикул поставщика',
+            normalizedPropertyValue
+          );
+        }
         
-        logger.debug('Найдено фото для базового артикула', 'catalog/doors/photos-batch/POST', {
+        logger.debug('Найдено фото для базового кода модели', 'catalog/doors/photos-batch/POST', {
           propertyValue,
           photosCount: propertyPhotos.length
         }, loggingContext);
@@ -182,16 +188,15 @@ async function postHandler(
         
         // Ищем фото для вариантов: d2 → d2_1, d2_2, d2_3 и т.д.
         for (let i = 1; i <= 10; i++) {
-          const variantArticle = `${propertyValue}_${i}`;
-          const variantPhotos = await getPropertyPhotos(
-            doorsCategoryId,
-            'Артикул поставщика',
-            variantArticle.toLowerCase()
-          );
+          const variantKey = `${propertyValue}_${i}`.toLowerCase();
+          let variantPhotos = await getPropertyPhotos(doorsCategoryId, DOOR_MODEL_CODE_PROPERTY, variantKey);
+          if (variantPhotos.length === 0) {
+            variantPhotos = await getPropertyPhotos(doorsCategoryId, 'Артикул поставщика', variantKey);
+          }
           
           if (variantPhotos.length > 0) {
-            logger.debug('Найдено фото для варианта артикула', 'catalog/doors/photos-batch/POST', {
-              variantArticle,
+            logger.debug('Найдено фото для варианта кода', 'catalog/doors/photos-batch/POST', {
+              variantKey,
               photosCount: variantPhotos.length
             }, loggingContext);
             propertyPhotos.push(...variantPhotos);

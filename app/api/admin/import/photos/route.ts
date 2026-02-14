@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { ValidationError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { validateImageFile, generateUniqueFileName } from '../../../../../lib/validation/file-validation';
-import { uploadRateLimiter, getClientIP, createRateLimitResponse } from '../../../../../lib/security/rate-limiter';
+import { uploadRateLimiter, getClientIP, createNextRateLimitResponse } from '../../../../../lib/security/rate-limiter';
 import { upsertPropertyPhoto, deletePropertyPhotos } from '../../../../../lib/property-photos';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // DELETE /api/admin/import/photos - Очистка всех привязок фото в категории
-async function deleteHandler(request: NextRequest) {
+async function deleteHandler(request: NextRequest, user: AuthenticatedUser): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser(request);
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const propertyName = searchParams.get('property_name');
@@ -80,15 +79,14 @@ export const DELETE = withErrorHandling(
 );
 
 // POST /api/admin/import/photos - Загрузка фотографий для свойств товаров
-async function postHandler(request: NextRequest) {
+async function postHandler(request: NextRequest, user: AuthenticatedUser): Promise<NextResponse> {
   try {
-    const user = await getAuthenticatedUser(request);
     // Проверка rate limiting
     const clientIP = getClientIP(request);
     const isAllowed = uploadRateLimiter.isAllowed(clientIP);
     
     if (!isAllowed) {
-      return createRateLimitResponse(uploadRateLimiter, clientIP);
+      return createNextRateLimitResponse(uploadRateLimiter, clientIP);
     }
 
     const formData = await request.formData();

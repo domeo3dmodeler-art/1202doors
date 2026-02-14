@@ -10,12 +10,12 @@ import { NotFoundError, InvalidStateError, BusinessRuleError, ForbiddenError } f
 import { changeStatusSchema } from '@/lib/validation/status.schemas';
 import { validateRequest } from '@/lib/validation/middleware';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // PUT /api/orders/[id]/status - Изменение статуса заказа
 async function handler(
   req: NextRequest,
-  user: Awaited<ReturnType<typeof getAuthenticatedUser>>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
@@ -200,7 +200,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await handler(request, user, { params });
     }),
     'orders/[id]/status'

@@ -1,4 +1,4 @@
-// api/quotes/preview/route.ts
+﻿// api/quotes/preview/route.ts
 // API роут для предпросмотра PDF шаблонов КП
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // GET /api/quotes/preview - Предпросмотр PDF шаблона
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);

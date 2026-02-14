@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getRoleDisplayName, getRoleIcon, getRoleColor } from '@/lib/auth/roles';
 import { logger } from '@/lib/logging/logger';
@@ -11,7 +11,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // GET /api/users/me - Получение информации о текущем пользователе
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
 

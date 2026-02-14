@@ -5,11 +5,11 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { clientId, cartItems, documentType = 'quote' } = await request.json();
@@ -81,7 +81,7 @@ async function postHandler(
         const orderError = await orderResponse.json();
         logger.error('Ошибка при создании заказа', 'cart/save-to-client', { error: orderError }, loggingContext);
         return apiError(
-          ApiErrorCode.INTERNAL_ERROR,
+          ApiErrorCode.INTERNAL_SERVER_ERROR,
           `Ошибка при создании заказа: ${orderError.error || orderError.message || 'Неизвестная ошибка'}`,
           500
         );
@@ -93,7 +93,7 @@ async function postHandler(
       if (!orderId) {
         logger.error('Не удалось получить ID созданного заказа', 'cart/save-to-client', { orderResult }, loggingContext);
         return apiError(
-          ApiErrorCode.INTERNAL_ERROR,
+          ApiErrorCode.INTERNAL_SERVER_ERROR,
           'Не удалось получить ID созданного заказа',
           500
         );
@@ -122,7 +122,7 @@ async function postHandler(
         const documentError = await documentResponse.json();
         logger.error('Ошибка при создании документа', 'cart/save-to-client', { error: documentError }, loggingContext);
         return apiError(
-          ApiErrorCode.INTERNAL_ERROR,
+          ApiErrorCode.INTERNAL_SERVER_ERROR,
           `Ошибка при создании ${documentType}: ${documentError.error || documentError.message || 'Неизвестная ошибка'}`,
           500
         );
@@ -146,34 +146,18 @@ async function postHandler(
       break;
 
     case 'order':
-      // Создаем заказ
+      // Создаем заказ (данные корзины сохраняем в cart_data)
       const orderNumber = `ORD-${Date.now()}`;
       document = await prisma.order.create({
         data: {
           number: orderNumber,
           client_id: clientId,
-          created_by: user.userId || 'system',
-          status: 'DRAFT',
-          subtotal: totalAmount,
-          tax_amount: totalAmount * 0.2,
-          total_amount: totalAmount * 1.2,
-          currency: 'RUB'
+          status: 'NEW_PLANNED',
+          total_amount: totalAmount,
+          notes: `Создан через save-to-client. Корзина: ${cartItems.length} позиций`,
+          cart_data: JSON.stringify(cartItems)
         }
       });
-
-      // Создаем элементы заказа
-      for (const item of cartItems) {
-        await prisma.orderItem.create({
-          data: {
-            order_id: document.id,
-            product_id: item.productId || 'unknown',
-            quantity: item.quantity,
-            unit_price: item.price,
-            total_price: item.price * item.quantity,
-            notes: item.notes || null
-          }
-        });
-      }
       break;
 
     default:

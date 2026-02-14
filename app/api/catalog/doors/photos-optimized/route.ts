@@ -5,7 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getDoorsCategoryId } from '@/lib/catalog-categories';
 
 // Оптимизированный кэш для фотографий
@@ -18,7 +18,7 @@ const MODELS_CACHE_TTL = 30 * 60 * 1000; // 30 минут
 
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);
@@ -75,7 +75,6 @@ async function getHandler(
         where: {
           catalog_category_id: doorsCategoryId,
           properties_data: {
-            not: null,
             contains: '"photos":'
           }
         },

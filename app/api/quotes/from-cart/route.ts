@@ -1,4 +1,4 @@
-// api/quotes/from-cart/route.ts
+﻿// api/quotes/from-cart/route.ts
 // API роут для создания КП из корзины
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -58,7 +58,7 @@ type CartToQuoteRequest = {
 // Для правильной работы создайте Order через POST /api/orders, затем Quote через POST /api/documents/create
 async function postHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const body: CartToQuoteRequest = await req.json();
@@ -172,7 +172,7 @@ export const POST = withErrorHandling(
 // GET /api/quotes/from-cart - Получить информацию о возможности создания КП
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);

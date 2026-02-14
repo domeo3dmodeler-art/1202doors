@@ -4,8 +4,10 @@ import { logger } from '@/lib/logging/logger';
 
 // GET /api/documents/[id]/related - Получение связанных документов
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type') || 'all';
 
@@ -168,7 +170,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
   } catch (error) {
-    logger.error('Ошибка получения связанных документов', 'documents/[id]/related', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Ошибка получения связанных документов', 'documents/[id]/related', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Ошибка при получении связанных документов' },
       { status: 500 }

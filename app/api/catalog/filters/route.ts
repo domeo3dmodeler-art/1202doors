@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Преобразуем в формат фильтров
-    const filters = Array.from(propertiesMap.entries()).map(([name, data]) => {
-      const options = Array.from(data.values.entries()).map(([value, count]) => ({
+    const filters = Array.from(propertiesMap.entries()).map(([name, data]: [string, { type: string; values: Map<unknown, number> }]) => {
+      const options = Array.from(data.values.entries()).map(([value, count]: [unknown, number]) => ({
         value: String(value),
         label: String(value),
         count
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       // Определяем тип фильтра
       let type = 'select';
       if (data.type === 'number' || data.type === 'decimal') {
-        const numbers = options.map(opt => parseFloat(opt.value)).filter(n => !isNaN(n));
+        const numbers = options.map((opt: { value: string; label: string; count: number }) => parseFloat(opt.value)).filter(n => !isNaN(n));
         if (numbers.length > 0) {
           type = 'range';
           return {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
       // Проверяем, являются ли значения цветами
       const colorPattern = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-      if (options.length <= 10 && options.every(opt => colorPattern.test(opt.value))) {
+      if (options.length <= 10 && options.every((opt: { value: string; label: string; count: number }) => colorPattern.test(opt.value))) {
         type = 'color';
       }
 

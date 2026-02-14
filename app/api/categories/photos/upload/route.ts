@@ -21,9 +21,15 @@ let mockPhotos: Record<string, Photo[]> = {
 };
 
 export async function POST(request: NextRequest) {
+  let categoryId: string | undefined;
   try {
     const formData = await request.formData();
-    const categoryId = formData.get('categoryId') as string;
+    const raw = formData.get('categoryId');
+    categoryId = typeof raw === 'string' ? raw : undefined;
+    if (!categoryId) {
+      return NextResponse.json({ error: 'categoryId is required' }, { status: 400 });
+    }
+    const catId: string = categoryId;
     const folderUrl = formData.get('folderUrl') as string;
     const photos = formData.getAll('photos') as File[];
 
@@ -42,9 +48,9 @@ export async function POST(request: NextRequest) {
       const photoId = `photo_${Date.now()}_${index}`;
       newPhotos.push({
         id: photoId,
-        url: `/uploads/${categoryId}/${photo.name}`,
+        url: `/uploads/${catId}/${photo.name}`,
         alt: photo.name,
-        category_id: categoryId
+        category_id: catId
       });
     });
 
@@ -56,15 +62,15 @@ export async function POST(request: NextRequest) {
         id: folderPhotoId,
         url: folderUrl,
         alt: 'Фото из папки',
-        category_id: categoryId
+        category_id: catId
       });
     }
 
     // Добавляем новые фото к существующим
-    if (!mockPhotos[categoryId]) {
-      mockPhotos[categoryId] = [];
+    if (!mockPhotos[catId]) {
+      mockPhotos[catId] = [];
     }
-    mockPhotos[categoryId].push(...newPhotos);
+    mockPhotos[catId].push(...newPhotos);
 
     return NextResponse.json({ 
       success: true, 
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
       photos: newPhotos
     });
   } catch (error) {
-    logger.error('Error uploading photos', 'categories/photos/upload', error instanceof Error ? { error: error.message, stack: error.stack, categoryId } : { error: String(error), categoryId });
+    logger.error('Error uploading photos', 'categories/photos/upload', error instanceof Error ? { error: error.message, stack: error.stack, categoryId: categoryId ?? undefined } : { error: String(error), categoryId: categoryId ?? undefined });
     return NextResponse.json({ error: 'Ошибка при загрузке фото' }, { status: 500 });
   }
 }

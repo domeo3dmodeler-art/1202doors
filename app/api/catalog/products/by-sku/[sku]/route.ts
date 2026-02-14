@@ -5,7 +5,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // Импортируем функции напрямую для совместимости
 function structurePhotos(photos: string[]) {
@@ -84,7 +84,7 @@ function getPhotoCount(photoStructure: { cover: string | null; gallery: string[]
 // GET /api/catalog/products/by-sku/[sku] - Получить товар по SKU с структурированными фото
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ sku: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -129,7 +129,7 @@ async function getHandler(
       brand: product.brand,
       model: product.model,
       series: product.series,
-      price: product.price,
+      price: product.base_price,
       base_price: product.base_price,
       properties: properties,
       photos: {

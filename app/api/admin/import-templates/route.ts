@@ -12,20 +12,19 @@ import { fixAllEncoding } from '@/lib/encoding-utils';
 async function postHandler(req: NextRequest) {
   try {
     const user = await getAuthenticatedUser(req);
-    const rawData = await req.json();
+    const rawData = (await req.json()) as Record<string, unknown>;
     
     // Исправляем кодировку входящих данных
-    const { 
-      name, 
-      description, 
-      catalog_category_id,
-      template_config,
-      field_mappings,
-      required_fields,
-      calculator_fields,
-      export_fields,
-      validation_rules
-    } = fixAllEncoding(rawData);
+    const encoded = fixAllEncoding(rawData) as Record<string, unknown>;
+    const name = encoded.name as string | undefined;
+    const description = encoded.description as string | undefined;
+    const catalog_category_id = encoded.catalog_category_id as string | undefined;
+    const template_config = encoded.template_config;
+    const field_mappings = encoded.field_mappings;
+    const required_fields = encoded.required_fields;
+    const calculator_fields = encoded.calculator_fields;
+    const export_fields = encoded.export_fields;
+    const validation_rules = encoded.validation_rules;
 
     if (!name || !catalog_category_id) {
       throw new ValidationError('Не указаны обязательные поля: name, catalog_category_id');

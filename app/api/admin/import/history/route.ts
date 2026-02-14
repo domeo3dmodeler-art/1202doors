@@ -20,11 +20,6 @@ export async function GET(request: NextRequest) {
           select: {
             name: true
           }
-        },
-        catalog_category: {
-          select: {
-            name: true
-          }
         }
       }
     });
@@ -40,8 +35,8 @@ export async function GET(request: NextRequest) {
         status: item.status,
         errors: item.errors ? JSON.parse(item.errors) : [],
         created_at: item.created_at,
-        template_name: item.template?.name || 'Неизвестный шаблон',
-        category_name: item.catalog_category?.name || 'Неизвестная категория'
+        template_name: item.template?.name ?? 'Неизвестный шаблон',
+        category_name: item.catalog_category_id || 'Неизвестная категория'
       }))
     });
 

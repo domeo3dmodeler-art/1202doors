@@ -8,14 +8,14 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError, NotFoundError } from '@/lib/api/errors';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiValidator } from '@/lib/api-validator';
 
 // ===================== УНИФИЦИРОВАННЫЙ ИМПОРТ =====================
 
 async function postHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   
@@ -91,11 +91,7 @@ async function postHandler(
       ? `Шаблон не найден для категории "${category.name}". Создайте шаблон для этой категории перед импортом.`
       : `Категория с ID "${categoryId}" не найдена.`;
 
-    throw new NotFoundError(errorMessage, {
-      categoryId,
-      categoryName: category?.name || null,
-      message: "Создайте шаблон импорта для этой категории через раздел 'Шаблоны' в интерфейсе импорта."
-    });
+    throw new NotFoundError(errorMessage + " Создайте шаблон импорта для этой категории через раздел 'Шаблоны' в интерфейсе импорта.");
   }
 
     // Парсим поля шаблона с исправлением кодировки
@@ -145,8 +141,8 @@ async function postHandler(
   }, loggingContext);
 
     // Валидируем заголовки - проверяем точное совпадение с шаблоном
-    const availableRequiredFields = requiredFields.filter(field => fixedHeaders.includes(field));
-    const missingFields = requiredFields.filter(field => !fixedHeaders.includes(field));
+    const availableRequiredFields = requiredFields.filter((field: string) => fixedHeaders.includes(field));
+    const missingFields = requiredFields.filter((field: string) => !fixedHeaders.includes(field));
     
   logger.debug('Анализ полей', 'admin/import/unified/POST', {
     requiredFields: requiredFields.length,
@@ -161,7 +157,7 @@ async function postHandler(
   // Если нет ни одного обязательного поля из шаблона И нет SKU внутреннее - ошибка
   if (availableRequiredFields.length === 0 && !hasInternalSku) {
     throw new ValidationError('Файл не соответствует шаблону категории', {
-      category: template.catalog_category?.name || 'Неизвестная категория',
+      category: (template as { catalog_category?: { name: string } }).catalog_category?.name ?? 'Неизвестная категория',
       missingFields: missingFields,
       availableFields: fixedHeaders,
       templateRequiredFields: requiredFields,
@@ -195,7 +191,7 @@ async function postHandler(
         const properties: any = {};
         
         // Обрабатываем только поля из шаблона
-        requiredFields.forEach(field => {
+        requiredFields.forEach((field: string) => {
           // Проверяем, есть ли это поле в файле
           const headerIndex = fixedHeaders.indexOf(field);
           if (headerIndex !== -1 && row[headerIndex] !== undefined) {
@@ -282,7 +278,7 @@ async function postHandler(
           // Для нового товара требуется ВСЕ обязательные поля из шаблона
           
           // Определяем название - ищем поле с названием во всех полях шаблона
-          const nameField = requiredFields.find(field => 
+          const nameField = requiredFields.find((field: string) => 
             field.toLowerCase().includes('название') || 
             field.toLowerCase().includes('наименование') ||
             field.toLowerCase().includes('имя')
@@ -295,7 +291,7 @@ async function postHandler(
           }
           
           // Проверяем ВСЕ обязательные поля из шаблона для нового товара
-          const missingRequiredFields = requiredFields.filter(field => {
+          const missingRequiredFields = requiredFields.filter((field: string) => {
             // Проверяем, есть ли поле в файле И заполнено ли оно
             const hasFieldInFile = fixedHeaders.includes(field);
             const value = properties[field];
@@ -311,7 +307,7 @@ async function postHandler(
           // Название и другие поля можно взять из БД, если их нет в файле
           
           // Определяем название - если есть в файле, используем, иначе возьмем из БД позже
-          const nameField = requiredFields.find(field => 
+          const nameField = requiredFields.find((field: string) => 
             field.toLowerCase().includes('название') || 
             field.toLowerCase().includes('наименование') ||
             field.toLowerCase().includes('имя')

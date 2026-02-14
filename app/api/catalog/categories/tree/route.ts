@@ -63,6 +63,7 @@ async function getHandler(request: NextRequest) {
     // Строим иерархию
     categoriesWithCounts.forEach(category => {
       const categoryNode = categoryMap.get(category.id);
+      if (!categoryNode) return;
       
       if (category.parent_id) {
         const parent = categoryMap.get(category.parent_id);

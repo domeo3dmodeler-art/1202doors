@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { canUserEditClient, canUserDeleteClient } from '@/lib/auth/permissions';
+import type { UserRole } from '@/lib/auth/roles';
 import { isValidInternationalPhone, normalizePhoneForStorage } from '@/lib/utils/phone';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -9,13 +10,13 @@ import { NotFoundError, ValidationError, BusinessRuleError } from '@/lib/api/err
 import { updateClientSchema } from '@/lib/validation/client.schemas';
 import { validateRequest } from '@/lib/validation/middleware';
 import { clientRepository } from '@/lib/repositories/client.repository';
-import { requireAuth, requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { requireAuth, requirePermission } from '@/lib/auth/middleware';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/clients/[id] - Получение клиента с документами
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -71,7 +72,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (req: NextRequest, user: AuthenticatedUser) => {
       return await getHandler(req, user, { params });
     }),
     'clients/[id]/GET'
@@ -81,7 +82,7 @@ export async function GET(
 // PUT /api/clients/[id] - Обновление клиента
 async function putHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -138,9 +139,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuthAndPermission(
-      canUserEditClient,
-      async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requirePermission(
+      (role: string) => canUserEditClient(role as UserRole),
+      async (req: NextRequest, user: AuthenticatedUser) => {
         return await putHandler(req, user, { params });
       }
     ),
@@ -151,7 +152,7 @@ export async function PUT(
 // DELETE /api/clients/[id] - Удаление клиента
 async function deleteHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
@@ -187,9 +188,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuthAndPermission(
-      canUserDeleteClient,
-      async (req: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requirePermission(
+      (role: string) => canUserDeleteClient(role as UserRole),
+      async (req: NextRequest, user: AuthenticatedUser) => {
         return await deleteHandler(req, user, { params });
       }
     ),

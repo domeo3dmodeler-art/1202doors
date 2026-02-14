@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -9,7 +9,7 @@ import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
 // GET /api/quotes - Получить все КП (упрощенная версия)
 async function getHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const { searchParams } = new URL(request.url);
@@ -100,7 +100,7 @@ export const GET = withErrorHandling(
 // Для правильной работы создайте Order через POST /api/orders, затем Quote через POST /api/documents/create
 async function postHandler(
   request: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(request);
   const body = await request.json();

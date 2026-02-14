@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     // Если корзина одинаковая - cart_session_id будет одинаковый
     const cartHash = Buffer.from(JSON.stringify({
       clientId,
-      items: cart.items.map(item => ({
+      items: cart.items.map((item: CartItem) => ({
         id: item.id,
         type: item.type,
         model: item.model,
@@ -123,18 +123,18 @@ export async function POST(req: NextRequest) {
     // Записываем в историю
     await prisma.documentHistory.create({
       data: {
-        document_type: exportResult.documentType!,
         document_id: exportResult.documentId!,
+        user_id: userId,
         action: sourceDocumentId ? 'created_from_cart' : 'created_from_cart',
         new_value: JSON.stringify({
+          documentType: exportResult.documentType!,
           sourceDocumentId,
           sourceDocumentType,
           cartItemsCount: cart.items.length,
           totalAmount,
           format
         }),
-        user_id: userId,
-        notes: sourceDocumentId 
+        details: sourceDocumentId 
           ? `Создан из корзины на основе ${sourceDocumentType} ${sourceDocumentId}`
           : 'Создан из корзины'
       }
@@ -181,12 +181,12 @@ async function createDocumentRelationship(
     if (sourceType === 'quote' && targetType === 'order') {
       await prisma.order.update({
         where: { id: targetId },
-        data: { quote_id: sourceId }
+        data: { parent_document_id: sourceId }
       });
     } else if (sourceType === 'quote' && targetType === 'invoice') {
       await prisma.invoice.update({
         where: { id: targetId },
-        data: { quote_id: sourceId }
+        data: { parent_document_id: sourceId }
       });
     } else if (sourceType === 'order' && targetType === 'invoice') {
       await prisma.invoice.update({

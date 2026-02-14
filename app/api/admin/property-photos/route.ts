@@ -6,8 +6,10 @@ import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api
 import { ValidationError } from '@/lib/api/errors';
 import { logger } from '@/lib/logging/logger';
 
-const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
-const DOOR_CODE_PROPERTY = 'Артикул поставщика';
+import { DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '@/lib/property-photos';
+
+// Устаревший «Артикул поставщика» не используем для обложек моделей
+const DOOR_CODE_PROPERTY = DOOR_MODEL_CODE_PROPERTY;
 
 // GET /api/admin/property-photos - Получить фото для свойств
 async function getHandler(request: NextRequest) {

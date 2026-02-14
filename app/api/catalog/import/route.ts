@@ -4,9 +4,10 @@ import { logger } from '@/lib/logging/logger';
 
 // POST /api/catalog/import - Импорт каталога из Excel
 export async function POST(request: NextRequest) {
+  let fileName: string | undefined;
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
     
     if (!file) {
       return NextResponse.json(
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Конвертируем файл в Buffer
+    fileName = file.name;
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
 
   } catch (error) {
-    logger.error('Error importing catalog', 'catalog/import', error instanceof Error ? { error: error.message, stack: error.stack, fileName: file.name } : { error: String(error), fileName: file.name });
+    logger.error('Error importing catalog', 'catalog/import', error instanceof Error ? { error: error.message, stack: error.stack, fileName: fileName ?? undefined } : { error: String(error), fileName: fileName ?? undefined });
     return NextResponse.json(
       { 
         error: 'Ошибка при импорте каталога',

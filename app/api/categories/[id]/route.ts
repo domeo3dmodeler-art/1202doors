@@ -72,7 +72,7 @@ export async function GET(
 
     return NextResponse.json(category);
   } catch (error) {
-    logger.error('Error fetching category', 'categories/[id]', error instanceof Error ? { error: error.message, stack: error.stack, id: categoryId } : { error: String(error), id: categoryId });
+    logger.error('Error fetching category', 'categories/[id]', error instanceof Error ? { error: error.message, stack: error.stack, id: params.id } : { error: String(error), id: params.id });
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
@@ -81,12 +81,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const categoryId = params.id;
   try {
-    const categoryId = params.id;
     const data = await request.json();
 
     // В реальном приложении здесь будет обновление в базе данных
-    logger.debug('Updating category', 'categories/[id]', { categoryId, hasData: !!data });
+    logger.debug('Updating category', 'categories/[id]', { categoryId: params.id, hasData: !!data });
 
     // Обновляем mock данные
     if (mockCategories[categoryId as keyof typeof mockCategories]) {

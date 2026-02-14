@@ -122,7 +122,7 @@ export default function TemplatesManagementPage() {
       setPreviewingTemplate(templateId);
 
       // Здесь должен быть API вызов для генерации предпросмотра PDF
-      clientLogger.debug('Generating preview for template:', templateId);
+      clientLogger.debug('Generating preview for template:', { templateId });
       
       // Заглушка - открываем новую вкладку с примером PDF
       const previewUrl = `/api/quotes/preview?templateId=${templateId}`;
@@ -138,7 +138,7 @@ export default function TemplatesManagementPage() {
 
   const handleSetDefault = async (templateId: string) => {
     try {
-      clientLogger.debug('Setting default template:', templateId);
+      clientLogger.debug('Setting default template:', { templateId });
       
       setTemplates(prev => prev.map(t => ({
         ...t,
@@ -151,7 +151,7 @@ export default function TemplatesManagementPage() {
 
   const handleToggleStatus = async (templateId: string) => {
     try {
-      clientLogger.debug('Toggling template status:', templateId);
+      clientLogger.debug('Toggling template status:', { templateId });
       
       setTemplates(prev => prev.map(t => 
         t.id === templateId ? { ...t, isActive: !t.isActive } : t
@@ -165,7 +165,7 @@ export default function TemplatesManagementPage() {
     if (!confirm('Вы уверены, что хотите удалить этот шаблон?')) return;
 
     try {
-      clientLogger.debug('Deleting template:', templateId);
+      clientLogger.debug('Deleting template:', { templateId });
       setTemplates(prev => prev.filter(t => t.id !== templateId));
     } catch (err: any) {
       setError(err.message);

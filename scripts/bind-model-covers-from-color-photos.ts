@@ -2,17 +2,16 @@
  * Оптимальный вариант: заполнить обложки моделей из существующих фото цветов (Domeo_Модель_Цвет).
  * Берём по одной обложке на каждый уникальный префикс (первая часть propertyValue),
  * сопоставляем с кодами моделей из товаров по порядку (сортировка по имени), создаём записи
- * PropertyPhoto с propertyName="Артикул поставщика" для отображения фото на фронте.
+ * PropertyPhoto с propertyName="Код модели Domeo (Web)" для отображения фото на фронте.
  *
  * Запуск: npx tsx scripts/bind-model-covers-from-color-photos.ts
  * После запуска: перезапустить приложение или вызвать DELETE /api/catalog/doors/complete-data (с авторизацией), чтобы сбросить кэш.
  */
 import { PrismaClient } from '@prisma/client';
 import { getDoorsCategoryId } from '../lib/catalog-categories';
+import { DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../lib/property-photos';
 
 const prisma = new PrismaClient();
-
-const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
 
 async function main() {
   console.log('=== Привязка обложек моделей из фото цветов ===\n');
@@ -41,8 +40,7 @@ async function main() {
       return;
     }
     const domeoCode = String(props['Код модели Domeo (Web)'] ?? '').trim();
-    const sku = props['Артикул поставщика'];
-    const modelKey = domeoCode || (typeof sku === 'string' ? sku : String(sku || ''));
+    const modelKey = domeoCode || String(props['Артикул поставщика'] ?? '').trim() || '';
     if (modelKey && modelKey.trim()) modelKeysSet.add(modelKey);
   });
   const modelKeys = Array.from(modelKeysSet).sort();
@@ -86,14 +84,14 @@ async function main() {
         where: {
           categoryId_propertyName_propertyValue_photoType: {
             categoryId: doorsCategoryId,
-            propertyName: 'Артикул поставщика',
+            propertyName: DOOR_MODEL_CODE_PROPERTY,
             propertyValue,
             photoType: 'cover',
           },
         },
         create: {
           categoryId: doorsCategoryId,
-          propertyName: 'Артикул поставщика',
+          propertyName: DOOR_MODEL_CODE_PROPERTY,
           propertyValue,
           photoType: 'cover',
           photoPath,
@@ -108,14 +106,14 @@ async function main() {
   const withLocal = await prisma.propertyPhoto.count({
     where: {
       categoryId: doorsCategoryId,
-      propertyName: 'Артикул поставщика',
+      propertyName: DOOR_MODEL_CODE_PROPERTY,
       photoPath: { startsWith: '/uploads' },
     },
   });
   const with360 = await prisma.propertyPhoto.count({
     where: {
       categoryId: doorsCategoryId,
-      propertyName: 'Артикул поставщика',
+      propertyName: DOOR_MODEL_CODE_PROPERTY,
       photoPath: { contains: '360.yandex' },
     },
   });

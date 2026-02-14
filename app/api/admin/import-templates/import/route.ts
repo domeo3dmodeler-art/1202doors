@@ -7,13 +7,13 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, withErrorHandling } from '@/lib/api/response';
 import { ValidationError, NotFoundError } from '@/lib/api/errors';
 import { requireAuthAndPermission } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import type { AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // ===================== Импорт товаров по шаблону =====================
 
 async function postHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>
+  user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const formData = await req.formData();
@@ -176,7 +176,7 @@ async function postHandler(
       });
 
       if (missingRequiredFields.length > 0) {
-        product.errors.push(`Отсутствуют обязательные поля: ${missingRequiredFields.map(f => f.displayName || f.fieldName || f).join(', ')}`);
+        product.errors.push(`Отсутствуют обязательные поля: ${missingRequiredFields.map((f: { displayName?: string; fieldName?: string }) => f.displayName || f.fieldName || String(f)).join(', ')}`);
       }
 
       // Добавляем продукт в результат
@@ -226,31 +226,32 @@ async function postHandler(
       for (const product of products) {
         try {
           // Создаем или обновляем товар
-          const existingProduct = await prisma.genericProduct.findFirst({
+          const skuVal = product.specifications.sku || product.specifications.Артикул || `imported_${Date.now()}_${importedCount}`;
+          const existingProduct = await prisma.product.findFirst({
             where: {
-              categoryId: categoryId,
-              sku: product.specifications.sku || product.specifications.Артикул || `imported_${Date.now()}_${importedCount}`
+              catalog_category_id: categoryId,
+              sku: skuVal
             }
           });
 
           const productData = {
-            categoryId: categoryId,
-            sku: product.specifications.sku || product.specifications.Артикул || `imported_${Date.now()}_${importedCount}`,
-            name: product.specifications.name || product.specifications.Название || 'Импортированный товар',
-            base_price: parseFloat(product.specifications.price || product.specifications.Цена || '0') || 0,
+            catalog_category_id: categoryId,
+            sku: skuVal,
+            name: String(product.specifications.name || product.specifications.Название || 'Импортированный товар'),
+            base_price: parseFloat(String(product.specifications.price || product.specifications.Цена || '0')) || 0,
             currency: 'RUB',
-            properties_data: product.specifications,
+            properties_data: JSON.stringify(product.specifications),
             is_active: true,
-            stock_quantity: parseInt(product.specifications.stock || product.specifications.Остаток || '0') || 0
+            stock_quantity: parseInt(String(product.specifications.stock || product.specifications.Остаток || '0'), 10) || 0
           };
 
           if (existingProduct) {
-            await prisma.genericProduct.update({
+            await prisma.product.update({
               where: { id: existingProduct.id },
               data: productData
             });
           } else {
-            await prisma.genericProduct.create({
+            await prisma.product.create({
               data: productData
             });
           }

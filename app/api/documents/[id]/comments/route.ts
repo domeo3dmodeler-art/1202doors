@@ -7,8 +7,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     
     // Получаем комментарии для документа
     const comments = await prisma.documentComment.findMany({
@@ -28,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({ comments });
   } catch (error) {
-    logger.error('Error fetching comments', 'documents/[id]/comments', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Error fetching comments', 'documents/[id]/comments', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to fetch comments' },
       { status: 500 }
@@ -41,8 +43,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id: string | undefined;
   try {
-    const { id } = await params;
+    const resolved = await params;
+    id = resolved.id;
     const body = await request.json();
     const { text, user_id } = body;
 
@@ -111,7 +115,7 @@ export async function POST(
 
     return NextResponse.json({ comment });
   } catch (error) {
-    logger.error('Error creating comment', 'documents/[id]/comments', error instanceof Error ? { error: error.message, stack: error.stack, id } : { error: String(error), id });
+    logger.error('Error creating comment', 'documents/[id]/comments', error instanceof Error ? { error: error.message, stack: error.stack, id: id ?? undefined } : { error: String(error), id: id ?? undefined });
     return NextResponse.json(
       { error: 'Failed to create comment' },
       { status: 500 }

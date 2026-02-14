@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Badge, Input, Dialog, DialogContent, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Checkbox } from '../../../../components/ui';
 import { Plus, Search, Edit, Trash2, Link, Eye, Settings } from 'lucide-react';
-import { FrontendCategory, CreateFrontendCategoryDto, CatalogCategory } from '@/lib/types/catalog';
+import { FrontendCategory, CreateFrontendCategoryDto, CatalogCategory, FrontendDisplayConfig } from '@/lib/types/catalog';
 import { clientLogger } from '@/lib/logging/client-logger';
 
 export default function FrontendCategoriesPage() {
@@ -240,6 +240,24 @@ export default function FrontendCategoriesPage() {
   );
 }
 
+type FrontendCategoryFormState = {
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  catalog_category_ids: string[];
+  display_config: FrontendDisplayConfig;
+  is_active: boolean;
+};
+
+const defaultDisplayConfig: FrontendDisplayConfig = {
+  layout: 'grid',
+  show_filters: true,
+  show_search: true,
+  items_per_page: 20,
+  sort_options: []
+};
+
 // Компоненты диалогов
 function CreateFrontendCategoryDialog({ 
   open, 
@@ -252,19 +270,13 @@ function CreateFrontendCategoryDialog({
   onSubmit: (data: CreateFrontendCategoryDto) => void;
   catalogCategories: CatalogCategory[];
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FrontendCategoryFormState>({
     name: '',
     slug: '',
     description: '',
     icon: '',
-    catalog_category_ids: [] as string[],
-    display_config: {
-      layout: 'grid' as const,
-      show_filters: true,
-      show_search: true,
-      items_per_page: 20,
-      sort_options: []
-    },
+    catalog_category_ids: [],
+    display_config: defaultDisplayConfig,
     is_active: true
   });
 
@@ -277,13 +289,7 @@ function CreateFrontendCategoryDialog({
       description: '',
       icon: '',
       catalog_category_ids: [],
-      display_config: {
-        layout: 'grid',
-        show_filters: true,
-        show_search: true,
-        items_per_page: 20,
-        sort_options: []
-      },
+      display_config: defaultDisplayConfig,
       is_active: true
     });
   };
@@ -487,19 +493,13 @@ function EditFrontendCategoryDialog({
   category: FrontendCategory | null;
   catalogCategories: CatalogCategory[];
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FrontendCategoryFormState>({
     name: '',
     slug: '',
     description: '',
     icon: '',
-    catalog_category_ids: [] as string[],
-    display_config: {
-      layout: 'grid' as const,
-      show_filters: true,
-      show_search: true,
-      items_per_page: 20,
-      sort_options: []
-    },
+    catalog_category_ids: [],
+    display_config: defaultDisplayConfig,
     is_active: true
   });
 
@@ -511,7 +511,7 @@ function EditFrontendCategoryDialog({
         description: category.description || '',
         icon: category.icon || '',
         catalog_category_ids: category.catalog_category_ids,
-        display_config: category.display_config,
+        display_config: category.display_config ?? defaultDisplayConfig,
         is_active: category.is_active
       });
     }

@@ -31,8 +31,13 @@ export type ProductLike = {
   model?: string | null;
 };
 
+/** Тип строки в корзине: дверь (полная конфигурация), ручка или завертка отдельной строкой */
+export type CartItemType = 'door' | 'handle' | 'backplate' | 'limiter';
+
 export type CartItem = {
   id: string;
+  /** Тип позиции: дверь, ручка или завертка (отдельные строки с редактируемым количеством) */
+  itemType?: CartItemType;
   style?: string;
   model?: string;
   finish?: string;
@@ -51,6 +56,7 @@ export type CartItem = {
   /** Кромка (да/нет) */
   edge?: string;
   limiterId?: string;
+  limiterName?: string;
   coatingId?: string;
   edgeId?: string;
   /** ID опций-товаров (только наличники); зеркало/порог не отдельные строки */

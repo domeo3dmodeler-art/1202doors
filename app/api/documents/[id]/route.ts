@@ -6,12 +6,12 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, ForbiddenError, BusinessRuleError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/documents/[id] - Получение документа по ID
 async function getHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -91,10 +91,7 @@ async function getHandler(
           // Проверяем в таблице supplierOrders
           // SupplierOrder не имеет прямой связи с client, получаем через Invoice
           const supplierOrder = await prisma.supplierOrder.findUnique({
-            where: { id },
-            include: {
-              supplier_order_items: true
-            }
+            where: { id }
           });
 
           if (supplierOrder) {
@@ -151,7 +148,7 @@ async function getHandler(
   }
 
   // Проверяем права через canUserPerformAction с правильным разрешением
-  if (!canUserPerformAction(user.role, requiredPermission)) {
+  if (!canUserPerformAction(user.role as import('@/lib/auth/roles').UserRole, requiredPermission)) {
     throw new ForbiddenError('Недостаточно прав для просмотра документа');
   }
 
@@ -162,20 +159,20 @@ async function getHandler(
       totalAmount: document.total_amount,
       createdAt: document.created_at,
       updatedAt: document.updated_at,
-      content: document.content ? (() => {
+      content: (document as unknown as { content?: string }).content ? (() => {
         try {
-          return JSON.parse(document.content);
+          return JSON.parse((document as unknown as { content: string }).content);
         } catch (e) {
           logger.warn('Failed to parse document.content as JSON', 'documents/[id]/GET', { documentId: id, error: e }, loggingContext);
-          return document.content;
+          return (document as unknown as { content: string }).content;
         }
       })() : null,
-      documentData: document.documentData ? (() => {
+      documentData: (document as unknown as { documentData?: string }).documentData ? (() => {
         try {
-          return JSON.parse(document.documentData);
+          return JSON.parse((document as unknown as { documentData: string }).documentData!);
         } catch (e) {
           logger.warn('Failed to parse document.documentData as JSON', 'documents/[id]/GET', { documentId: id, error: e }, loggingContext);
-          return document.documentData;
+          return (document as unknown as { documentData: string }).documentData;
         }
       })() : null
     }
@@ -184,7 +181,7 @@ async function getHandler(
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await getHandler(request, user, { params });
     }),
     'documents/[id]/GET'
@@ -194,7 +191,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // DELETE /api/documents/[id] - Удаление документа
 async function deleteHandler(
   req: NextRequest,
-  user: ReturnType<typeof getAuthenticatedUser>,
+  user: AuthenticatedUser,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
@@ -260,7 +257,7 @@ async function deleteHandler(
   }
 
   // Проверяем права на удаление (включая авторство)
-  if (!canUserPerformAction(user.role, 'DELETE', documentType || undefined, document.status, document.created_by, user.userId)) {
+  if (!canUserPerformAction(user.role as import('@/lib/auth/roles').UserRole, 'DELETE', documentType || undefined, document.status, (document as { created_by?: string }).created_by, user.userId)) {
     throw new ForbiddenError('Недостаточно прав для удаления документа');
   }
 
@@ -349,7 +346,7 @@ async function deleteHandler(
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: ReturnType<typeof getAuthenticatedUser>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await deleteHandler(request, user, { params });
     }),
     'documents/[id]/DELETE'

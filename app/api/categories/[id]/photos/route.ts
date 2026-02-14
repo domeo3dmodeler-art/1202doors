@@ -30,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({ photos });
   } catch (error) {
-    logger.error('Error fetching photos', 'categories/[id]/photos', error instanceof Error ? { error: error.message, stack: error.stack, categoryId } : { error: String(error), categoryId });
+    logger.error('Error fetching photos', 'categories/[id]/photos', error instanceof Error ? { error: error.message, stack: error.stack, categoryId: params.id } : { error: String(error), categoryId: params.id });
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

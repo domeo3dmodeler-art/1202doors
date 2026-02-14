@@ -49,7 +49,7 @@ interface CatalogCategory {
   displayName?: string;
 }
 
-type ImportStep = 'catalog' | 'template' | 'upload' | 'validation' | 'import' | 'complete';
+type ImportStep = 'catalog' | 'template' | 'upload' | 'validation' | 'import' | 'photos' | 'complete';
 type TabType = 'import' | 'templates';
 
 export default function CatalogImportPage() {
@@ -160,7 +160,7 @@ export default function CatalogImportPage() {
         });
         
         setExistingProductProperties(Array.from(allProperties).sort());
-        clientLogger.debug('Loaded existing properties:', Array.from(allProperties));
+        clientLogger.debug('Loaded existing properties:', { properties: Array.from(allProperties) });
       } else {
         setExistingProductProperties([]);
       }
@@ -285,7 +285,7 @@ export default function CatalogImportPage() {
       formData.append('category', selectedCatalogCategoryId);
       formData.append('mapping_property', photoMappingProperty);
 
-      clientLogger.debug('Отправка фотографий...', photoFiles.length, 'файлов');
+      clientLogger.debug('Отправка фотографий...', { count: photoFiles.length, unit: 'файлов' });
       
       const response = await fetch('/api/admin/import/photos-improved', {
         method: 'POST',

@@ -10,10 +10,10 @@ import { NotFoundError, InvalidStateError, BusinessRuleError } from '@/lib/api/e
 import { changeStatusSchema } from '@/lib/validation/status.schemas';
 import { validateRequest } from '@/lib/validation/middleware';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // PUT /api/supplier-orders/[id]/status - Изменение статуса заказа поставщика
-async function handler(req: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+async function handler(req: NextRequest, user: AuthenticatedUser, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { id } = await params;
   const body = await req.json();
@@ -185,7 +185,7 @@ async function handler(req: NextRequest, user: Awaited<ReturnType<typeof getAuth
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await handler(request, user, { params });
     }),
     'supplier-orders/[id]/status'
@@ -193,7 +193,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 // GET /api/supplier-orders/[id]/status - Получение статуса заказа поставщика
-async function getHandler(req: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+async function getHandler(req: NextRequest, user: AuthenticatedUser, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { id } = await params;
   
@@ -221,7 +221,7 @@ async function getHandler(req: NextRequest, user: Awaited<ReturnType<typeof getA
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   return withErrorHandling(
-    requireAuth(async (request: NextRequest, user: Awaited<ReturnType<typeof getAuthenticatedUser>>) => {
+    requireAuth(async (request: NextRequest, user: AuthenticatedUser) => {
       return await getHandler(request, user, { params });
     }),
     'supplier-orders/[id]/status'

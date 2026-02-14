@@ -85,7 +85,7 @@ export default function SeriesManagementPage() {
 
     try {
       // Здесь должен быть API вызов для удаления
-      clientLogger.debug('Deleting series:', seriesId);
+      clientLogger.debug('Deleting series:', { seriesId });
       
       setSeries(prev => prev.filter(s => s.id !== seriesId));
     } catch (err: any) {
@@ -96,7 +96,7 @@ export default function SeriesManagementPage() {
   const handleToggleStatus = async (seriesId: string) => {
     try {
       // Здесь должен быть API вызов для изменения статуса
-      clientLogger.debug('Toggling series status:', seriesId);
+      clientLogger.debug('Toggling series status:', { seriesId });
       
       setSeries(prev => prev.map(s => 
         s.id === seriesId ? { ...s, isActive: !s.isActive } : s
