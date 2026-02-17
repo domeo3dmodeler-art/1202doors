@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCartSessionId } from '@/lib/utils/cart-session';
 import { logger } from '@/lib/logging/logger';
@@ -120,19 +120,18 @@ async function postHandler(
     supplierOrder = await prisma.supplierOrder.create({
       data: {
         number: supplierOrderNumber,
-        parent_document_id: finalOrderId, // Теперь используем orderId
+        parent_document_id: finalOrderId,
         cart_session_id: cartSessionId,
-        executor_id: order.client_id,
+        executor_id: user.userId || '',
         supplier_name: supplierName || 'Поставщик не указан',
-        supplier_email: supplierEmail || '',
-        supplier_phone: supplierPhone || '',
+        supplier_email: supplierEmail || null,
+        supplier_phone: supplierPhone || null,
         status: 'PENDING',
         order_date: new Date(),
         expected_date: expectedDate ? new Date(expectedDate) : null,
-        notes: notes || '',
+        notes: notes || null,
         cart_data: cartData ? JSON.stringify(cartData) : (order.cart_data || null),
-        total_amount: totalAmount,
-        created_by: user.userId || 'system'
+        total_amount: totalAmount
       }
     });
     

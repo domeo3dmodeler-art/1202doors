@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
+import { deleteDocumentCommentsAndHistoryForMany } from '@/lib/documents/delete-document-relations';
 
 /**
  * API endpoint для удаления всех документов из БД
  * DELETE /api/admin/delete-all-documents
  * 
  * ВНИМАНИЕ: Это необратимая операция!
- * Удаляет: Order, Invoice, Quote, SupplierOrder
+ * Удаляет: Order, Invoice, Quote, SupplierOrder; перед удалением — комментарии и историю по document_id.
  */
 export async function DELETE(req: NextRequest) {
   try {
     logger.warn('Начинаем удаление всех документов из БД', 'admin/delete-all-documents');
     
-    // Подсчитываем количество документов перед удалением
     const ordersCount = await prisma.order.count();
     const invoicesCount = await prisma.invoice.count();
     const quotesCount = await prisma.quote.count();
@@ -25,9 +25,15 @@ export async function DELETE(req: NextRequest) {
       quotesCount,
       supplierOrdersCount
     });
+
+    const supplierOrderIds = (await prisma.supplierOrder.findMany({ select: { id: true } })).map((r) => r.id);
+    const quoteIds = (await prisma.quote.findMany({ select: { id: true } })).map((r) => r.id);
+    const invoiceIds = (await prisma.invoice.findMany({ select: { id: true } })).map((r) => r.id);
+    const orderIds = (await prisma.order.findMany({ select: { id: true } })).map((r) => r.id);
+    const allDocumentIds = [...supplierOrderIds, ...quoteIds, ...invoiceIds, ...orderIds];
+    await deleteDocumentCommentsAndHistoryForMany(allDocumentIds);
+    logger.info('Удалены комментарии и история по документам', 'admin/delete-all-documents', { count: allDocumentIds.length });
     
-    // Удаляем в правильном порядке (сначала зависимые, потом основные)
-    // 1. SupplierOrder (зависит от Invoice и Order)
     logger.info('Удаляем заказы у поставщика', 'admin/delete-all-documents');
     const deletedSupplierOrders = await prisma.supplierOrder.deleteMany({});
     logger.info('Удалено заказов у поставщика', 'admin/delete-all-documents', { count: deletedSupplierOrders.count });

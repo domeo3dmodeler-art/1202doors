@@ -1,12 +1,13 @@
 /**
  * Привязка обложки и галереи для DomeoDoors_Invisible.
- * Файлы в public/uploads/final-filled/Цвет: Invisible_chrome.png (обложка), Invisible_black.png (галерея).
+ * Файлы в public/uploads/final-filled/doors: Invisible_chrome.png (обложка), Invisible_black.png (галерея).
  * Запуск: npx tsx scripts/bind-invisible-photos.ts
  */
 import { getDoorsCategoryId } from '../lib/catalog-categories';
 import { upsertPropertyPhoto, DOOR_MODEL_CODE_PROPERTY } from '../lib/property-photos';
+import { DOOR_PHOTOS_UPLOAD_PREFIX } from '../lib/configurator/photo-paths';
 
-const BASE = '/uploads/final-filled/Цвет/';
+const BASE = DOOR_PHOTOS_UPLOAD_PREFIX;
 
 async function main() {
   const doorsCategoryId = await getDoorsCategoryId();

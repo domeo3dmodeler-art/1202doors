@@ -217,14 +217,27 @@ export class DocumentRepository {
           error: jsonError instanceof Error ? jsonError.message : String(jsonError),
           itemsCount: data.items.length
         });
-        // Используем упрощенную версию items
-        cartData = JSON.stringify(data.items.map(item => ({
-          type: item.type,
-          qty: item.qty || item.quantity,
-          unitPrice: item.unitPrice || item.price || item.unit_price,
-          model: item.model,
-          name: item.name
-        })));
+        // Сохраняем все поля, нужные для экспорта (без циклических ссылок)
+        const keysForExport = [
+          'id', 'productId', 'product_id', 'type', 'itemType', 'name', 'model', 'model_name',
+          'qty', 'quantity', 'unitPrice', 'price', 'unit_price', 'width', 'height', 'color', 'finish', 'style',
+          'sku_1c', 'handleId', 'handleName', 'hardwareKitId', 'hardwareKitName', 'hardware',
+          'limiterId', 'limiterName', 'edge', 'edgeId', 'edgeColorName', 'edge_color_name',
+          'glassColor', 'glass_color', 'reversible', 'mirror', 'threshold',
+          'optionIds', 'option_ids', 'architraveNames', 'architrave_names', 'optionNames',
+          'price_opt', 'breakdown', 'matchingVariants', 'specRows', 'coatingId', 'filling', 'fillingName'
+        ];
+        cartData = JSON.stringify(data.items.map((item: any) => {
+          const out: Record<string, unknown> = {};
+          for (const k of keysForExport) {
+            if (item[k] !== undefined) out[k] = item[k];
+          }
+          out.type = item.type ?? item.itemType;
+          out.qty = item.qty ?? item.quantity ?? 1;
+          out.unitPrice = item.unitPrice ?? item.price ?? item.unit_price ?? 0;
+          out.name = item.name ?? item.model;
+          return out;
+        }));
       }
       
       const order = await prisma.order.create({
@@ -279,41 +292,27 @@ export class DocumentRepository {
   }
 
   /**
-   * Создает SupplierOrder в БД
+   * Создает SupplierOrder в БД.
+   * Схема: executor_id, supplier_name обязательны; статусы: PENDING → ORDERED → RECEIVED_FROM_SUPPLIER → COMPLETED.
+   * Элементы заказа хранятся в cart_data (JSON); отдельной таблицы SupplierOrderItem в схеме нет.
    */
   async createSupplierOrder(data: CreateDocumentRecordInput): Promise<SupplierOrderWithRelations> {
     const cartData = JSON.stringify(data.items);
-    
+
     const supplierOrder = await prisma.supplierOrder.create({
       data: {
         number: data.number,
-        parent_document_id: data.parent_document_id,
-        cart_session_id: data.cart_session_id,
-        created_by: data.created_by,
-        status: 'DRAFT',
-        subtotal: data.subtotal,
-        tax_amount: data.tax_amount,
+        parent_document_id: data.parent_document_id ?? null,
+        cart_session_id: data.cart_session_id ?? null,
+        executor_id: data.created_by,
+        supplier_name: 'Поставщик не указан',
+        status: 'PENDING',
         total_amount: data.total_amount,
-        notes: data.notes,
+        notes: data.notes ?? null,
         cart_data: cartData
-      } as any
+      }
     });
 
-    // Создаем элементы заказа поставщика
-    const supplierOrderItems = data.items.map((item, i) => ({
-      supplier_order_id: supplierOrder.id,
-      product_id: item.productId || item.product_id || `temp_${i}`,
-      quantity: item.qty || item.quantity || 1,
-      unit_price: item.unitPrice || item.price || item.unit_price || 0,
-      total_price: (item.qty || item.quantity || 1) * (item.unitPrice || item.price || item.unit_price || 0),
-      notes: item.name || item.model || 'Товар'
-    }));
-
-    await prisma.supplierOrderItem.createMany({
-      data: supplierOrderItems
-    });
-
-    // Получаем созданный SupplierOrder
     const supplierOrderWithRelations = await prisma.supplierOrder.findUnique({
       where: { id: supplierOrder.id }
     });

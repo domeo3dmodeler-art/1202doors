@@ -123,8 +123,8 @@ export const PROPERTY_MAPPING: Record<string, CanonicalPropertyValue> = {
   'Покрытие': CANONICAL_PROPERTIES.COATING_TYPE,
   'Domeo_Покрытие Web': CANONICAL_PROPERTIES.COATING_TYPE,
   
-  // Цвета
-  'Domeo_Цвет': CANONICAL_PROPERTIES.COATING_COLOR,
+  // Цвета (Цвет/Отделка — основной ключ; Domeo_Цвет устарел)
+  'Цвет/Отделка': CANONICAL_PROPERTIES.COATING_COLOR,
   'Цвет': CANONICAL_PROPERTIES.COATING_COLOR,
   'Color': CANONICAL_PROPERTIES.COATING_COLOR,
   'Фабрика_Цвет/Отделка': CANONICAL_PROPERTIES.COATING_COLOR,

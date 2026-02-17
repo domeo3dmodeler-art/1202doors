@@ -7,6 +7,7 @@ import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, ForbiddenError, BusinessRuleError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { deleteDocumentCommentsAndHistory } from '@/lib/documents/delete-document-relations';
 
 // GET /api/documents/[id] - Получение документа по ID
 async function getHandler(
@@ -309,10 +310,12 @@ async function deleteHandler(
       });
       logger.debug('Cleared invoice_id from Order', 'documents/[id]/DELETE', { orderId: relatedOrder.id }, loggingContext);
     }
+    await deleteDocumentCommentsAndHistory(id);
     deletedDocument = await prisma.invoice.delete({
       where: { id }
     });
   } else if (documentType === 'quote') {
+    await deleteDocumentCommentsAndHistory(id);
     deletedDocument = await prisma.quote.delete({
       where: { id }
     });
@@ -327,10 +330,12 @@ async function deleteHandler(
       });
       logger.debug('Cleared order_id from Invoice', 'documents/[id]/DELETE', { invoiceId: relatedInvoice.id }, loggingContext);
     }
+    await deleteDocumentCommentsAndHistory(id);
     deletedDocument = await prisma.order.delete({
       where: { id }
     });
   } else if (documentType === 'supplier_order') {
+    await deleteDocumentCommentsAndHistory(id);
     deletedDocument = await prisma.supplierOrder.delete({
       where: { id }
     });

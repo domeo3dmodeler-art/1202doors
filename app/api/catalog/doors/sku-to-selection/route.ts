@@ -15,9 +15,9 @@ const DOORS_CATEGORY_NAME = 'Межкомнатные двери';
  */
 function buildDoorsSelection(properties: Record<string, unknown>): Record<string, unknown> {
   const style = properties['Domeo_Стиль Web'] ?? properties['Стиль Domeo (Web)'];
-  const model = properties['Код модели Domeo (Web)'] ?? properties['Артикул поставщика'] ?? properties['Domeo_Название модели для Web'];
+  const model = properties['Код модели Domeo (Web)'] ?? properties['Название модели'];
   const finish = properties['Тип покрытия'];
-  const color = properties['Domeo_Цвет'];
+  const color = properties['Цвет/Отделка'];
   const width = properties['Ширина/мм'];
   const height = properties['Высота/мм'];
 

@@ -1,5 +1,6 @@
 /**
- * Привязка файлов из папки public/uploads/final-filled/Цвет к моделям дверей.
+ * Привязка файлов из папки public/uploads/final-filled/doors к моделям дверей.
+ * Путь к папке задаётся в lib/configurator/photo-paths.ts.
  *
  * Режимы:
  *   --point   точечная привязка из scripts/color-folder-binding-data.ts (в xlsx нет столбца «файл»)
@@ -16,13 +17,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getDoorsCategoryId } from '../lib/catalog-categories';
 import { DOOR_COLOR_PROPERTY, upsertPropertyPhoto } from '../lib/property-photos';
+import { DOOR_PHOTOS_UPLOAD_PREFIX, DOOR_PHOTOS_SUBFOLDER } from '../lib/configurator/photo-paths';
 import { COLOR_FOLDER_BINDINGS } from './color-folder-binding-data';
 
 const prisma = new PrismaClient();
 
 const DEFAULT_XLSX = path.join(__dirname, '..', '1002', 'final_filled 30.01.xlsx');
-const COLOR_SUBFOLDER = 'Цвет';
-const UPLOADS_PREFIX = '/uploads/final-filled/' + COLOR_SUBFOLDER + '/';
+const UPLOADS_PREFIX = DOOR_PHOTOS_UPLOAD_PREFIX;
 
 function getColumn(row: Record<string, unknown>, ...names: string[]): string {
   for (const logicalName of names) {
@@ -40,7 +41,7 @@ async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const usePoint = args.includes('--point');
-  const baseDir = path.join(__dirname, '..', 'public', 'uploads', 'final-filled', COLOR_SUBFOLDER);
+  const baseDir = path.join(__dirname, '..', 'public', 'uploads', DOOR_PHOTOS_SUBFOLDER);
   let bound = 0;
   const missing: string[] = [];
 

@@ -6,6 +6,7 @@ import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { deleteDocumentCommentsAndHistory } from '@/lib/documents/delete-document-relations';
 
 // GET /api/invoices/[id] - Получить счет по ID
 async function getHandler(
@@ -122,7 +123,7 @@ async function deleteHandler(
     throw new NotFoundError('Счет', id);
   }
 
-  // Удаляем счет (cascade удалит связанные записи)
+  await deleteDocumentCommentsAndHistory(id);
   await prisma.invoice.delete({
     where: { id }
   });

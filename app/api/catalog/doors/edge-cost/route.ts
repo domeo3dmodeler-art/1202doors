@@ -55,7 +55,7 @@ async function getHandler(
     if (style && properties['Domeo_Стиль Web'] !== style) return false;
     if (model && properties['Артикул поставщика'] !== model) return false;
     if (finish && properties['Тип покрытия'] !== finish) return false;
-    if (color && properties['Domeo_Цвет'] !== color) return false;
+    if (color && properties['Цвет/Отделка'] !== color) return false;
     if (type && properties['Тип конструкции'] !== type) return false;
     if (width && properties['Ширина/мм'] !== width) return false;
     if (height && properties['Высота/мм'] !== height) return false;
@@ -93,9 +93,9 @@ async function getHandler(
             cost: costValue,
             edge: edgeValue,
             style: properties['Domeo_Стиль Web'],
-            model: properties['Domeo_Название модели для Web'],
+            model: properties['Название модели'],
             finish: properties['Тип покрытия'],
-            color: properties['Domeo_Цвет']
+            color: properties['Цвет/Отделка']
           };
         }
       } else {

@@ -93,14 +93,14 @@
 
 #### Заказ (Order)
 - **Кто создает**: ADMIN, COMPLECTATOR
-- **Статусы**: `DRAFT`, `CONFIRMED`, `IN_PRODUCTION`, `READY`, `COMPLETED`, `CANCELLED`
-- **Связи**: Может быть родителем для SupplierOrder
+- **Статусы**: `DRAFT`, `SENT`, `NEW_PLANNED`, `UNDER_REVIEW`, `AWAITING_MEASUREMENT`, `AWAITING_INVOICE`, `READY_FOR_PRODUCTION`, `COMPLETED`, `RETURNED_TO_COMPLECTATION`, `CANCELLED` (допускается также `PAID` для совместимости)
+- **Связи**: Может быть родителем для SupplierOrder; к заказу привязан один Invoice
 - **GUEST**: ❌ Не может создавать
 
 #### Заказ поставщика (SupplierOrder)
 - **Кто создает**: ADMIN, EXECUTOR
-- **Статусы**: `PENDING`, `ORDERED`, `IN_PRODUCTION`, `READY`, `COMPLETED`, `CANCELLED`
-- **Связи**: Создается на основе Order
+- **Статусы**: `PENDING`, `ORDERED`, `RECEIVED_FROM_SUPPLIER`, `COMPLETED`, `CANCELLED`
+- **Связи**: Создается на основе Order (`parent_document_id = orderId`)
 - **Важно**: COMPLECTATOR НЕ может создавать заказы поставщиков
 - **GUEST**: ❌ Не может создавать
 
@@ -199,32 +199,35 @@ CANCELLED
 ### Заказ (Order) - Статусы и переходы
 
 ```
-DRAFT → CONFIRMED → IN_PRODUCTION → READY → COMPLETED
-  ↓
-CANCELLED
+DRAFT → SENT → NEW_PLANNED → UNDER_REVIEW → AWAITING_MEASUREMENT / AWAITING_INVOICE → READY_FOR_PRODUCTION → COMPLETED
+  │         │       │              │                                    │
+  └─────────┴───────┴──────────────┴────────────────────────────────────┴→ CANCELLED
+  │         │       │              │
+  └─────────┴───────┴──────────────┴→ RETURNED_TO_COMPLECTATION (возврат комплектатору)
 ```
 
-**Правила переходов:**
-- `DRAFT` → `CONFIRMED`: Только COMPLECTATOR, ADMIN
-- `CONFIRMED` → `IN_PRODUCTION`: Только ADMIN, EXECUTOR
-- `IN_PRODUCTION` → `READY`: Только ADMIN, EXECUTOR
-- `READY` → `COMPLETED`: Только ADMIN, EXECUTOR
-- Любой статус → `CANCELLED`: Только ADMIN
+**Правила переходов (реализация в `lib/auth/permissions.ts` и `lib/validation/status-transitions.ts`):**
+- `DRAFT` → `SENT`, `CANCELLED`: COMPLECTATOR, ADMIN
+- `SENT` → `NEW_PLANNED`, `CANCELLED`: COMPLECTATOR, ADMIN
+- `NEW_PLANNED` → `UNDER_REVIEW`, `CANCELLED`, `RETURNED_TO_COMPLECTATION`: EXECUTOR, ADMIN (COMPLECTATOR может только отменить или вернуть)
+- `UNDER_REVIEW` → `AWAITING_MEASUREMENT`, `AWAITING_INVOICE`, `CANCELLED`, `RETURNED_TO_COMPLECTATION`: EXECUTOR, ADMIN (требуется project_file_url)
+- Далее: `AWAITING_MEASUREMENT` → `AWAITING_INVOICE` → `READY_FOR_PRODUCTION` → `COMPLETED`; из многих статусов возможны `CANCELLED` и `RETURNED_TO_COMPLECTATION`
+- `RETURNED_TO_COMPLECTATION` → `DRAFT`, `SENT`, `NEW_PLANNED`: COMPLECTATOR, ADMIN
+- MANAGER не может менять статусы заказов (только просмотр)
 
 ### Заказ поставщика (SupplierOrder) - Статусы и переходы
 
 ```
-PENDING → ORDERED → IN_PRODUCTION → READY → COMPLETED
+PENDING → ORDERED → RECEIVED_FROM_SUPPLIER → COMPLETED
   ↓
-CANCELLED
+CANCELLED (из любого статуса)
 ```
 
 **Правила переходов:**
-- `PENDING` → `ORDERED`: Только ADMIN, EXECUTOR
-- `ORDERED` → `IN_PRODUCTION`: Только ADMIN, EXECUTOR
-- `IN_PRODUCTION` → `READY`: Только ADMIN, EXECUTOR
-- `READY` → `COMPLETED`: Только ADMIN, EXECUTOR
-- Любой статус → `CANCELLED`: Только ADMIN
+- `PENDING` → `ORDERED`, `CANCELLED`: ADMIN, EXECUTOR
+- `ORDERED` → `RECEIVED_FROM_SUPPLIER`, `CANCELLED`: ADMIN, EXECUTOR
+- `RECEIVED_FROM_SUPPLIER` → `COMPLETED`, `CANCELLED`: ADMIN, EXECUTOR
+- Любой статус → `CANCELLED`: ADMIN
 
 ---
 
@@ -245,16 +248,17 @@ CANCELLED
 - `COMPLETED` → Уведомление COMPLECTATOR и клиенту
 
 #### Заказ (Order):
-- `CONFIRMED` → Уведомление EXECUTOR
-- `IN_PRODUCTION` → Уведомление COMPLECTATOR
-- `READY` → Уведомление COMPLECTATOR
-- `COMPLETED` → Уведомление COMPLECTATOR и клиенту
+- `SENT` → COMPLECTATOR (создатель заказа)
+- `NEW_PLANNED` → COMPLECTATOR, EXECUTOR (назначенный)
+- `UNDER_REVIEW`, `AWAITING_MEASUREMENT`, `AWAITING_INVOICE`, `READY_FOR_PRODUCTION` → COMPLECTATOR, EXECUTOR
+- `COMPLETED` → COMPLECTATOR, EXECUTOR, MANAGER
+- `RETURNED_TO_COMPLECTATION` → COMPLECTATOR (с причиной из notes)
+- `CANCELLED` → COMPLECTATOR, EXECUTOR
 
 #### Заказ поставщика (SupplierOrder):
-- `ORDERED` → Уведомление COMPLECTATOR
-- `IN_PRODUCTION` → Уведомление COMPLECTATOR
-- `READY` → Уведомление COMPLECTATOR
-- `COMPLETED` → Уведомление COMPLECTATOR
+- `ORDERED` → COMPLECTATOR, EXECUTOR
+- `RECEIVED_FROM_SUPPLIER` → COMPLECTATOR, EXECUTOR
+- `COMPLETED` → COMPLECTATOR, EXECUTOR
 
 ---
 

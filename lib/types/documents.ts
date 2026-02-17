@@ -3,9 +3,10 @@
 
 export type DocumentType = 'quote' | 'invoice' | 'order' | 'supplier_order';
 
-export type OrderStatus = 
+export type OrderStatus =
   | 'DRAFT'
   | 'SENT'
+  | 'PAID'       // legacy / альтернатива NEW_PLANNED для «счет оплачен»
   | 'NEW_PLANNED'
   | 'UNDER_REVIEW'
   | 'AWAITING_MEASUREMENT'

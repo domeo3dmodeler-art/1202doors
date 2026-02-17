@@ -240,7 +240,7 @@ async function main() {
   console.log('Фурнитура:', stats.furnitura);
 
   // ——— Ручки и завертки ———
-  // Цена ручки = Цена продажи (руб). Цена завертки = Завертка, цена РРЦ.
+  // Цена ручки = Цена продажи (руб). Цена завертки = Завертка, цена РРЦ. Колонка «Цвет» сохраняется при update (слияние с существующими properties_data).
   const ruchkiRows = toJson('04 Ручки Завертки');
   for (const row of ruchkiRows) {
     const name = String(row['Название (Domeo_наименование для Web)'] ?? '').trim();
@@ -253,6 +253,7 @@ async function main() {
     const photoUrl = String(row['Фото (ссылка)'] ?? '').trim();
     const photoZaverтка = String(row['Фото завертки (ссылка)'] ?? '').trim();
     const active = String(row['Активна (Да/Нет)'] ?? '').toLowerCase().includes('да');
+    const colorFromSheet = String(row['Цвет'] ?? '').trim();
     if (!name) continue;
     const sku = `handle_${slug(name)}`;
     if (dryRun) {
@@ -262,7 +263,7 @@ async function main() {
       if (photoZaverтка) stats.images++;
       continue;
     }
-    const propsData = {
+    const propsFromSheet: Record<string, unknown> = {
       'Тип (Ручка/Завертка)': row['Тип (Ручка/Завертка)'],
       Группа: row['Группа'],
       'Завертка, цена РРЦ': backplateRrc,
@@ -272,6 +273,27 @@ async function main() {
       'Порядок сортировки': Number.isNaN(sortOrder) ? null : sortOrder,
       'Domeo_цена группы Web': priceSale,
     };
+    if (colorFromSheet) propsFromSheet['Цвет'] = colorFromSheet;
+
+    const existing = await prisma.product.findUnique({ where: { sku }, select: { id: true, properties_data: true } });
+    let propertiesData: string;
+    if (!existing) {
+      propertiesData = JSON.stringify(propsFromSheet);
+    } else {
+      let merged: Record<string, unknown> = {};
+      try {
+        merged = typeof existing.properties_data === 'string'
+          ? JSON.parse(existing.properties_data as string)
+          : (existing.properties_data as Record<string, unknown>) || {};
+      } catch {
+        merged = {};
+      }
+      for (const [k, v] of Object.entries(propsFromSheet)) {
+        if (v !== undefined && v !== null) merged[k] = v;
+      }
+      propertiesData = JSON.stringify(merged);
+    }
+
     const product = await prisma.product.upsert({
       where: { sku },
       create: {
@@ -281,7 +303,7 @@ async function main() {
         description: desc || null,
         base_price: priceSale,
         is_active: active,
-        properties_data: JSON.stringify(propsData),
+        properties_data: propertiesData,
         dimensions: '{}',
       },
       update: {
@@ -289,7 +311,7 @@ async function main() {
         description: desc || null,
         base_price: priceSale,
         is_active: active,
-        properties_data: JSON.stringify(propsData),
+        properties_data: propertiesData,
       },
     });
     stats.ruchki++;
@@ -483,11 +505,10 @@ async function main() {
           const sku = buildDoorSku(code, modelName, w, h, coatingSlug);
           const legacySku = buildLegacyDoorSku(code, w, h, coatingSlug);
           const name = `${modelName} ${w}×${h}`;
+          const colorFromRow = getColumn(row, 'Цвет/отделка') || String(row['Цвет/отделка'] ?? '').trim();
           const properties: Record<string, unknown> = {
             'Код модели Domeo (Web)': code,
             'Название модели': modelName,
-            'Domeo_Название модели для Web': modelName,
-            'Артикул поставщика': code,
             'Стиль Domeo (Web)': style,
             'Domeo_Стиль Web': style,
             'Ширина/мм': w,
@@ -500,10 +521,14 @@ async function main() {
             'Цена опт': row['Цена опт'],
             'Цена РРЦ': row['Цена РРЦ'],
           };
+          if (colorFromRow) properties['Цвет/Отделка'] = colorFromRow;
           if (firstOption) {
             if (optionsSupplier) properties['Domeo_Опции_Поставщик'] = optionsSupplier;
             properties['Domeo_Опции_Название_наполнения'] = firstOption['Название наполнения'];
-            properties['Domeo_Опции_Звукоизоляция_дБ'] = firstOption['Звукоизоляция (дБ)'];
+            // Звукоизоляция (дБ) в БД не используется; пишем только при наличии колонки в файле
+            if (firstOption['Звукоизоляция (дБ)'] != null && String(firstOption['Звукоизоляция (дБ)']).trim() !== '') {
+              properties['Domeo_Опции_Звукоизоляция_дБ'] = firstOption['Звукоизоляция (дБ)'];
+            }
             properties['Domeo_Опции_Надбавка_2301_2500_процент'] = firstOption['Надбавка 2301-2500мм (%) к высоте 2000'];
             properties['Domeo_Опции_Надбавка_2501_3000_процент'] = firstOption['Надбавка 2501-3000мм (%) к высоте 2000'];
             properties['Domeo_Опции_Реверс_доступен'] = firstOption['Реверс доступен (Да/Нет)'];
@@ -608,25 +633,16 @@ async function main() {
         const colorName = String(row['Цвет/отделка'] ?? '').trim();
         const coverUrl = String(row['Ссылка на обложку'] ?? '').trim();
         const galleryStr = String(row['Ссылки на галерею (через ;)'] ?? '').trim();
-        const propertyValue = `${modelName}|${coatingType}|${colorName}`;
+        const modelCode = modelName ? modelNameToCode.get(modelName) : undefined;
+        if (!modelCode) continue;
+        const propertyValueByCode = `${modelCode}|${coatingType}|${colorName}`;
         if (coverUrl) {
-          await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValue, coverUrl, 'cover');
+          await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValueByCode, coverUrl, 'cover');
           stats.doorColors++;
         }
         const galleryUrls = galleryStr ? galleryStr.split(';').map((s: string) => s.trim()).filter(Boolean) : [];
         for (let i = 0; i < galleryUrls.length; i++) {
-          await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValue, galleryUrls[i], `gallery_${i + 1}`);
-        }
-        // Слияние по коду: дублируем привязку по «Код модели Domeo (Web)», чтобы complete-data находил цвета при расхождении названий
-        const modelCode = modelName ? modelNameToCode.get(modelName) : undefined;
-        if (modelCode) {
-          const propertyValueByCode = `${modelCode}|${coatingType}|${colorName}`;
-          if (coverUrl) {
-            await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValueByCode, coverUrl, 'cover');
-          }
-          for (let i = 0; i < galleryUrls.length; i++) {
-            await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValueByCode, galleryUrls[i], `gallery_${i + 1}`);
-          }
+          await upsertPropertyPhoto(doorsCatId, DOOR_COLOR_PROPERTY, propertyValueByCode, galleryUrls[i], `gallery_${i + 1}`);
         }
       }
       if (modelNamesInColorNotInPrices.length > 0) {

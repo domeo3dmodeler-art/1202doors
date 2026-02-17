@@ -6,6 +6,46 @@ import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api
 import { ApiException, NotFoundError } from '@/lib/api/errors';
 import { getDoorsCategoryId } from '@/lib/catalog-categories';
 import { pickMaxPriceProduct, calculateDoorPrice, type ProductWithProps } from '@/lib/price/doors-price-engine';
+import type { DoorVariant } from '@/components/doors/types';
+
+function parseProps(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  return value as Record<string, unknown>;
+}
+
+function productToVariant(p: ProductWithProps): DoorVariant {
+  const props = parseProps(p.properties_data);
+  const str = (v: unknown) => (v != null ? String(v).trim() : '');
+  const numOrStr = (v: unknown) => {
+    if (v == null) return '';
+    const n = Number(v);
+    return Number.isFinite(n) ? n : str(v);
+  };
+  const rawPriceOpt = props['Цена опт'] ?? props['Цена опт (руб)'] ?? '';
+  const rawPriceRrc = props['Цена РРЦ'] ?? props['Цена РРЦ (руб)'] ?? props['Цена розница'] ?? '';
+  const numOpt = rawPriceOpt !== '' && rawPriceOpt != null ? (typeof rawPriceOpt === 'number' ? rawPriceOpt : parseFloat(String(rawPriceOpt))) : NaN;
+  const numRrc = rawPriceRrc !== '' && rawPriceRrc != null ? (typeof rawPriceRrc === 'number' ? rawPriceRrc : parseFloat(String(rawPriceRrc))) : NaN;
+  return {
+    modelName: str(props['Название модели']),
+    supplier: str(props['Поставщик']),
+    priceOpt: Number.isFinite(numOpt) ? numOpt : rawPriceOpt,
+    priceRrc: Number.isFinite(numRrc) ? numRrc : rawPriceRrc,
+    material: str(props['Материал/Покрытие'] ?? props['Тип покрытия']),
+    width: numOrStr(props['Ширина/мм']),
+    height: numOrStr(props['Высота/мм']),
+    color: str(props['Цвет/Отделка']),
+    skuInternal: str(props['SKU внутреннее']),
+    productId: p.id,
+    productSku: p.sku ?? null,
+  };
+}
 
 // GET /api/price/doors - Получить базовую информацию о ценах
 async function getHandler(
@@ -67,7 +107,7 @@ async function getHandler(
           ? (typeof p.properties_data === 'string' ? JSON.parse(p.properties_data) : p.properties_data)
           : {};
         const code = props['Код модели Domeo (Web)'] ?? props['Артикул поставщика'];
-        const name = props['Domeo_Название модели для Web'];
+        const name = props['Название модели'];
         return (
           (typeof code === 'string' && code.trim() === model.trim()) ||
           (typeof name === 'string' && name.trim() === model.trim())
@@ -174,6 +214,10 @@ async function postHandler(
       orderBy: { id: 'asc' }
     })) as ProductWithProps[];
 
+    if (products.length === 0) {
+      logger.warn('Расчет цены: в категории «Межкомнатные двери» нет товаров', 'price/doors/POST', {}, loggingContext);
+    }
+
     let hardwareKits: ProductWithProps[] = [];
     if (selection.hardware_kit?.id) {
       hardwareKits = (await prisma.product.findMany({
@@ -207,23 +251,46 @@ async function postHandler(
       })) as ProductWithProps[];
     }
 
-    const result = calculateDoorPrice({
-      products,
-      selection,
-      hardwareKits,
-      handles,
-      getLimiter: (id) => (limiterProduct?.id === id ? limiterProduct : null),
-      getOptionProducts: (ids) => optionProducts.filter((o) => ids.includes(o.id))
-    });
+    let result;
+    try {
+      result = calculateDoorPrice({
+        products,
+        selection,
+        hardwareKits,
+        handles,
+        getLimiter: (id) => (limiterProduct?.id === id ? limiterProduct : null),
+        getOptionProducts: (ids) => optionProducts.filter((o) => ids.includes(o.id))
+      });
+    } catch (calcError) {
+      const msg = calcError instanceof Error ? calcError.message : String(calcError);
+      if (msg.includes('Товар с указанными параметрами не найден')) {
+        logger.warn('Расчет цены: товар не найден', 'price/doors/POST', {
+          selection: { style: selection?.style, model: selection?.model, finish: selection?.finish, color: selection?.color, width: selection?.width, height: selection?.height, filling: selection?.filling },
+          productsCount: products.length,
+        }, loggingContext);
+      }
+      throw calcError;
+    }
 
+    const matchingVariants: DoorVariant[] = (result.matchingProducts ?? []).map(productToVariant);
+    const firstMatch = (result.matchingProducts ?? [])[0];
+    const firstProps = firstMatch ? parseProps(firstMatch.properties_data) : {};
+    const edgeInBaseRaw = (firstProps['Domeo_Кромка_в_базе_включена'] ?? '').toString().trim();
+    const edgeInBase = /^(да|yes|1)$/i.test(edgeInBaseRaw);
+    const edgeInBaseColor = edgeInBase ? (firstProps['Domeo_Кромка_базовая_цвет'] ?? firstProps['Кромка'] ?? '').toString().trim() || null : null;
+    const { matchingProducts: _drop, ...rest } = result;
     logger.debug('Расчет цены', 'price/doors', {
       base: result.base,
       total: result.total,
-      breakdownLength: result.breakdown.length
+      breakdownLength: result.breakdown.length,
+      matchingVariantsCount: matchingVariants.length
     }, loggingContext);
 
     return apiSuccess({
-      ...result,
+      ...rest,
+      matchingVariants,
+      edgeInBase: edgeInBase || undefined,
+      edgeInBaseColor: edgeInBaseColor ?? undefined,
       selection_policy: 'max_price'
     });
   } catch (error: unknown) {
@@ -235,7 +302,16 @@ async function postHandler(
     }
     if (error instanceof Error && error.message.includes('Товар с указанными параметрами не найден')) {
       logger.warn('Товар не найден для параметров', 'price/doors', { selection }, loggingContext);
-      throw new NotFoundError('Товар с указанными параметрами', JSON.stringify(selection));
+      // Возвращаем 200 с пустой ценой, чтобы не было "Failed to load resource 404" в консоли; клиент отобразит подсказку.
+      return apiSuccess({
+        currency: 'RUB',
+        base: 0,
+        breakdown: [],
+        total: 0,
+        sku: null,
+        notFound: true,
+        selection_policy: 'max_price',
+      });
     }
 
     logger.error('Error calculating price', 'price/doors/POST', {

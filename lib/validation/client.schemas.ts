@@ -32,7 +32,7 @@ export const updateClientSchema = z.object({
 // Схема для поиска клиентов
 export const findClientsSchema = z.object({
   page: z.number().int().positive().optional().default(1),
-  limit: z.number().int().positive().max(100).optional().default(20),
+  limit: z.number().int().positive().max(500).optional().default(20),
   search: z.string().optional(),
   isActive: z.boolean().optional()
 });

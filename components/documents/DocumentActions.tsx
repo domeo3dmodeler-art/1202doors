@@ -16,7 +16,36 @@ interface DocumentActionsProps {
 
 export function DocumentActions({ document }: DocumentActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState<'pdf' | 'excel' | null>(null);
   const { showConfirm, ConfirmDialogComponent } = useConfirmDialog();
+
+  const handleDownloadExport = async (format: 'pdf' | 'excel') => {
+    setDownloadBusy(format);
+    try {
+      const response = await fetch(`/api/documents/${document.id}/export?format=${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Ошибка при экспорте документа');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      const disposition = response.headers.get('Content-Disposition');
+      const filenameMatch = disposition?.match(/filename="?([^";\n]+)"?/);
+      link.download = filenameMatch?.[1] ?? `${String((document as any).number ?? document.id)}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      window.document.body.removeChild(link);
+    } catch (e) {
+      clientLogger.error('Ошибка при скачивании', e);
+      toast.error('Ошибка при скачивании документа');
+    } finally {
+      setDownloadBusy(null);
+    }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     setIsLoading(true);
@@ -163,19 +192,21 @@ export function DocumentActions({ document }: DocumentActionsProps) {
         {/* Дополнительные действия */}
         <div className="space-y-2">
           <button
-            onClick={() => window.open(`/api/documents/${document.id}/export?format=pdf`, '_blank')}
-            className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            onClick={() => handleDownloadExport('pdf')}
+            disabled={downloadBusy !== null}
+            className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            <span>Скачать PDF</span>
+            <span>{downloadBusy === 'pdf' ? 'Загрузка…' : 'Скачать PDF'}</span>
           </button>
 
           <button
-            onClick={() => window.open(`/api/documents/${document.id}/export?format=excel`, '_blank')}
-            className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            onClick={() => handleDownloadExport('excel')}
+            disabled={downloadBusy !== null}
+            className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            <span>Скачать Excel</span>
+            <span>{downloadBusy === 'excel' ? 'Загрузка…' : 'Скачать Excel'}</span>
           </button>
 
           <button

@@ -37,7 +37,7 @@ interface EditingCellState {
 const REQUIRED_DOOR_KEYS = [
   'Код модели Domeo (Web)',
   'Domeo_Название модели для Web',
-  'Domeo_Цвет',
+  'Цвет/Отделка',
   'Domeo_Покрытие',
   'Domeo_Ширина',
   'Domeo_Высота',
@@ -438,7 +438,7 @@ export default function CatalogPage() {
                 <div className="text-sm font-medium mb-2">Массовое редактирование выбранных товаров</div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
-                    placeholder="Ключ атрибута (например Domeo_Цвет)"
+                    placeholder="Ключ атрибута (например Цвет/Отделка)"
                     value={bulkKey}
                     onChange={(e) => setBulkKey(e.target.value)}
                     className="min-w-[280px]"

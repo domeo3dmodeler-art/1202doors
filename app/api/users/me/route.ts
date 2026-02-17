@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getRoleDisplayName, getRoleIcon, getRoleColor } from '@/lib/auth/roles';
 import { logger } from '@/lib/logging/logger';
@@ -6,7 +6,7 @@ import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { UnauthorizedError, NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getAuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
 // GET /api/users/me - Получение информации о текущем пользователе
 async function getHandler(

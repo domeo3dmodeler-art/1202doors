@@ -6,6 +6,7 @@ import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { deleteDocumentCommentsAndHistory } from '@/lib/documents/delete-document-relations';
 
 // GET /api/supplier-orders/[id] - Получить заказ у поставщика по ID
 async function getHandler(
@@ -120,7 +121,7 @@ async function deleteHandler(
     throw new NotFoundError('Заказ поставщика', id);
   }
 
-  // Удаляем заказ у поставщика (cascade удалит связанные записи)
+  await deleteDocumentCommentsAndHistory(id);
   await prisma.supplierOrder.delete({
     where: { id }
   });

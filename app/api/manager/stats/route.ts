@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -61,7 +61,9 @@ async function getHandler(
 
   // Общая статистика
   const totalOrders = await prisma.order.count();
-  const paidOrders = await prisma.order.count({ where: { status: 'PAID' } });
+  const paidOrders = await prisma.order.count({
+    where: { status: { in: ['PAID', 'NEW_PLANNED'] } }
+  });
   const completedOrders = await prisma.order.count({ where: { status: 'COMPLETED' } });
 
   const stats = {

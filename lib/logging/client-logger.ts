@@ -50,9 +50,15 @@ export class ClientLogger {
     if (typeof window === 'undefined') return;
     
     try {
-      const errorData = error instanceof Error 
-        ? { message: error.message, stack: error.stack }
-        : error;
+      // Нормализуем ошибку: в бандле/другом realm instanceof Error может быть false, у Error нет enumerable keys → в консоль уходит {}
+      let errorData: Record<string, unknown> | unknown = error;
+      if (error instanceof Error) {
+        errorData = { message: error.message, stack: error.stack };
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorData = { message: (error as { message?: unknown }).message, stack: (error as { stack?: unknown }).stack };
+      } else if (error !== undefined && error !== null) {
+        errorData = { message: String(error) };
+      }
       
       // Используем console.error только для критических ошибок
       // В production это будет отправлено в систему мониторинга

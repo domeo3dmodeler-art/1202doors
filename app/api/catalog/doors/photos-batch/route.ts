@@ -85,7 +85,7 @@ async function postHandler(
       // Создаем условия для поиска моделей в properties_data
       const modelSearchConditions = uncachedModels.map(model => ({
         properties_data: {
-          contains: `"Domeo_Название модели для Web":"${model}"`
+          contains: `"Название модели":"${model}"`
         }
       }));
 
@@ -138,7 +138,7 @@ async function postHandler(
             }
           }
           
-          const modelName = properties['Domeo_Название модели для Web'];
+          const modelName = properties['Название модели'];
           const article = properties['Артикул поставщика'];
           
           if (modelName && uncachedModels.includes(modelName)) {
@@ -203,12 +203,11 @@ async function postHandler(
           }
         }
         
-        // Если не найдено ни по артикулу, ни по вариантам, ищем по "Domeo_Название модели для Web"
+        // Если не найдено ни по артикулу, ни по вариантам, повторно по коду модели
         if (propertyPhotos.length === 0) {
-          logger.debug('Фото не найдено, пробуем поиск по названию модели', 'catalog/doors/photos-batch/POST', { modelName }, loggingContext);
           propertyPhotos = await getPropertyPhotos(
             doorsCategoryId,
-            'Domeo_Название модели для Web',
+            DOOR_MODEL_CODE_PROPERTY,
             normalizedPropertyValue
           );
         }

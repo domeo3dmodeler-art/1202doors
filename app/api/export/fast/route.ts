@@ -33,8 +33,20 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     totalAmount: validatedBody.totalAmount 
   }, loggingContext);
 
-  // Используем Export Service для экспорта
-  const result = await exportService.exportDocument(validatedBody);
+  let result;
+  try {
+    result = await exportService.exportDocument(validatedBody);
+  } catch (exportError) {
+    const message = exportError instanceof Error ? exportError.message : String(exportError);
+    const stack = exportError instanceof Error ? exportError.stack : undefined;
+    logger.error('Export failed', 'export/fast', { message, stack, type: validatedBody.type, format: validatedBody.format }, loggingContext);
+    return apiError(
+      ApiErrorCode.INTERNAL_SERVER_ERROR,
+      `Ошибка экспорта документа: ${message}`,
+      500,
+      undefined
+    );
+  }
 
   // Возвращаем файл с информацией о документе
   // Убеждаемся, что filename содержит только латинские символы

@@ -6,6 +6,7 @@ import { clientLogger } from "@/lib/logging/client-logger";
 import { fetchWithAuth } from "@/lib/utils/fetch-with-auth";
 import HandleSelectionModal from "../../components/HandleSelectionModal";
 import { OrderDetailsModal } from "@/components/complectator/OrderDetailsModal";
+import { getImageSrc } from '@/lib/configurator/image-src';
 import { fmtInt, findHandleById, findHardwareKitById } from './utils';
 import type { CartItem, HardwareKit, Handle } from './types';
 
@@ -29,6 +30,18 @@ interface CartManagerProps {
   setSelectedClientName: React.Dispatch<React.SetStateAction<string>>;
   userRole: string;
   onClose: () => void;
+}
+
+/** Формат: «Ограничитель скрытый магнитный SECRET DS Цвет хром» и т.д. */
+function formatLimiterDisplayName(limiterName: string | undefined): string {
+  if (!limiterName || !limiterName.trim()) return 'Ограничитель';
+  const suffix = limiterName
+    .replace(/^Дверной ограничитель\s*/i, '')
+    .replace(/^Ограничитель\s*/i, '')
+    .trim()
+    .replace(/,?\s*цвет\s+/gi, ' Цвет ');
+  const trimmed = suffix.trim();
+  return trimmed ? `Ограничитель ${trimmed}` : 'Ограничитель';
 }
 
 export function CartManager({
@@ -60,6 +73,8 @@ export function CartManager({
   // Состояние для созданного заказа
   const [createdOrder, setCreatedOrder] = useState<{ id: string; number: string } | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  // Спецификация двери: показывать по клику на иконку (inline убрано — только модальное окно)
+  const [doorSpecModalId, setDoorSpecModalId] = useState<string | null>(null);
   
   // Проверка существующих заказов при изменении корзины или клиента
   useEffect(() => {
@@ -244,7 +259,18 @@ export function CartManager({
       });
 
       if (!response.ok) {
-        throw new Error('Ошибка экспорта');
+        let message = `Ошибка экспорта (${response.status})`;
+        try {
+          const errBody = await response.json();
+          if (errBody?.error?.message) message = errBody.error.message;
+          else if (errBody?.message) message = errBody.message;
+          if (errBody?.error?.details) {
+            clientLogger.debug('Export validation details', errBody.error.details);
+          }
+        } catch {
+          // тело ответа не JSON — оставляем message по умолчанию
+        }
+        throw new Error(message);
       }
 
       // Получаем файл
@@ -277,8 +303,9 @@ export function CartManager({
       }
 
     } catch (error) {
-      clientLogger.error('Export error:', error);
-      alert('Ошибка при экспорте документа');
+      const message = error instanceof Error ? error.message : String(error);
+      clientLogger.error('Export error:', error instanceof Error ? error : { message });
+      alert(message || 'Ошибка при экспорте документа');
     }
   };
 
@@ -787,21 +814,32 @@ export function CartManager({
                           fullName = `Завертка ${item.handleName || 'Завертка'}`;
                         }
                       } else if (item.itemType === 'limiter') {
-                        fullName = `Ограничитель ${item.limiterName || 'Ограничитель'}`;
+                        fullName = formatLimiterDisplayName(item.limiterName);
                       } else {
-                        // Дверь
-                        try {
-                          const modelName = item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель';
-                          const hardwareKit = Array.isArray(hardwareKits) && hardwareKits.length > 0 && item.hardwareKitId
-                            ? findHardwareKitById(hardwareKits, item.hardwareKitId)
-                            : null;
-                          const hardwareKitName = hardwareKit?.name?.replace('Комплект фурнитуры — ', '') || item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый';
-                          fullName = `Дверь DomeoDoors ${modelName} (${item.finish || ''}, ${item.color || ''}, ${item.width || ''} × ${item.height || ''} мм, Фурнитура - ${hardwareKitName})`;
-                        } catch (e) {
-                          // Если hardwareKits недоступен, используем минимальные данные
-                          const modelName = item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель';
-                          fullName = `Дверь DomeoDoors ${modelName} (${item.finish || ''}, ${item.color || ''}, ${item.width || ''} × ${item.height || ''} мм)`;
+                        // Дверь — полная спецификация
+                        const modelName = item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель';
+                        const doorSpecParts: string[] = [];
+                        const finishVal = String(item.finish ?? '').trim();
+                        const colorVal = String(item.color ?? '').trim();
+                        if (finishVal) doorSpecParts.push(finishVal);
+                        if (colorVal) {
+                          const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
+                            ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
+                            : colorVal;
+                          if (rest) doorSpecParts.push(rest);
                         }
+                        if (item.width != null && item.height != null) doorSpecParts.push(`${item.width} × ${item.height} мм`);
+                        if (item.edge === 'да') doorSpecParts.push('Кромка: да');
+                        if (item.reversible) doorSpecParts.push('Реверс: да');
+                        if (item.mirror) doorSpecParts.push('Зеркало: да');
+                        if (item.threshold) doorSpecParts.push('Порог: да');
+                        if (item.optionIds?.length) doorSpecParts.push('Наличники: да');
+                        const kitName = (Array.isArray(hardwareKits) && hardwareKits.length > 0 && item.hardwareKitId)
+                          ? (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? item.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый')
+                          : (item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый');
+                        doorSpecParts.push(`Фурнитура: ${kitName}`);
+                        const specStr = doorSpecParts.filter((x) => x !== '—').join('; ');
+                        fullName = specStr ? `Дверь DomeoDoors ${modelName}; ${specStr}` : `Дверь DomeoDoors ${modelName}`;
                       }
                       
                       return {
@@ -809,6 +847,8 @@ export function CartManager({
                         productId: item.id,
                         name: fullName, // Сохраняем полное название как в корзине
                         model: item.model,
+                        model_name: item.model_name,
+                        matchingVariants: item.matchingVariants,
                         qty: item.qty || 1,
                         quantity: item.qty || 1,
                         unitPrice: item.unitPrice || 0,
@@ -818,12 +858,26 @@ export function CartManager({
                         color: item.color,
                         finish: item.finish,
                         sku_1c: item.sku_1c || undefined,
-                        // ВАЖНО: Сохраняем handleId и type для определения ручек
                         handleId: item.handleId,
                         handleName: item.handleName,
-                        type: item.type || (item.handleId ? 'handle' : 'door'),
+                        limiterId: item.limiterId,
+                        limiterName: item.limiterName,
+                        type: item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door'),
                         hardwareKitId: item.hardwareKitId,
-                        hardwareKitName: item.hardwareKitName
+                        hardwareKitName: item.hardwareKitName ?? (item.hardwareKitId && Array.isArray(hardwareKits) && hardwareKits.length > 0 ? findHardwareKitById(hardwareKits, item.hardwareKitId)?.name : undefined),
+                        style: item.style,
+                        // Кромка, порог, наличники — в заказ попадают все данные из конфигуратора для экспорта в Excel
+                        edge: item.edge,
+                        edgeId: item.edgeId,
+                        edgeColorName: item.edgeColorName,
+                        threshold: item.threshold === true || item.threshold === 1 || (typeof item.threshold === 'string' && item.threshold.toLowerCase().trim() === 'да'),
+                        optionIds: item.optionIds,
+                        architraveNames: item.architraveNames,
+                        optionNames: item.optionNames,
+                        reversible: item.reversible,
+                        mirror: item.mirror,
+                        glassColor: item.glassColor,
+                        specRows: item.specRows
                       };
                     });
 
@@ -951,7 +1005,7 @@ export function CartManager({
               {cart.length === 0 ? 'Корзина пуста' : 'Товары не найдены'}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {filteredCart.map((item) => {
                 const delta = getItemDelta(item.id);
                 const isEditing = editingItem === item.id;
@@ -962,23 +1016,15 @@ export function CartManager({
                   const currentHandleName = handle?.name || item.handleName || "Ручка";
                   return (
                   <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
                         {/* ИСПРАВЛЕНИЕ: Отображаем фото ручки при редактировании */}
                         {isEditing && handle && handle.photos && handle.photos.length > 0 && (
                           <div className="mb-2 flex items-center space-x-2">
                             {handle.photos.slice(0, 3).map((photo, idx) => (
                               <img
                                 key={idx}
-                                src={photo && (photo.startsWith('http://') || photo.startsWith('https://'))
-                                  ? photo
-                                  : photo && photo.startsWith('/uploadsproducts')
-                                  ? `/api/uploads/products/${photo.substring(17)}`
-                                  : photo && photo.startsWith('/uploads/')
-                                  ? `/api${photo}`
-                                  : photo
-                                  ? `/api/uploads${photo}`
-                                  : ''}
+                                src={photo ? getImageSrc(photo) : ''}
                                 alt={`${currentHandleName} фото ${idx + 1}`}
                                 className="w-12 h-12 object-cover rounded border border-gray-200"
                                 onError={(e) => {
@@ -992,7 +1038,7 @@ export function CartManager({
                           {currentHandleName ? `Ручка ${currentHandleName}` : "Ручка"}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4 ml-6">
+                      <div className="flex items-center space-x-4 shrink-0">
                         <div className="flex items-center space-x-1">
                           <button
                             onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
@@ -1012,18 +1058,18 @@ export function CartManager({
                           <div className="font-semibold text-black text-sm">
                             {fmtInt(item.unitPrice * item.qty)} ₽
                           </div>
-                          {delta !== 0 && (
+                          {isEditing && delta !== 0 && (
                             <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3 ml-4">
+                      <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
                           {!isEditing && (
                             <button
                               onClick={() => startEditingItem(item.id)}
-                              className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs"
+                              className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs shrink-0"
                               title="Редактировать"
                             >
                               ✏️
@@ -1031,7 +1077,7 @@ export function CartManager({
                           )}
                           <button
                             onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
                             title="Удалить"
                           >
                             🗑️
@@ -1097,13 +1143,13 @@ export function CartManager({
                   const currentHandleName = handle?.name || item.handleName || "Завертка";
                   return (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
                           <div className="font-medium text-black text-sm truncate">
                             Завертка {currentHandleName}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-4 ml-6">
+                        <div className="flex items-center space-x-4 shrink-0">
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
@@ -1123,17 +1169,18 @@ export function CartManager({
                             <div className="font-semibold text-black text-sm">
                               {fmtInt(item.unitPrice * item.qty)} ₽
                             </div>
-                            {delta !== 0 && (
+                            {isEditing && delta !== 0 && (
                               <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3 ml-4">
+                        <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
+                          <span className="w-5 h-5 shrink-0" aria-hidden />
                           <button
                             onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
                             title="Удалить"
                           >
                             🗑️
@@ -1144,18 +1191,18 @@ export function CartManager({
                   );
                 }
 
-                // Ограничитель — отдельная строка с редактируемым количеством
+                // Ограничитель — формат «Ограничитель скрытый магнитный SECRET DS Цвет хром» и т.д.
                 if (item.itemType === 'limiter') {
-                  const limiterName = item.limiterName || 'Ограничитель';
+                  const limiterDisplayName = formatLimiterDisplayName(item.limiterName);
                   return (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
                           <div className="font-medium text-black text-sm truncate">
-                            Ограничитель {limiterName}
+                            {limiterDisplayName}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-4 ml-6">
+                        <div className="flex items-center space-x-4 shrink-0">
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
@@ -1175,17 +1222,18 @@ export function CartManager({
                             <div className="font-semibold text-black text-sm">
                               {fmtInt(item.unitPrice * item.qty)} ₽
                             </div>
-                            {delta !== 0 && (
+                            {isEditing && delta !== 0 && (
                               <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3 ml-4">
+                        <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
+                          <span className="w-5 h-5 shrink-0" aria-hidden />
                           <button
                             onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
                             title="Удалить"
                           >
                             🗑️
@@ -1196,26 +1244,45 @@ export function CartManager({
                   );
                 }
                 
-                // Дверь (полная конфигурация)
+                // Дверь (полная конфигурация): название + иконка со спецификацией
+                const doorSpecParts: string[] = [];
+                const finishVal = String(item.finish ?? '').trim();
+                const colorVal = String(item.color ?? '').trim();
+                if (finishVal) doorSpecParts.push(finishVal);
+                if (colorVal) {
+                  const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
+                    ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
+                    : colorVal;
+                  if (rest) doorSpecParts.push(rest);
+                }
+                if (item.width != null && item.height != null) doorSpecParts.push(`${item.width} × ${item.height} мм`);
+                if (item.edge === 'да') doorSpecParts.push('Кромка: да');
+                if (item.reversible) doorSpecParts.push('Реверс: да');
+                if (item.mirror) doorSpecParts.push('Зеркало: да');
+                if (item.threshold) doorSpecParts.push('Порог: да');
+                if (item.optionIds?.length) doorSpecParts.push('Наличники: да');
+                const doorKitName = (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId)
+                  ? (item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый')
+                  : (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? item.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый');
+                doorSpecParts.push(`Фурнитура: ${doorKitName}`);
                 return (
                   <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-black text-sm truncate">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
+                        <div className="font-medium text-black text-sm truncate flex items-center gap-1">
                           {`Дверь DomeoDoors ${item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель'}`}
-                        </div>
-                        <div className="text-xs text-gray-600 truncate">
-                          {`${item.finish}, ${item.color}, ${item.width} × ${item.height} мм, Фурнитура: ${(() => {
-                                if (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId) {
-                                  return item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый';
-                                }
-                                const kit = findHardwareKitById(hardwareKits, item.hardwareKitId);
-                                return kit?.name ? kit.name.replace('Комплект фурнитуры — ', '') : (item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый');
-                              })()}`
-                          }
+                          <button
+                            type="button"
+                            onClick={() => setDoorSpecModalId(item.id)}
+                            className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                            title="Полная спецификация"
+                            aria-label="Показать полную спецификацию"
+                          >
+                            ℹ️
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4 ml-6">
+                      <div className="flex items-center space-x-4 shrink-0">
                         <div className="flex items-center space-x-1">
                           <button
                             onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
@@ -1235,18 +1302,18 @@ export function CartManager({
                           <div className="font-semibold text-black text-sm">
                             {fmtInt(item.unitPrice * item.qty)} ₽
                           </div>
-                          {delta !== 0 && (
+                          {isEditing && delta !== 0 && (
                             <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3 ml-4">
+                      <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
                         {!isEditing && (
                           <button
                             onClick={() => startEditingItem(item.id)}
-                            className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs"
+                            className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs shrink-0"
                             title="Редактировать"
                           >
                             ✏️
@@ -1254,7 +1321,7 @@ export function CartManager({
                         )}
                         <button
                           onClick={() => removeItem(item.id)}
-                          className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs"
+                          className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
                           title="Удалить"
                         >
                           🗑️
@@ -1392,7 +1459,7 @@ export function CartManager({
           <div className="flex items-center justify-between">
             <div className="text-lg font-semibold text-black">
               Итого: {fmtInt(totalPrice)} ₽
-              {getTotalDelta() !== 0 && (
+              {editingItem && getTotalDelta() !== 0 && (
                 <span className={`ml-2 text-sm ${getTotalDelta() > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ({getTotalDelta() > 0 ? '+' : ''}{fmtInt(getTotalDelta())} ₽)
                 </span>
@@ -1594,6 +1661,81 @@ export function CartManager({
           userRole={userRole}
         />
       )}
+
+      {/* Модальное окно — полная спецификация двери (как в правой панели) */}
+      {doorSpecModalId && (() => {
+        const specItem = cart.find((i) => i.itemType === 'door' && i.id === doorSpecModalId) as CartItem | undefined;
+        if (!specItem) return null;
+        const kitName = (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !specItem.hardwareKitId)
+          ? (specItem.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый')
+          : (findHardwareKitById(hardwareKits, specItem.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? specItem.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый');
+        const finishVal = String(specItem.finish ?? '').trim();
+        const colorVal = String(specItem.color ?? '').trim();
+        let coatingText = '—';
+        if (finishVal || colorVal) {
+          const parts: string[] = [];
+          if (finishVal) parts.push(finishVal);
+          if (colorVal) {
+            const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
+              ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
+              : colorVal;
+            if (rest) parts.push(rest);
+          }
+          coatingText = parts.join('; ');
+        }
+        const mirrorText = specItem.mirror === 'one' ? 'Одна сторона' : specItem.mirror === 'both' ? 'Две стороны' : specItem.mirror ? 'Да' : 'Нет';
+        // Ограничитель может быть в строке двери или в отдельной позиции корзины
+        const limiterFromCart = cart.find((i) => i.itemType === 'limiter');
+        const limiterDisplay = (specItem.limiterName || limiterFromCart?.limiterName)
+          ? formatLimiterDisplayName(specItem.limiterName || limiterFromCart?.limiterName)
+          : 'Не выбран';
+        const specRows =
+          specItem.specRows && specItem.specRows.length > 0
+            ? specItem.specRows.filter((row) => {
+                const v = String(row.value ?? '').trim();
+                return v !== '' && v !== '—' && v !== 'Не выбрано' && v !== 'Не выбран';
+              })
+            : [
+                { label: 'Стиль', value: specItem.style || '—' },
+                { label: 'Полотно', value: specItem.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || '—' },
+                { label: 'Размеры', value: specItem.width != null && specItem.height != null ? `${specItem.width} × ${specItem.height} мм` : '—' },
+                { label: 'Реверсные двери', value: specItem.reversible ? 'Да' : 'Нет' },
+                { label: 'Покрытие и цвет', value: coatingText },
+                { label: 'Алюминиевая кромка', value: specItem.edge === 'да' ? 'Да' : 'Нет' },
+                { label: 'Комплект фурнитуры', value: kitName },
+                { label: 'Ручка', value: specItem.handleName || '—' },
+                { label: 'Наличник', value: (specItem.optionIds?.length ?? 0) > 0 ? 'Да' : 'Не выбран' },
+                { label: 'Ограничитель', value: limiterDisplay },
+                { label: 'Зеркало', value: mirrorText },
+                { label: 'Порог', value: specItem.threshold ? 'Да' : 'Нет' },
+              ];
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={() => setDoorSpecModalId(null)}>
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 className="text-lg font-semibold text-black">Спецификация двери</h3>
+                <button type="button" onClick={() => setDoorSpecModalId(null)} className="p-2 text-gray-500 hover:text-black rounded-lg" aria-label="Закрыть">✕</button>
+              </div>
+              <div className="p-5 overflow-auto flex-1">
+                <div className="text-sm font-medium text-gray-800 mb-3">
+                  {`DomeoDoors ${specItem.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || '—'}`}
+                </div>
+                <div className="space-y-0 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  {specRows.map((row, index) => (
+                    <div
+                      key={row.label}
+                      className={index < specRows.length - 1 ? 'pb-2 mb-2 border-b border-gray-200' : ''}
+                    >
+                      <span className="text-xs font-medium text-gray-600">{row.label}: </span>
+                      <span className="text-sm font-semibold text-gray-900">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

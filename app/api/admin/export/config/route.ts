@@ -157,7 +157,7 @@ function getDefaultExportConfig(exportType: string) {
     { key: 'width', label: 'Ширина/мм', source: 'properties', propertyKey: 'Ширина/мм', format: 'number', required: true },
     { key: 'height', label: 'Высота/мм', source: 'properties', propertyKey: 'Высота/мм', format: 'number', required: true },
     { key: 'thickness', label: 'Толщина/мм', source: 'properties', propertyKey: 'Толщина/мм', format: 'number', required: false },
-    { key: 'color', label: 'Цвет', source: 'properties', propertyKey: 'Domeo_Цвет', format: 'text', required: false },
+    { key: 'color', label: 'Цвет', source: 'properties', propertyKey: 'Цвет/Отделка', format: 'text', required: false },
     { key: 'supplier', label: 'Поставщик', source: 'properties', propertyKey: 'Поставщик', format: 'text', required: false },
     { key: 'price_rrc', label: 'Цена РРЦ', source: 'properties', propertyKey: 'Цена РРЦ', format: 'currency', required: true },
     { key: 'price_opt', label: 'Цена опт', source: 'properties', propertyKey: 'Цена опт', format: 'currency', required: true },

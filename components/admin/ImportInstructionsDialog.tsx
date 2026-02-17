@@ -92,7 +92,7 @@ export default function ImportInstructionsDialog({ open, onOpenChange }: ImportI
                   </div>
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="h-3 w-3 text-green-600" />
-                    <span>Domeo_Цвет</span>
+                    <span>Цвет/Отделка</span>
                   </div>
                 </div>
               </div>

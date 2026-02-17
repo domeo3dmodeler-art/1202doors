@@ -7,6 +7,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { deleteDocumentCommentsAndHistoryForMany } from '@/lib/documents/delete-document-relations';
 
 const prisma = new PrismaClient();
 
@@ -25,6 +26,14 @@ async function deleteAllDocuments() {
     console.log(`  - Счетов (Invoice): ${invoicesCount}`);
     console.log(`  - КП (Quote): ${quotesCount}`);
     console.log(`  - Заказов у поставщика (SupplierOrder): ${supplierOrdersCount}`);
+
+    const supplierOrderIds = (await prisma.supplierOrder.findMany({ select: { id: true } })).map((r) => r.id);
+    const quoteIds = (await prisma.quote.findMany({ select: { id: true } })).map((r) => r.id);
+    const invoiceIds = (await prisma.invoice.findMany({ select: { id: true } })).map((r) => r.id);
+    const orderIds = (await prisma.order.findMany({ select: { id: true } })).map((r) => r.id);
+    const allDocumentIds = [...supplierOrderIds, ...quoteIds, ...invoiceIds, ...orderIds];
+    await deleteDocumentCommentsAndHistoryForMany(allDocumentIds);
+    console.log(`\n🗑️ Удалены комментарии и история по документам: ${allDocumentIds.length}`);
     
     // Удаляем в правильном порядке (сначала зависимые, потом основные)
     // 1. SupplierOrder (зависит от Invoice и Order)

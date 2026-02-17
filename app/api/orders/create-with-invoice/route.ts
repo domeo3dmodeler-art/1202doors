@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCartSessionId } from '@/lib/utils/cart-session';
 import { logger } from '@/lib/logging/logger';
@@ -68,11 +68,8 @@ async function postHandler(
   // Генерируем cart_session_id для дедубликации
   const finalCartSessionId = cart_session_id || generateCartSessionId();
 
-  // Определяем complectator_id если пользователь - комплектатор
-  let complectatorId: string | null = null;
-  if (user.role === 'complectator' && user.userId !== 'system') {
-    complectatorId = user.userId;
-  }
+  // Комплектатор — тот, кто создал заказ
+  const complectatorId = user.userId && user.userId !== 'system' ? user.userId : null;
 
   // Шаг 1: Создаем Order
   logger.debug('Создание заказа из корзины', 'orders/create-with-invoice', { client_id, itemsCount: items.length }, loggingContext);

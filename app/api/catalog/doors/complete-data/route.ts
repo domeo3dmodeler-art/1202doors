@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
-import { getPropertyPhotos, structurePropertyPhotos, getPropertyPhotosByValuePrefix, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../../../../../lib/property-photos';
+import { getPropertyPhotos, getPropertyPhotosByValuePrefix, structurePropertyPhotos, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../../../../../lib/property-photos';
 import { getDoorsCategoryId } from '../../../../../lib/catalog-categories';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { getCompleteDataCache, clearCompleteDataCache } from '../../../../../lib/catalog/complete-data-cache';
 
-// Кэширование
-const completeDataCache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 30 * 60 * 1000; // 30 минут
+const CACHE_TTL = 30 * 60 * 1000;
 
 // DELETE - очистка кэша
 async function deleteHandler(
@@ -18,7 +17,7 @@ async function deleteHandler(
   user: AuthenticatedUser
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
-  completeDataCache.clear();
+  clearCompleteDataCache();
   logger.info('Кэш complete-data очищен', 'catalog/doors/complete-data/DELETE', {}, loggingContext);
   return apiSuccess({ success: true, message: 'Кэш очищен' });
 }
@@ -36,20 +35,10 @@ async function getHandler(
   const style = searchParams.get('style');
   const forceRefresh = searchParams.get('refresh') === '1';
 
+  const completeDataCache = getCompleteDataCache();
   const cacheKey = style || 'all';
-  
-  // Проверяем кэш (пропускаем при ?refresh=1 для принудительного обновления после правок в БД)
-  const cached = !forceRefresh && completeDataCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    logger.debug('API complete-data - используем кэш', 'catalog/doors/complete-data/GET', { cacheKey }, loggingContext);
-    const res = apiSuccess({
-      ok: true,
-      ...cached.data,
-      cached: true
-    });
-    res.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return res;
-  }
+  // Не используем кэш: всегда читаем из БД, чтобы photo из property_photos отображались
+  // if (cached) return ... — отключено
 
   logger.info('API complete-data - загрузка данных для стиля', 'catalog/doors/complete-data/GET', { style: style || 'все' }, loggingContext);
 
@@ -97,7 +86,7 @@ async function getHandler(
 
       // Группировка только по "Код модели Domeo (Web)". Артикул поставщика в этой версии не используется.
       const domeoCode = String(properties['Код модели Domeo (Web)'] ?? '').trim();
-      const modelName = properties['Domeo_Название модели для Web'];
+      const modelName = properties['Название модели'];
       const productStyle = properties['Domeo_Стиль Web'] || 'Классика';
 
       const modelKey = domeoCode;
@@ -135,28 +124,40 @@ async function getHandler(
     }
   });
 
+  // Наполнение по коду модели: по ВСЕМ товарам с данным кодом (без фильтра по стилю), чтобы в UI предлагались все варианты для выбранного кода.
+  const fillingByModelKey = new Map<string, Set<string>>();
+  products.forEach(product => {
+    try {
+      const properties = product.properties_data ?
+        (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
+      const domeoCode = String(properties['Код модели Domeo (Web)'] ?? '').trim();
+      if (!domeoCode) return;
+      const fill = properties['Domeo_Опции_Название_наполнения'] != null ? String(properties['Domeo_Опции_Название_наполнения']).trim() : '';
+      if (!fill) return;
+      if (!fillingByModelKey.has(domeoCode)) fillingByModelKey.set(domeoCode, new Set<string>());
+      fillingByModelKey.get(domeoCode)!.add(fill);
+    } catch {
+      // ignore
+    }
+  });
+
   // Теперь структурируем фото для каждой модели: обложка — первая доступная среди всех фабричных вариантов (лист "Цвет")
   const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i;
-  const isLocalUploadPath = (path: string | null): boolean => {
-    return typeof path === 'string' && path.startsWith('/uploads/');
-  };
-  const pickPreferredPhoto = (current: string | null, next: string | null): string | null => {
-    if (!next) return current;
-    if (!current) return next;
-    const currentIsLocal = isLocalUploadPath(current);
-    const nextIsLocal = isLocalUploadPath(next);
-    if (nextIsLocal && !currentIsLocal) return next;
-    return current;
-  };
   const normalizePhotoPath = (raw: string | null): string | null => {
     if (!raw) return null;
-    const path = String(raw).trim();
+    let path = String(raw).trim();
     if (!path) return null;
     // Technical notes/placeholders should not be treated as image paths.
     if (path.includes('не рассматриваем') || path.includes('пока не добавляем')) return null;
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return IMAGE_EXT.test(path) ? path : null;
-    }
+    // Локальные пути: только public/uploads (в т.ч. final-filled/doors). Внешние URL не используем.
+    if (path.startsWith('http://') || path.startsWith('https://')) return null;
+    // Нормализуем обратные слеши (Windows) в прямые для веб-путей
+    path = path.replace(/\\/g, '/');
+    // Абсолютный путь к uploads (Windows или *nix) → оставляем только /uploads/...
+    const uploadsIdx = path.toLowerCase().indexOf('/uploads/');
+    if (uploadsIdx !== -1) path = path.slice(uploadsIdx);
+    const winUploads = path.match(/^[a-z]:\/.*?\/uploads\/(.+)$/i);
+    if (winUploads) path = `/uploads/${winUploads[1]}`;
     if (path.startsWith('/uploads/')) return IMAGE_EXT.test(path) ? path : null;
     if (path.startsWith('products/')) {
       const normalized = `/uploads/${path}`;
@@ -166,132 +167,133 @@ async function getHandler(
       const normalized = `/uploads/${path.substring(7)}`;
       return IMAGE_EXT.test(normalized) ? normalized : null;
     }
-    const normalized = `/uploads/${path}`;
+    // Относительный путь (напр. final-filled/doors/файл.jpg) → под public/uploads
+    const normalized = path.startsWith('/') ? path : `/uploads/${path}`;
     return IMAGE_EXT.test(normalized) ? normalized : null;
   };
 
-  const modelPromises = Array.from(modelMap.entries()).map(async ([modelKey, modelData]) => {
-    logger.debug(`Получаем фото для модели`, 'catalog/doors/complete-data/GET', { model: modelData.model, modelKey }, loggingContext);
-
-    let modelPhotos: any[] = [];
-    const factoryNames: string[] = Array.from((modelData.factoryModelNames as Set<string>) || []);
-
-    // Обложка модели: привязка по коду (Код модели Domeo (Web)); устаревший «Артикул поставщика» — fallback.
-    if (modelKey && typeof modelKey === 'string' && modelKey.trim() !== '') {
-      const normalized = modelKey.toLowerCase();
-      let byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, normalized);
-      if (byCode.length === 0) byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', normalized);
-      for (let i = 1; i <= 10; i++) {
-        let variantPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, `${normalized}_${i}`);
-        if (variantPhotos.length === 0) variantPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Артикул поставщика', `${normalized}_${i}`);
-        if (variantPhotos.length > 0) byCode = byCode.concat(variantPhotos);
+  // Одна запись на (modelKey, style) только если есть хотя бы один товар. Правила: docs/DOOR_CONFIGURATOR_DATA_RULES.md
+  type ModelEntry = [string, { model: string; modelKey: string; style: string; products: any[]; factoryModelNames: Set<string>; suppliers: Set<string> }];
+  const modelEntries: ModelEntry[] = [];
+  if (style) {
+    for (const [modelKey, modelData] of modelMap.entries()) {
+      if ((modelData.products?.length ?? 0) > 0) modelEntries.push([modelKey, modelData as any]);
+    }
+  } else {
+    for (const [modelKey, modelData] of modelMap.entries()) {
+      const products = modelData.products ?? [];
+      const styleSet = new Set<string>();
+      for (const p of products) {
+        const s = String((p.properties || {})['Domeo_Стиль Web'] ?? 'Классика').trim();
+        styleSet.add(s);
       }
-      modelPhotos = byCode;
-    }
-    if (modelPhotos.length === 0 && factoryNames.length > 0) {
-      const firstFactory = factoryNames[0] as string;
-      modelPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, 'Domeo_Название модели для Web', firstFactory);
-    }
-
-    // Prefer local photos when both local and external variants exist.
-    modelPhotos.sort((a, b) => {
-      const aPath = normalizePhotoPath(a.photoPath);
-      const bPath = normalizePhotoPath(b.photoPath);
-      const aLocal = isLocalUploadPath(aPath) ? 1 : 0;
-      const bLocal = isLocalUploadPath(bPath) ? 1 : 0;
-      return bLocal - aLocal;
-    });
-
-    const photoStructure = structurePropertyPhotos(modelPhotos);
-
-    // Объединяем цвета/фото по всем фабричным названиям этой модели Domeo (одна модель = несколько фабрик → одна обложка: первая найденная)
-    const coatingsMap = new Map<string, { id: string; coating_type: string; color_name: string; photo_path: string | null }>();
-    let firstColorCover: string | null = null;
-    const addColorPhotos = (colorPhotos: { propertyValue: string; photoType: string; photoPath: string }[]) => {
-      for (const p of colorPhotos) {
-        const parts = p.propertyValue.split('|');
-        const coatingType = parts[1] || '';
-        const colorName = parts[2] || '';
-        const key = `${coatingType}_${colorName}`;
-        const rawPath = p.photoType === 'cover' ? p.photoPath : null;
-        const photo_path = rawPath ? normalizePhotoPath(rawPath) : null;
-        if (!coatingsMap.has(key)) {
-          coatingsMap.set(key, {
-            id: key,
-            coating_type: coatingType,
-            color_name: colorName,
-            photo_path
-          });
-          if (p.photoType === 'cover') {
-            firstColorCover = pickPreferredPhoto(firstColorCover, photo_path);
+      for (const styleVal of styleSet) {
+        const productsForStyle = products.filter((p: any) => String((p.properties || {})['Domeo_Стиль Web'] ?? 'Классика').trim() === styleVal);
+        if (productsForStyle.length === 0) continue;
+        const factoryModelNames = new Set<string>();
+        const suppliers = new Set<string>();
+        for (const p of productsForStyle) {
+          const props = p.properties || {};
+          const name = typeof props['Название модели'] === 'string' ? String(props['Название модели']).trim() : '';
+          if (name) factoryModelNames.add(name);
+          const sup = String(props['Поставщик'] ?? '').trim();
+          if (sup) suppliers.add(sup);
+        }
+        modelEntries.push([
+          modelKey,
+          {
+            model: modelData.model,
+            modelKey,
+            style: styleVal,
+            products: productsForStyle,
+            factoryModelNames,
+            suppliers
           }
-        } else if (p.photoType === 'cover') {
-          const currentPath = coatingsMap.get(key)!.photo_path;
-          coatingsMap.get(key)!.photo_path = pickPreferredPhoto(currentPath, photo_path);
-          firstColorCover = pickPreferredPhoto(firstColorCover, photo_path);
+        ]);
+      }
+    }
+  }
+
+  const modelPromises = modelEntries.map(async ([modelKey, modelData]) => {
+    logger.debug(`Получаем фото для модели`, 'catalog/doors/complete-data/GET', { model: modelData.model, modelKey, style: modelData.style }, loggingContext);
+
+    const normalizedCode = modelKey && typeof modelKey === 'string' ? modelKey.trim().toLowerCase() : '';
+
+    // Покрытия только из товаров этой пары (modelKey, style). Правила: docs/DOOR_CONFIGURATOR_DATA_RULES.md
+    const coatingsMap = new Map<string, { id: string; coating_type: string; color_name: string; photo_path: string | null }>();
+    for (const p of modelData.products ?? []) {
+      const props = p.properties || {};
+      const coatingType = String(props['Тип покрытия'] ?? '').trim();
+      const colorName = String(props['Цвет/Отделка'] ?? '').trim();
+      if (!coatingType || !colorName) continue;
+      const key = `${coatingType}_${colorName}`;
+      if (coatingsMap.has(key)) continue;
+      coatingsMap.set(key, {
+        id: key,
+        coating_type: coatingType,
+        color_name: colorName,
+        photo_path: null
+      });
+    }
+    // Фото цвета: один кандидат — modelKey|Тип покрытия|Цвет (PropertyPhoto Domeo_Модель_Цвет)
+    let firstColorCover: string | null = null;
+    for (const [, entry] of coatingsMap) {
+      const propertyValue = `${modelKey}|${entry.coating_type}|${entry.color_name}`;
+      const colorPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, propertyValue);
+      const coverPhoto = colorPhotos.find((ph: { photoType: string }) => ph.photoType === 'cover');
+      const rawPath = coverPhoto?.photoPath;
+      const photo_path = rawPath ? normalizePhotoPath(rawPath) : null;
+      if (photo_path) {
+        entry.photo_path = photo_path;
+        firstColorCover = firstColorCover || photo_path;
+      }
+    }
+    if (!firstColorCover) {
+      for (const c of coatingsMap.values()) {
+        if (c.photo_path) {
+          firstColorCover = c.photo_path;
+          break;
         }
       }
-    };
-    for (const factoryName of factoryNames) {
-      const name = String(factoryName || '').trim();
-      if (!name) continue;
-      const colorPhotos = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, name + '|');
-      addColorPhotos(colorPhotos);
-    }
-    // Fallback: фото цветов могут быть привязаны по коду модели (DomeoDoors_Base_1), а не по фабричному названию
-    if (coatingsMap.size === 0 && modelKey && typeof modelKey === 'string' && modelKey.trim() !== '') {
-      const prefix = modelKey.trim() + '|';
-      const colorPhotosByKey = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, prefix);
-      addColorPhotos(colorPhotosByKey);
     }
     const coatings = Array.from(coatingsMap.values());
-    // Типы покрытия модели (у каждой модели свой набор)
+
+    // Обложка модели: 1) по коду (Код модели Domeo (Web)), 2) по префиксу кода в Domeo_Модель_Цвет, 3) первое из coatings, 4) null
+    let modelCover: string | null = null;
+    if (normalizedCode) {
+      const byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, normalizedCode);
+      const structuredByCode = structurePropertyPhotos(byCode);
+      modelCover = normalizePhotoPath(structuredByCode.cover);
+    }
+    if (!modelCover && normalizedCode) {
+      const byPrefix = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, normalizedCode + '|');
+      const structuredByPrefix = structurePropertyPhotos(byPrefix);
+      modelCover = normalizePhotoPath(structuredByPrefix.cover);
+    }
+    if (!modelCover && modelKey.trim() !== normalizedCode) {
+      const byKeyPrefix = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, modelKey.trim() + '|');
+      const structuredByKey = structurePropertyPhotos(byKeyPrefix);
+      modelCover = normalizePhotoPath(structuredByKey.cover);
+    }
+    if (!modelCover && firstColorCover) modelCover = normalizePhotoPath(firstColorCover);
+    const photoStructure = { cover: modelCover, gallery: [] as string[] };
+    // Типы покрытия и цвета по типам
     const finishes = [...new Set(coatings.map((c) => c.coating_type))].filter(Boolean).sort();
-    // Цвета по типам покрытия: у каждого типа покрытия — свой набор цветов (лист "Цвет")
     const colorsByFinish: Record<string, Array<{ id: string; color_name: string; photo_path: string | null }>> = {};
     coatings.forEach((c) => {
       const t = c.coating_type || '';
       if (!t) return;
       if (!colorsByFinish[t]) colorsByFinish[t] = [];
-      colorsByFinish[t].push({
-        id: c.id,
-        color_name: c.color_name,
-        photo_path: c.photo_path,
-      });
+      colorsByFinish[t].push({ id: c.id, color_name: c.color_name, photo_path: c.photo_path });
     });
-    // Для обратной совместимости: все уникальные цвета по модели (без привязки к типу)
     const colors = [...new Set(coatings.map((c) => c.color_name))].filter(Boolean).sort();
 
-    // Обложка: при наличии цветов у модели предпочитаем первое фото из цветов (надёжнее, чем привязка по индексу в скрипте). Иначе — PropertyPhoto по коду, затем ProductImage.
-    const preferredStructuredCover = normalizePhotoPath(photoStructure.cover);
-    const preferredColorCover = normalizePhotoPath(firstColorCover);
-    let coverToUse = coatings.length > 0
-      ? pickPreferredPhoto(preferredStructuredCover, preferredColorCover)
-      : pickPreferredPhoto(preferredColorCover, preferredStructuredCover);
-    if (!coverToUse && modelData.products?.length > 0) {
-      for (const p of modelData.products) {
-        const productId = p.id;
-        if (!productId) continue;
-        const primaryImage = await prisma.productImage.findFirst({
-          where: { product_id: productId },
-          orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }],
-          select: { url: true }
-        });
-        const normalizedPrimary = normalizePhotoPath(primaryImage?.url || null);
-        if (normalizedPrimary) {
-          coverToUse = normalizedPrimary;
-          break;
-        }
-      }
-    }
-    const hasGallery = photoStructure.gallery.length > 0;
-
-    const normalizedCover = normalizePhotoPath(coverToUse);
-    const normalizedGallery = photoStructure.gallery.map(normalizePhotoPath).filter((p): p is string => p !== null);
+    const normalizedCover = normalizePhotoPath(photoStructure.cover);
+    const normalizedGallery = (photoStructure.gallery || []).map(normalizePhotoPath).filter((p): p is string => p !== null);
+    const hasGallery = normalizedGallery.length > 0;
 
     logger.debug(`Нормализация путей к фото`, 'catalog/doors/complete-data/GET', { 
       model: modelData.model,
-      coverOriginal: coverToUse,
       coverNormalized: normalizedCover,
       coatingsCount: coatings.length
     }, loggingContext);
@@ -309,7 +311,7 @@ async function getHandler(
     const glassColorsSet = new Set<string>();
     let edgeInBase = false;
     let edgeBaseColor = '';
-    const edgeOptionsList: Array<{ id: string; name: string; surcharge: number }> = [];
+    const edgeOptionsMap = new Map<string, { id: string; name: string; surcharge: number }>();
 
     for (const p of allProducts) {
       const props = p.properties || {};
@@ -325,30 +327,34 @@ async function getHandler(
       const glass = props['Domeo_Стекло_доступность'];
       if (Array.isArray(glass)) glass.forEach((c: unknown) => { if (typeof c === 'string') glassColorsSet.add(c); });
 
-      // Кромка: одинаковая у всех товаров одной модели (лист «Наценка за кромку» по названию модели), берём из первого
-      if (!edgeBaseColor && (props['Domeo_Кромка_в_базе_включена'] != null || props['Domeo_Кромка_базовая_цвет'] != null)) {
-        edgeInBase = String(props['Domeo_Кромка_в_базе_включена'] ?? '').trim().toLowerCase() === 'да';
-        edgeBaseColor = props['Domeo_Кромка_базовая_цвет'] != null ? String(props['Domeo_Кромка_базовая_цвет']).trim() : '';
-        if (edgeInBase) {
-          edgeOptionsList.length = 0;
-          if (edgeBaseColor) edgeOptionsList.push({ id: edgeBaseColor, name: edgeBaseColor, surcharge: 0 });
-          for (const i of [2, 3, 4] as const) {
-            const colorVal = props[`Domeo_Кромка_Цвет_${i}`] != null ? String(props[`Domeo_Кромка_Цвет_${i}`]).trim() : '';
-            const surchargeVal = Number(props[`Domeo_Кромка_Наценка_Цвет_${i}`]) || 0;
-            if (colorVal) edgeOptionsList.push({ id: colorVal, name: colorVal, surcharge: surchargeVal });
+      const inBase = String(props['Domeo_Кромка_в_базе_включена'] ?? '').trim().toLowerCase() === 'да';
+      if (inBase) edgeInBase = true;
+      const baseColor = props['Domeo_Кромка_базовая_цвет'] != null ? String(props['Domeo_Кромка_базовая_цвет']).trim() : '';
+      if (baseColor && !edgeBaseColor) edgeBaseColor = baseColor;
+      if (inBase) {
+        if (baseColor) {
+          const cur = edgeOptionsMap.get(baseColor);
+          if (!cur || 0 > (cur.surcharge ?? 0)) edgeOptionsMap.set(baseColor, { id: baseColor, name: baseColor, surcharge: 0 });
+        }
+        for (const i of [2, 3, 4] as const) {
+          const colorVal = props[`Domeo_Кромка_Цвет_${i}`] != null ? String(props[`Domeo_Кромка_Цвет_${i}`]).trim() : '';
+          const surchargeVal = Number(props[`Domeo_Кромка_Наценка_Цвет_${i}`]) || 0;
+          if (colorVal) {
+            const cur = edgeOptionsMap.get(colorVal);
+            if (!cur || surchargeVal > (cur.surcharge ?? 0)) edgeOptionsMap.set(colorVal, { id: colorVal, name: colorVal, surcharge: surchargeVal });
           }
         }
       }
     }
 
-    // Если кромка в базе, но опции не заполнились из Domeo_* — собираем из свойства «Кромка» у товаров
+    let edgeOptionsList = Array.from(edgeOptionsMap.values());
     if (edgeInBase && edgeOptionsList.length === 0) {
       const edgeNames = new Set<string>();
       for (const p of allProducts) {
         const v = p.properties?.['Кромка'] != null ? String(p.properties['Кромка']).trim() : '';
         if (v && v !== '-') edgeNames.add(v);
       }
-      edgeNames.forEach((name) => edgeOptionsList.push({ id: name, name, surcharge: 0 }));
+      edgeOptionsList = Array.from(edgeNames).map((name) => ({ id: name, name, surcharge: 0 }));
     }
 
     const glassColors = Array.from(glassColorsSet);
@@ -356,12 +362,12 @@ async function getHandler(
 
     const result = {
       model: modelData.model,
-      modelKey: modelData.modelKey, // Код модели Domeo (Web) — для связи вкладок и расчёта цены
+      modelKey: modelData.modelKey,
       style: modelData.style,
-      suppliers: Array.from(modelData.suppliers || new Set<string>()).filter(Boolean), // поставщики по коду модели (для фильтра наличников и выбора варианта для заказа)
-      photo: normalizedCover,
+      suppliers: Array.from(modelData.suppliers || new Set<string>()).filter(Boolean),
+      photo: normalizedCover ?? null,
       photos: {
-        cover: normalizedCover,
+        cover: normalizedCover ?? null,
         gallery: normalizedGallery
       },
       hasGallery: hasGallery,
@@ -389,7 +395,11 @@ async function getHandler(
         mirror_both_rub: mirrorBothRub,
         filling_name: fillingName || undefined
       },
-      filling_names: fillingNames.size > 0 ? Array.from(fillingNames) : []
+      filling_names: (() => {
+        const fromAllProducts = fillingByModelKey.get(modelData.modelKey);
+        if (fromAllProducts && fromAllProducts.size > 0) return Array.from(fromAllProducts);
+        return fillingNames.size > 0 ? Array.from(fillingNames) : [];
+      })()
     };
     
     logger.debug(`Возвращаем данные для модели`, 'catalog/doors/complete-data/GET', { 
@@ -420,7 +430,7 @@ async function getHandler(
   };
 
   // Сохраняем в кэш
-  completeDataCache.set(cacheKey, {
+  getCompleteDataCache().set(cacheKey, {
     data: result,
     timestamp: Date.now()
   });
@@ -431,7 +441,7 @@ async function getHandler(
       ok: true,
       ...result
     });
-    res.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     return res;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

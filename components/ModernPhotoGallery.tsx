@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { getImageSrc } from '@/lib/configurator/image-src';
 
 interface PhotoStructure {
   cover: string | null;
@@ -149,25 +150,7 @@ export function ModernPhotoGallery({ photos, productName, hasGallery, onToggleSi
         >
           {allPhotos[currentIndex] ? (
             <img
-              src={(() => {
-                const photo = allPhotos[currentIndex];
-                if (photo.startsWith('http://') || photo.startsWith('https://')) return photo;
-                let imageUrl: string;
-                if (photo.startsWith('/uploads/')) {
-                  imageUrl = `/api${photo}`;
-                } else if (photo.startsWith('/uploadsproducts')) {
-                  imageUrl = `/api/uploads/products/${photo.substring(17)}`;
-                } else if (photo.startsWith('/uploads')) {
-                  imageUrl = `/api/uploads/${photo.substring(8)}`;
-                } else if (photo.startsWith('products/')) {
-                  imageUrl = `/api/uploads/${photo}`;
-                } else if (photo.startsWith('uploads/')) {
-                  imageUrl = `/api/${photo}`;
-                } else {
-                  imageUrl = `/api/uploads${photo}`;
-                }
-                return imageUrl;
-              })()}
+              src={getImageSrc(allPhotos[currentIndex])}
               alt={`${productName} - фото ${currentIndex + 1}`}
               className="max-h-full max-w-full object-contain transition-all duration-300 hover:scale-105 cursor-pointer"
               style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}
@@ -321,21 +304,7 @@ export function ModernPhotoGallery({ photos, productName, hasGallery, onToggleSi
                   aria-label={`Перейти к фото ${index + 1}`}
                 >
                   <img
-                    src={(() => {
-                      if (photo.startsWith('/uploads/')) {
-                        return `/api${photo}`;
-                      } else if (photo.startsWith('/uploadsproducts')) {
-                        return `/api/uploads/products/${photo.substring(17)}`;
-                      } else if (photo.startsWith('/uploads')) {
-                        return `/api/uploads/${photo.substring(8)}`;
-                      } else if (photo.startsWith('products/')) {
-                        return `/api/uploads/${photo}`;
-                      } else if (photo.startsWith('uploads/')) {
-                        return `/api/${photo}`;
-                      } else {
-                        return `/api/uploads${photo}`;
-                      }
-                    })()}
+                    src={getImageSrc(photo)}
                     alt={`Миниатюра ${index + 1}`}
                     className="w-full h-full object-cover"
                     onError={() => {
@@ -370,22 +339,7 @@ export function ModernPhotoGallery({ photos, productName, hasGallery, onToggleSi
             {/* Основное изображение */}
             <div className="flex items-center justify-center relative flex-none max-h-[80vh]">
               <img
-                src={(() => {
-                  const photo = allPhotos[currentIndex];
-                  if (photo.startsWith('/uploads/')) {
-                    return `/api${photo}`;
-                  } else if (photo.startsWith('/uploadsproducts')) {
-                    return `/api/uploads/products/${photo.substring(17)}`;
-                  } else if (photo.startsWith('/uploads')) {
-                    return `/api/uploads/${photo.substring(8)}`;
-                  } else if (photo.startsWith('products/')) {
-                    return `/api/uploads/${photo}`;
-                  } else if (photo.startsWith('uploads/')) {
-                    return `/api/${photo}`;
-                  } else {
-                    return `/api/uploads${photo}`;
-                  }
-                })()}
+                src={getImageSrc(allPhotos[currentIndex])}
                 alt={`${productName} - увеличенное фото ${currentIndex + 1}`}
                 className="max-w-full max-h-[80vh] object-contain cursor-default"
                 onClick={(e) => {
@@ -448,7 +402,7 @@ export function ModernPhotoGallery({ photos, productName, hasGallery, onToggleSi
                         aria-label={`Перейти к фото ${index + 1}`}
                       >
                         <img
-                          src={photo.startsWith('/uploads') ? `/api${photo}` : `/api/uploads${photo}`}
+                          src={getImageSrc(photo)}
                           alt={`Миниатюра ${index + 1}`}
                           className="w-full h-full object-cover"
                           onError={() => {

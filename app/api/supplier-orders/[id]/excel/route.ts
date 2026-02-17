@@ -7,27 +7,9 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError } from '@/lib/api/errors';
-
-// Поиск ручки в БД по ID
-async function findHandleById(handleId: string) {
-  logger.debug('Ищем ручку по ID', 'supplier-orders/excel', { handleId });
-  
-  const handle = await prisma.product.findFirst({
-    where: {
-      id: handleId,
-      catalog_category: { name: "Ручки" }
-    },
-    select: { id: true, properties_data: true, name: true, sku: true }
-  });
-
-  if (handle) {
-    logger.debug('Найдена ручка', 'supplier-orders/excel', { sku: handle.sku });
-    return [handle];
-  } else {
-    logger.debug('Ручка не найдена в БД', 'supplier-orders/excel', { handleId });
-    return [];
-  }
-}
+import { getDisplayNameForExport, formatMirrorForExcel, formatArchitraveDisplay } from '@/lib/export/puppeteer-generator';
+import { getMatchingProducts, getModelNameByCode, getFirstProductPropsByModelCode } from '@/lib/catalog/product-match';
+import { EXCEL_DOOR_FIELDS, getDoorFieldValue, type ExcelDoorFieldName } from '@/lib/export/excel-door-fields';
 
 // GET /api/supplier-orders/[id]/excel - Экспорт заказа у поставщика в Excel
 async function handler(
@@ -129,29 +111,47 @@ async function handler(
       );
     }
 
-    // Подготавливаем данные для генерации Excel
+    // Подготавливаем данные для генерации Excel (все поля корзины: опции двери, breakdown для колонок «X, цена», model_name для «Название модели»)
     const excelData = {
       items: cartData.items.map((item: any) => ({
+        ...item,
+        id: item.id || item.sku || 'N/A',
         sku: item.id || 'N/A',
-        name: item.type === 'handle' 
-          ? (item.handleName || item.name || 'Ручка')
-          : (item.name || `Дверь ${item.model?.replace(/DomeoDoors_/g, 'DomeoDoors ').replace(/_/g, ' ')} (${item.finish}, ${item.color}, ${item.width} × ${item.height} мм, Комплект фурнитуры - ${(item.hardwareKitName || item.hardware || 'Базовый').replace(/^Комплект фурнитуры — /, '')})` || 'Товар'),
-        quantity: item.quantity || item.qty || 1,
-        unitPrice: item.unitPrice || 0,
-        total: (item.quantity || item.qty || 1) * (item.unitPrice || 0),
-        // Добавляем поля конфигурации для поиска в БД
+        name: item.name,
+        qty: item.qty ?? item.quantity ?? 1,
+        quantity: item.quantity ?? item.qty ?? 1,
+        unitPrice: item.unitPrice ?? item.price ?? 0,
+        total: (item.quantity ?? item.qty ?? 1) * (item.unitPrice ?? item.price ?? 0),
         model: item.model,
+        model_name: item.model_name,
         finish: item.finish,
         color: item.color,
         width: item.width,
         height: item.height,
-        // КРИТИЧНО: передаем тип товара для правильной логики
-        type: item.type,
+        type: item.type ?? item.itemType,
+        itemType: item.itemType ?? item.type,
         handleId: item.handleId,
         handleName: item.handleName,
-        // Добавляем информацию о комплекте фурнитуры
         hardwareKitName: item.hardwareKitName,
-        hardware: item.hardware
+        hardware: item.hardware,
+        edge: item.edge,
+        edgeId: item.edgeId ?? item.edge_id,
+        edgeColorName: item.edgeColorName ?? item.edge_color_name,
+        edge_color_name: item.edge_color_name ?? item.edgeColorName,
+        glassColor: item.glassColor ?? item.glass_color,
+        glass_color: item.glass_color ?? item.glassColor,
+        reversible: item.reversible,
+        mirror: item.mirror,
+        threshold: item.threshold === true || item.threshold === 1 || (typeof item.threshold === 'string' && String(item.threshold).toLowerCase().trim() === 'да'),
+        optionIds: item.optionIds ?? item.option_ids,
+        architraveNames: item.architraveNames ?? item.architrave_names,
+        architraveName: item.architraveName,
+        optionNames: item.optionNames ?? item.option_names,
+        sku_1c: item.sku_1c,
+        price_opt: item.price_opt,
+        breakdown: item.breakdown,
+        matchingVariants: item.matchingVariants ?? item.matching_variants,
+        style: item.style
       }))
     };
 
@@ -246,21 +246,7 @@ async function generateExcel(data: any): Promise<Buffer> {
     // Базовые заголовки + поля из БД в нужном порядке
     const baseHeaders = ['№', 'Наименование', 'Количество', 'Цена', 'Сумма'];
     
-    // Определяем нужные поля из БД в правильном порядке (как в оригинале)
-    const dbFields = [
-      'Цена опт',
-      'Цена РРЦ', 
-      'Поставщик',
-      'Наименование у поставщика',
-      'Материал/Покрытие',
-      'Размер 1',
-      'Размер 2', 
-      'Размер 3',
-      'Цвет/Отделка',
-      'SKU внутреннее',
-      'Артикул поставщика'
-    ];
-    
+    const dbFields = [...EXCEL_DOOR_FIELDS];
     const allHeaders = [...baseHeaders, ...dbFields];
     
     // Устанавливаем заголовки (строка 10, как в оригинале!)
@@ -317,27 +303,19 @@ async function generateExcel(data: any): Promise<Buffer> {
       const item = data.items[i];
       logger.debug('Обрабатываем товар из корзины', 'supplier-orders/excel', { itemIndex: i + 1, itemName: item.name, itemType: item.type });
 
-      // Ищем подходящие товары в БД
-      let matchingProducts: any[] = [];
-      if (item.type === 'handle' && item.handleId) {
-        // Для ручек используем специальную функцию
-        matchingProducts = await findHandleById(item.handleId);
-      } else {
-        // Для дверей используем обычную функцию
-        const result = await findAllProductsByConfiguration(item);
-        matchingProducts = result || [];
-      }
+      // Ищем подходящие товары в БД (строгое совпадение: данные корзины = из БД)
+      const matchingProducts = await getMatchingProducts(item);
       logger.debug('Найдено подходящих товаров в БД', 'supplier-orders/excel', { itemName: item.name, matchingProductsCount: matchingProducts.length });
       
       if (matchingProducts.length === 0) {
-        logger.warn('Не найдено подходящих товаров, создаем строку с данными из корзины', 'supplier-orders/excel', { itemName: item.name });
+        logger.warn('Экспорт: нет совпадения в БД — используется fallback из корзины (при строгих данных из БД такого быть не должно)', 'supplier-orders/excel', { itemName: item.name, itemModel: item.model, itemFinish: item.finish, itemColor: item.color });
         
         // Если не найдено товаров, создаем строку с данными из корзины
         const row = worksheet.getRow(rowIndex);
         
-        // Базовые поля
+        // Базовые поля: полный набор опций двери / ручки / ограничителя
         row.getCell(1).value = globalRowNumber++; // №
-        row.getCell(2).value = item.name; // Наименование
+        row.getCell(2).value = getDisplayNameForExport(item); // Наименование
         row.getCell(3).value = item.quantity || item.qty || 1; // Количество
         row.getCell(4).value = item.unitPrice || 0; // Цена
         row.getCell(5).value = (item.quantity || item.qty || 1) * (item.unitPrice || 0); // Сумма
@@ -346,10 +324,33 @@ async function generateExcel(data: any): Promise<Buffer> {
         row.getCell(4).numFmt = '#,##0';
         row.getCell(5).numFmt = '#,##0';
         
-        // Заполняем пустыми значениями для полей из БД
+        const isDoor = !!(item.model || item.width != null || (item.finish != null && item.finish !== ''));
+        const modelNameFallback = (item.model || '').toString().replace(/DomeoDoors_/g, '').replace(/_/g, ' ').trim() || '';
+        const fallbackModelName = isDoor ? (await getModelNameByCode(item.model)) || modelNameFallback : '';
+        // Подставляем данные из БД по коду модели, чтобы заполнить Цена РРЦ, Поставщик, Покрытие, Толщина и т.д.
+        const fallbackProps = isDoor ? await getFirstProductPropsByModelCode(item.model) : null;
+        const mergedProps = fallbackProps
+          ? {
+              ...fallbackProps,
+              ...(item.width != null && { 'Ширина/мм': item.width }),
+              ...(item.height != null && { 'Высота/мм': item.height })
+            }
+          : undefined;
+        const source = {
+          item: item as any,
+          supplierName: data.supplier?.name ?? '',
+          fallbackModelName,
+          ...(mergedProps && { props: mergedProps })
+        };
         let colIndex = 6;
-        dbFields.forEach(() => {
-          row.getCell(colIndex).value = '';
+        dbFields.forEach((fieldName: ExcelDoorFieldName) => {
+          const val = getDoorFieldValue(fieldName, source);
+          if (val !== '' && val !== undefined && val !== null) {
+            row.getCell(colIndex).value = typeof val === 'number' ? val : String(val);
+            if (fieldName === 'Цена опт' || fieldName === 'Цена РРЦ' || fieldName.endsWith(', цена')) row.getCell(colIndex).numFmt = '#,##0';
+          } else {
+            row.getCell(colIndex).value = '';
+          }
           colIndex++;
         });
         
@@ -379,9 +380,9 @@ async function generateExcel(data: any): Promise<Buffer> {
         
         const row = worksheet.getRow(rowIndex);
         
-        // Базовые поля (заполняем только один раз)
+        // Базовые поля (заполняем только один раз): полный набор опций двери / ручки / ограничителя
         row.getCell(1).value = globalRowNumber++; // №
-        row.getCell(2).value = item.name; // Наименование из корзины
+        row.getCell(2).value = getDisplayNameForExport(item); // Наименование из корзины
         row.getCell(3).value = item.quantity || item.qty || 1; // Количество из корзины
         row.getCell(4).value = item.unitPrice || 0; // Цена из корзины
         row.getCell(5).value = (item.quantity || item.qty || 1) * (item.unitPrice || 0); // Сумма
@@ -423,75 +424,18 @@ async function generateExcel(data: any): Promise<Buffer> {
                 ? JSON.parse(productData.properties_data) 
                 : productData.properties_data;
               
-              // Заполняем поля в нужном порядке
-              logger.debug('Тип товара, заполняем поля', 'supplier-orders/excel', { itemType: item.type, sku: productData.sku, isHandle: item.type === 'handle' });
-              dbFields.forEach(fieldName => {
-                let value = '';
-                
-                // Универсальная логика для всех товаров (как в puppeteer-generator.ts)
-                if (fieldName === 'Наименование у поставщика') {
-                  // Для всех товаров используем правильные поля
-                  value = props['Фабрика_наименование'] || props['Наименование двери у поставщика'] || props['Наименование поставщика'] || props['Наименование'] || '';
-                } else if (fieldName === 'Материал/Покрытие') {
-                  // Для дверей: Материал/Покрытие, для ручек: пустое
-                  if (item.type === 'handle') {
-                    value = ''; // Ручки не заполняют материал
-                  } else {
-                    value = props['Материал/Покрытие'] || props['Тип покрытия'] || '';
-                  }
-                } else if (fieldName === 'Размер 1') {
-                  // Для дверей: Ширина/мм, для ручек: пустое
-                  if (item.type === 'handle') {
-                    value = ''; // Ручки не заполняют размеры
-                  } else {
-                    value = props['Ширина/мм'] || '';
-                  }
-                } else if (fieldName === 'Размер 2') {
-                  // Для дверей: Высота/мм, для ручек: пустое
-                  if (item.type === 'handle') {
-                    value = ''; // Ручки не заполняют размеры
-                  } else {
-                    value = props['Высота/мм'] || '';
-                  }
-                } else if (fieldName === 'Размер 3') {
-                  // Для дверей: Толщина/мм, для ручек: пустое
-                  if (item.type === 'handle') {
-                    value = ''; // Ручки не заполняют размеры
-                  } else {
-                    value = props['Толщина/мм'] || '';
-                  }
-                } else if (fieldName === 'Цвет/Отделка') {
-                  // Для всех товаров используем Цвет/Отделка
-                  value = props['Цвет/Отделка'] || props['Domeo_Цвет'] || '';
-                } else {
-                  // Остальные поля заполняем как обычно
-                  if (item.type === 'handle') {
-                    // Для ручек используем специальную логику для некоторых полей
-                    if (fieldName === 'Цена РРЦ') {
-                      value = props['Цена розница'] || props['Цена РРЦ'] || '';
-                    } else if (fieldName === 'Артикул поставщика') {
-                      value = props['Фабрика_артикул'] || props['Артикул поставщика'] || '';
-                    } else {
-                      value = props[fieldName] || '';
-                    }
-                  } else {
-                    // Для дверей используем стандартную логику
-                    value = props[fieldName] || '';
-                  }
-                }
-                
+              const source = {
+                item: item as any,
+                supplierName: data.supplier?.name ?? '',
+                props
+              };
+              logger.debug('Тип товара, заполняем поля', 'supplier-orders/excel', { itemType: item.type, sku: productData.sku });
+              dbFields.forEach((fieldName: ExcelDoorFieldName) => {
+                const value = getDoorFieldValue(fieldName, source);
                 if (value !== undefined && value !== null && value !== '') {
-                  // Специальное форматирование для цен
-                  if (fieldName === 'Цена опт' || fieldName === 'Цена РРЦ') {
-                    const numValue = parseFloat(String(value));
-                    if (!isNaN(numValue)) {
-                      currentRow.getCell(colIndex).value = numValue;
-                      currentRow.getCell(colIndex).numFmt = '#,##0';
-                    } else {
-                      currentRow.getCell(colIndex).value = '';
-                    }
-                  } else {
-                    currentRow.getCell(colIndex).value = String(value);
+                  currentRow.getCell(colIndex).value = typeof value === 'number' ? value : String(value);
+                  if (fieldName === 'Цена опт' || fieldName === 'Цена РРЦ' || fieldName.endsWith(', цена')) {
+                    currentRow.getCell(colIndex).numFmt = '#,##0';
                   }
                 } else {
                   currentRow.getCell(colIndex).value = '';
@@ -551,13 +495,13 @@ async function generateExcel(data: any): Promise<Buffer> {
     totalRow.getCell(5).numFmt = '#,##0';
     totalRow.getCell(5).font = { bold: true };
 
-    // Автоподбор ширины колонок
+    // Ширина колонок: Наименование — шире для полного текста
     worksheet.columns.forEach((column, index) => {
-      if (index < 6) {
-        // Базовые колонки
+      if (index === 1) {
+        column.width = 50; // Наименование
+      } else if (index < 6) {
         column.width = 15;
       } else {
-        // Колонки свойств
         column.width = 20;
       }
     });
@@ -600,92 +544,3 @@ async function getDoorTemplate() {
   };
 }
 
-// Поиск ВСЕХ товаров в БД по точной конфигурации (как в оригинале)
-async function findAllProductsByConfiguration(item: any) {
-  logger.debug('Ищем ВСЕ товары по конфигурации', 'supplier-orders/excel', {
-    model: item.model,
-    finish: item.finish,
-    color: item.color,
-    width: item.width,
-    height: item.height,
-    itemType: item.type
-  });
-
-  // Получаем все товары категории дверей
-  const allProducts = await prisma.product.findMany({
-    where: {
-      catalog_category: { name: "Межкомнатные двери" }
-    },
-    select: { properties_data: true, name: true, sku: true }
-  });
-
-  logger.debug('Найдено товаров для поиска', 'supplier-orders/excel', { totalProducts: allProducts.length });
-
-  const matchingProducts = [];
-
-  for (const product of allProducts) {
-    if (product.properties_data) {
-      try {
-        const props = typeof product.properties_data === 'string' 
-          ? JSON.parse(product.properties_data) 
-          : product.properties_data;
-        
-        // Проверяем соответствие конфигурации с гибким поиском
-        const modelMatch = !item.model || 
-          props['Domeo_Название модели для Web'] === item.model ||
-          props['Domeo_Название модели для Web']?.includes(item.model) ||
-          item.model?.includes(props['Domeo_Название модели для Web']);
-        const finishMatch = !item.finish || 
-          props['Материал/Покрытие'] === item.finish ||
-          props['Тип покрытия'] === item.finish;
-        const colorMatch = !item.color || 
-          props['Цвет/Отделка'] === item.color ||
-          props['Domeo_Цвет'] === item.color;
-        // Исправляем сравнение размеров - приводим к строкам для сравнения
-        const widthMatch = !item.width || 
-          String(props['Ширина/мм']) === String(item.width) ||
-          String(props['Размер 1']) === String(item.width);
-        const heightMatch = !item.height || 
-          String(props['Высота/мм']) === String(item.height) ||
-          String(props['Размер 2']) === String(item.height);
-        
-        if (modelMatch && finishMatch && colorMatch && widthMatch && heightMatch) {
-          logger.debug('Найден подходящий товар', 'supplier-orders/excel', { sku: product.sku, modelMatch, finishMatch, colorMatch, widthMatch, heightMatch });
-          matchingProducts.push({
-            ...product,
-            properties_data: props
-          });
-        } else {
-          // Логируем только первые несколько несовпадений для отладки
-          if (matchingProducts.length < 3) {
-            logger.debug('Товар не подходит', 'supplier-orders/excel', {
-              sku: product.sku,
-              modelMatch, finishMatch, colorMatch, widthMatch, heightMatch,
-              itemModel: item.model, itemFinish: item.finish, itemColor: item.color,
-              itemWidth: item.width, itemHeight: item.height,
-              dbModel: props['Domeo_Название модели для Web'],
-              dbFinish: props['Материал/Покрытие'],
-              dbColor: props['Цвет/Отделка'],
-              dbWidth: props['Размер 1'],
-              dbHeight: props['Размер 2']
-            });
-          }
-        }
-      } catch (e) {
-        logger.warn('Ошибка парсинга properties_data', 'supplier-orders/excel', { sku: product.sku, error: e instanceof Error ? e.message : String(e) });
-      }
-    }
-  }
-
-  logger.debug('Найдено подходящих товаров', 'supplier-orders/excel', { matchingProductsCount: matchingProducts.length });
-  return matchingProducts;
-}
-
-// Получение значения поля из properties_data
-function getFieldValue(propertiesData: any, fieldName: string): string {
-  if (!propertiesData || typeof propertiesData !== 'object') {
-    return '';
-  }
-  
-  return propertiesData[fieldName] || '';
-}

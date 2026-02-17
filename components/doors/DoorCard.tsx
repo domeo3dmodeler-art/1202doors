@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, memo } from 'react';
 import { clientLogger } from '@/lib/logging/client-logger';
 import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 import { parseApiResponse } from '@/lib/utils/parse-api-response';
+import { getImageSrc } from '@/lib/configurator/image-src';
 import { formatModelNameForCard } from './utils';
 import type { ModelItem } from './types';
 
@@ -17,28 +18,8 @@ function DoorCardComponent({ item, selected, onSelect }: DoorCardProps) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Мемоизируем вычисление URL изображения
-  const imageUrl = useMemo(() => {
-    if (!item.photo || typeof item.photo !== 'string') {
-      return null;
-    }
-    if (item.photo.startsWith('http://') || item.photo.startsWith('https://')) {
-      return item.photo;
-    }
-    if (item.photo.startsWith('/uploads/')) {
-      return `/api${item.photo}`;
-    } else if (item.photo.startsWith('/uploadsproducts')) {
-      return `/api/uploads/products/${item.photo.substring(17)}`;
-    } else if (item.photo.startsWith('/uploads')) {
-      return `/api/uploads/${item.photo.substring(8)}`;
-    } else if (item.photo.startsWith('products/')) {
-      return `/api/uploads/${item.photo}`;
-    } else if (item.photo.startsWith('uploads/')) {
-      return `/api/${item.photo}`;
-    } else {
-      return `/api/uploads/${item.photo}`;
-    }
-  }, [item.photo]);
+  // Мемоизируем вычисление URL изображения (единый слой getImageSrc)
+  const imageUrl = useMemo(() => (item.photo && typeof item.photo === 'string' ? getImageSrc(item.photo) : null), [item.photo]);
 
   useEffect(() => {
     if (imageUrl) {
@@ -55,22 +36,7 @@ function DoorCardComponent({ item, selected, onSelect }: DoorCardProps) {
             const data = await response.json();
             const parsedData = parseApiResponse<{ photos?: string[] }>(data);
             if (parsedData.photos && parsedData.photos.length > 0) {
-              const photoPath = parsedData.photos[0];
-              let url: string;
-              if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-                url = photoPath;
-              } else if (photoPath.startsWith('/uploads/')) {
-                url = `/api${photoPath}`;
-              } else if (photoPath.startsWith('/uploads')) {
-                url = `/api/uploads/${photoPath.substring(8)}`;
-              } else if (photoPath.startsWith('products/')) {
-                url = `/api/uploads/${photoPath}`;
-              } else if (photoPath.startsWith('uploads/')) {
-                url = `/api/${photoPath}`;
-              } else {
-                url = `/api/uploads/${photoPath}`;
-              }
-              setImageSrc(url);
+              setImageSrc(getImageSrc(parsedData.photos[0]));
             } else {
               setImageSrc(null);
             }

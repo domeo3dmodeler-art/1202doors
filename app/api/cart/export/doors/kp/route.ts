@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getItemDisplayNameForExport, normalizeItemForDisplay } from "@/lib/export/display-names";
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,21 +21,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Генерируем HTML для КП
+    // Генерируем HTML для КП (единые названия: дверь, ручка, завертка, ограничитель)
     const rows = cart.items.map((item: any, index: number) => {
-      const sum = item.unitPrice * item.qty;
+      const norm = normalizeItemForDisplay(item) as any;
+      const name = getItemDisplayNameForExport(norm);
+      const sum = (item.unitPrice || 0) * (item.qty ?? item.quantity ?? 1);
       return `
         <tr>
           <td>${index + 1}</td>
-          <td>${item.model} (${item.width}×${item.height}${item.color ? `, ${item.color}` : ""})</td>
-          <td class="num">${Math.round(item.unitPrice).toLocaleString()}</td>
-          <td class="num">${item.qty}</td>
+          <td>${escapeHtml(name)}</td>
+          <td class="num">${Math.round(item.unitPrice || 0).toLocaleString()}</td>
+          <td class="num">${item.qty ?? item.quantity ?? 1}</td>
           <td class="num">${Math.round(sum).toLocaleString()}</td>
         </tr>
       `;
     }).join("");
 
-    const total = cart.items.reduce((sum: number, item: any) => sum + item.unitPrice * item.qty, 0);
+    const total = cart.items.reduce((sum: number, item: any) => sum + (item.unitPrice || 0) * (item.qty ?? item.quantity ?? 1), 0);
 
     const html = `<!doctype html>
 <html>

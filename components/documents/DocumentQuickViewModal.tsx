@@ -7,6 +7,7 @@ import CommentsModal from '@/components/ui/CommentsModal';
 import { toast } from 'sonner';
 import { Download, FileText, User, MapPin, Clock, X } from 'lucide-react';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { getItemDisplayNameForExport } from '@/lib/export/display-names';
 
 interface DocumentQuickViewModalProps {
   isOpen: boolean;
@@ -542,9 +543,8 @@ export function DocumentQuickViewModal({ isOpen, onClose, documentId }: Document
                         const quantity = item.quantity || item.qty || 1;
                         const unitPrice = item.unit_price || item.price || 0;
                         const totalPrice = quantity * unitPrice;
-                        
-                        // Очищаем название от артикула
-                        const rawProductName = item.name || item.product_name || item.notes || 'Товар';
+                        // Единое наименование товара для всех ЛК (как в экспорте)
+                        const rawProductName = getItemDisplayNameForExport(item);
                         const cleanName = cleanProductName(rawProductName);
                         
                         // Добавляем номер строки

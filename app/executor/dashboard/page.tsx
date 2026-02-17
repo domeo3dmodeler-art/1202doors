@@ -80,6 +80,11 @@ export default function ExecutorDashboard() {
   const [supplierOrdersFilter, setSupplierOrdersFilter] = useState<SupplierOrderFilterStatus>('all');
   const [showInWorkOnly, setShowInWorkOnly] = useState(false);
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
+  const [showClientsModal, setShowClientsModal] = useState(false);
+  const [clientsModalInWorkOnly, setClientsModalInWorkOnly] = useState(false);
+  const [modalSearch, setModalSearch] = useState('');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [clientIdsWithActiveOrders, setClientIdsWithActiveOrders] = useState<Set<string>>(new Set());
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     type: 'invoice' | 'supplier_order' | null;
@@ -364,15 +369,8 @@ export default function ExecutorDashboard() {
 
   // Оптимизированная фильтрация клиентов с мемоизацией
   const filteredClients = useMemo(() => {
-    // Используем функцию из общего модуля для определения терминального статуса
-    const { isTerminalStatus } = require('@/lib/utils/status-mapping');
-    const isTerminal = (doc?: { type: 'invoice'|'supplier_order'; status: string }) => {
-      if (!doc) return false;
-      return isTerminalStatus(doc.status, doc.type);
-    };
-    
     return clients
-      .filter(c => !showInWorkOnly || !isTerminal(c.lastDoc))
+      .filter(c => !showInWorkOnly || clientIdsWithActiveOrders.has(c.id))
       .filter(c => {
         const q = search.trim().toLowerCase();
         if (!q) return true;
@@ -387,12 +385,54 @@ export default function ExecutorDashboard() {
         const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
         return tb - ta;
       });
-  }, [clients, search, showInWorkOnly]);
+  }, [clients, search, showInWorkOnly, clientIdsWithActiveOrders]);
+
+  const inWorkCount = useMemo(() => clients.filter(c => clientIdsWithActiveOrders.has(c.id)).length, [clients, clientIdsWithActiveOrders]);
+  const modalFilteredClients = useMemo(() => {
+    return clients
+      .filter(c => !clientsModalInWorkOnly || clientIdsWithActiveOrders.has(c.id))
+      .filter(c => {
+        const q = modalSearch.trim().toLowerCase();
+        if (!q) return true;
+        const fio = `${c.lastName} ${c.firstName} ${c.middleName || ''}`.toLowerCase();
+        const phoneStr = c.phone ? c.phone.toLowerCase() : '';
+        const addressStr = c.address ? c.address.toLowerCase() : '';
+        return fio.includes(q) || phoneStr.includes(q) || addressStr.includes(q);
+      })
+      .sort((a, b) => {
+        const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
+        const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+        return tb - ta;
+      });
+  }, [clients, modalSearch, clientsModalInWorkOnly]);
 
   useEffect(() => {
     if (!selectedClient) return;
     fetchClientDocuments(selectedClient);
   }, [selectedClient, fetchClientDocuments]);
+
+  const terminalOrderStatuses = new Set(['COMPLETED', 'CANCELLED']);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetchWithAuth(`/api/orders?executor_id=${user.id}`);
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        const parsed = parseApiResponse<{ orders?: Array<{ client_id: string; status: string }> }>(data);
+        const orders = parsed?.orders ?? [];
+        const ids = new Set<string>();
+        for (const o of orders) {
+          if (o.client_id && !terminalOrderStatuses.has(o.status)) ids.add(o.client_id);
+        }
+        if (!cancelled) setClientIdsWithActiveOrders(ids);
+      } catch {
+        if (!cancelled) setClientIdsWithActiveOrders(new Set());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const formatPhone = (raw?: string) => {
     if (!raw) return '—';
@@ -912,79 +952,134 @@ export default function ExecutorDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Клиенты и детали клиента */}
-      <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-4">
-        <div className="space-y-4">
-          <Card variant="base">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-black flex items-center"><Users className="h-5 w-5 mr-2"/>Клиенты</h3>
+      {/* Блок клиентов — только кнопки, список в модальном окне */}
+      <Card variant="base" className="w-full">
+        <div className="px-4 py-2 flex flex-wrap items-center gap-3">
+          <h3 className="text-lg font-semibold text-black flex items-center flex-shrink-0"><Users className="h-5 w-5 mr-2"/>Клиенты</h3>
+          <button
+            onClick={() => {
+              setModalSearch('');
+              setClientsModalInWorkOnly(false);
+              setShowClientsModal(true);
+            }}
+            className="px-3 py-1.5 text-sm border border-gray-300 hover:border-black transition-all duration-200"
+            title="Поиск клиента по ФИО, телефону, адресу"
+          >
+            Поиск
+          </button>
+          <button
+            onClick={() => {
+              setModalSearch('');
+              setClientsModalInWorkOnly(true);
+              setShowClientsModal(true);
+            }}
+            className="px-3 py-1.5 text-sm border border-gray-300 hover:border-black transition-all duration-200"
+            title="Клиенты с незавершёнными документами"
+          >
+            В работе {inWorkCount > 0 && `(${inWorkCount})`}
+          </button>
+          <button
+            onClick={() => setShowCreateClientForm(true)}
+            className="px-3 py-1.5 text-sm border border-gray-300 hover:border-black transition-all duration-200"
+            title="Создать нового клиента"
+          >
+            Создать
+          </button>
+        </div>
+      </Card>
+
+      {/* Модальное окно — список клиентов (поиск или в работе), увеличенное */}
+      {showClientsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowClientsModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0 bg-gray-50 rounded-t-xl">
+              <h3 className="text-xl font-semibold text-black flex items-center gap-2">
+                <Users className="h-6 w-6 text-gray-600" />
+                Список клиентов
+              </h3>
+              <button onClick={() => setShowClientsModal(false)} className="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-lg transition-colors" aria-label="Закрыть">✕</button>
+            </div>
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-4 flex-shrink-0">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={modalSearch}
+                  onChange={e => setModalSearch(e.target.value)}
+                  placeholder="Поиск по ФИО, телефону, адресу..."
+                  className="w-full pl-10 pr-4 py-2.5 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/50 focus:border-black"
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowCreateClientForm(true)}
-                  className="px-3 py-1 text-sm border border-gray-300 hover:border-black transition-all duration-200"
-                  title="Создать нового клиента"
+                  onClick={() => setClientsModalInWorkOnly(false)}
+                  className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors ${!clientsModalInWorkOnly ? 'border-black bg-black text-white' : 'border-gray-300 hover:border-black hover:bg-gray-50'}`}
                 >
-                  Создать
+                  Все
                 </button>
                 <button
-                  onClick={() => {
-                    setShowInWorkOnly(currentValue => !currentValue);
-                  }}
-                  className={`px-3 py-1 text-sm border transition-all duration-200 ${showInWorkOnly ? 'border-black bg-black text-white' : 'border-gray-300 hover:border-black'}`}
-                  title="Показать клиентов с незавершенными документами"
+                  onClick={() => setClientsModalInWorkOnly(true)}
+                  className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors ${clientsModalInWorkOnly ? 'border-black bg-black text-white' : 'border-gray-300 hover:border-black hover:bg-gray-50'}`}
                 >
-                  В работе {showInWorkOnly && filteredClients.length > 0 && `(${filteredClients.length})`}
+                  В работе {inWorkCount > 0 && `(${inWorkCount})`}
                 </button>
               </div>
             </div>
-            <div className="p-4">
-              <div className="relative">
-                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Поиск по ФИО, телефону, адресу..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black/50"
-          />
-        </div>
-            </div>
-            <div className="p-0">
-              <div className="divide-y">
-                {filteredClients.map(c => (
+            <div className="flex-1 min-h-0 overflow-auto px-6 py-2">
+              <div className="divide-y divide-gray-100">
+                {modalFilteredClients.map(c => (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedClient(c.id)}
-                    className={`w-full text-left p-4 hover:bg-gray-50 ${selectedClient===c.id?'bg-blue-50':''}`}
+                    onClick={() => {
+                      setSelectedClient(c.id);
+                      setShowClientsModal(false);
+                    }}
+                    className={`w-full text-left px-4 py-4 flex flex-wrap items-center gap-x-6 gap-y-1 transition-colors hover:bg-gray-50 rounded-lg ${selectedClient === c.id ? 'bg-blue-50' : ''}`}
                   >
-                    <div className="grid items-center gap-4" style={{gridTemplateColumns:'8fr 4fr'}}>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{c.lastName} {c.firstName}{c.middleName?` ${c.middleName}`:''}</div>
-                        <div className="text-xs text-gray-600 truncate">{c.address||'—'}</div>
-                      </div>
-                      <div className="text-xs text-gray-600 truncate flex items-center"><Phone className="h-3.5 w-3.5 mr-1"/>{formatPhone(c.phone||'')}</div>
-                    </div>
-                    {/* Убрали "последний документ" для компактности */}
+                    <span className="font-medium text-gray-900 text-base min-w-0 truncate shrink-0 w-[28%]" title={`${c.lastName} ${c.firstName}${c.middleName ? ` ${c.middleName}` : ''}`}>
+                      {c.lastName} {c.firstName}{c.middleName ? ` ${c.middleName}` : ''}
+                    </span>
+                    <span className="text-gray-600 text-sm min-w-0 truncate flex-1 max-w-[45%]" title={c.address || '—'}>
+                      {c.address || '—'}
+                    </span>
+                    <span className="text-gray-600 text-sm flex items-center gap-1.5 shrink-0" title={formatPhone(c.phone || '')}>
+                      <Phone className="h-4 w-4 flex-shrink-0" />
+                      {formatPhone(c.phone || '')}
+                    </span>
                   </button>
                 ))}
-                {clients.length===0 && (
-                  <div className="p-4 text-sm text-gray-500">Нет клиентов</div>
-                )}
               </div>
+              {clients.length === 0 && (
+                <div className="py-16 text-center text-gray-500 text-base">Нет клиентов</div>
+              )}
+              {clients.length > 0 && modalFilteredClients.length === 0 && (
+                <div className="py-16 text-center text-gray-500 text-base">Ничего не найдено. Измените фильтр или поиск.</div>
+              )}
             </div>
-          </Card>
-      </div>
+          </div>
+        </div>
+      )}
 
-        <div className="min-w-0">
-          <Card variant="base" className="h-full flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex-shrink-0">
-              <h3 className="text-lg font-semibold text-black flex items-center">
+      {/* Табло заказов — под блоком клиентов, поиск в строке с заголовком */}
+      <Card variant="base" className="w-full flex flex-col min-w-0">
+            <div className="p-4 border-b border-gray-200 flex-shrink-0 flex flex-wrap items-center gap-4">
+              <h3 className="text-lg font-semibold text-black flex items-center flex-shrink-0">
                 <FileText className="h-5 w-5 mr-2"/>Табло заказов
               </h3>
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Поиск по номеру заказа, клиенту, адресу..."
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                />
+              </div>
             </div>
 
             <div className="p-4 flex-1 overflow-hidden min-w-0">
               {user?.id ? (
-                <OrdersBoard executorId={user.id} />
+                <OrdersBoard executorId={user.id} searchQuery={orderSearchQuery} onSearchQueryChange={setOrderSearchQuery} />
               ) : (
                 <div className="flex items-center justify-center h-32 text-gray-600">
                   <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -1241,9 +1336,7 @@ export default function ExecutorDashboard() {
                 )}
         </div>
       )}
-          </Card>
-        </div>
-      </div>
+      </Card>
 
       {/* Модальное окно создания клиента */}
       <CreateClientModal

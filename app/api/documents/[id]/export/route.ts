@@ -7,20 +7,14 @@ import { NotFoundError, ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 
-// POST /api/documents/[id]/export - Экспорт документа в разных форматах
-async function postHandler(
-  req: NextRequest,
-  user: AuthenticatedUser,
-  { params }: { params: Promise<{ id: string }> }
+/** Общая логика экспорта по id и формату. Используется в POST и в GET (при format=pdf|excel|csv). */
+async function performExport(
+  id: string,
+  format: string,
+  loggingContext: Record<string, unknown>
 ): Promise<NextResponse> {
-  const loggingContext = getLoggingContextFromRequest(req);
-  const { id } = await params;
-  const { searchParams } = new URL(req.url);
-  const format = searchParams.get('format') || 'pdf';
-
   logger.debug('Exporting document', 'documents/[id]/export', { documentId: id, format }, loggingContext);
 
-  // Ищем документ в разных таблицах
   let document: any = null;
   let documentType: string | null = null;
 
@@ -83,8 +77,18 @@ async function postHandler(
   let cartData: any[] = [];
   
   if (documentType === 'quote') {
-    // Для Quote используем quote_items или cart_data
-    if (document.quote_items && document.quote_items.length > 0) {
+    // Приоритет cart_data — полная структура позиций (itemType, model, limiterId и т.д.) для корректных названий в экспорте
+    if (document.cart_data) {
+      try {
+        const parsed = typeof document.cart_data === 'string'
+          ? JSON.parse(document.cart_data)
+          : document.cart_data;
+        cartData = Array.isArray(parsed) ? parsed : (parsed.items || []);
+      } catch (e) {
+        logger.warn('Error parsing quote cart_data', 'documents/[id]/export', { error: e }, loggingContext);
+      }
+    }
+    if (cartData.length === 0 && document.quote_items?.length > 0) {
       cartData = document.quote_items.map((item: any) => ({
         id: item.product_id,
         name: item.notes || `Товар ${item.product_id}`,
@@ -94,19 +98,20 @@ async function postHandler(
         price: item.unit_price,
         total: item.total_price
       }));
-    } else if (document.cart_data) {
+    }
+  } else if (documentType === 'invoice') {
+    // Приоритет cart_data — полная структура позиций для корректных названий (дверь, ручка, завертка, ограничитель)
+    if (document.cart_data) {
       try {
-        const parsed = typeof document.cart_data === 'string' 
-          ? JSON.parse(document.cart_data) 
+        const parsed = typeof document.cart_data === 'string'
+          ? JSON.parse(document.cart_data)
           : document.cart_data;
         cartData = Array.isArray(parsed) ? parsed : (parsed.items || []);
       } catch (e) {
-        logger.warn('Error parsing quote cart_data', 'documents/[id]/export', { error: e }, loggingContext);
+        logger.warn('Error parsing invoice cart_data', 'documents/[id]/export', { error: e }, loggingContext);
       }
     }
-  } else if (documentType === 'invoice') {
-    // Для Invoice используем invoice_items или cart_data
-    if (document.invoice_items && document.invoice_items.length > 0) {
+    if (cartData.length === 0 && document.invoice_items?.length > 0) {
       cartData = document.invoice_items.map((item: any) => ({
         id: item.product_id,
         name: item.notes || `Товар ${item.product_id}`,
@@ -116,15 +121,6 @@ async function postHandler(
         price: item.unit_price,
         total: item.total_price
       }));
-    } else if (document.cart_data) {
-      try {
-        const parsed = typeof document.cart_data === 'string' 
-          ? JSON.parse(document.cart_data) 
-          : document.cart_data;
-        cartData = Array.isArray(parsed) ? parsed : (parsed.items || []);
-      } catch (e) {
-        logger.warn('Error parsing invoice cart_data', 'documents/[id]/export', { error: e }, loggingContext);
-      }
     }
   } else if (documentType === 'order') {
     // Для Order используем cart_data или cart_data из связанного Invoice
@@ -183,26 +179,40 @@ async function postHandler(
     // Используем существующий генератор
     const { exportDocumentWithPDF } = await import('@/lib/export/puppeteer-generator');
     
-    // Преобразуем cartData в формат для экспорта
+    // Преобразуем cartData в формат для экспорта (сохраняем type/itemType, limiterId, limiterName и др. для корректных названий)
     const itemsForExport = cartData.map((item: any) => ({
       id: item.id || item.product_id,
       productId: item.product_id || item.id,
-      name: item.name || item.model || `Товар ${item.id || item.product_id}`,
-      model: item.model || item.name,
-      qty: item.qty || item.quantity || 1,
-      quantity: item.qty || item.quantity || 1,
-      unitPrice: item.unitPrice || item.price || item.unit_price || 0,
-      price: item.unitPrice || item.price || item.unit_price || 0,
+      name: item.name,
+      model: item.model,
+      qty: item.qty ?? item.quantity ?? 1,
+      quantity: item.qty ?? item.quantity ?? 1,
+      unitPrice: item.unitPrice ?? item.price ?? item.unit_price ?? 0,
+      price: item.unitPrice ?? item.price ?? item.unit_price ?? 0,
       width: item.width,
       height: item.height,
       color: item.color,
       finish: item.finish,
-      type: item.type || 'door',
+      style: item.style,
+      type: item.type ?? item.itemType ?? undefined,
+      itemType: item.itemType ?? item.type ?? undefined,
       sku_1c: item.sku_1c,
       handleId: item.handleId,
       handleName: item.handleName,
+      limiterId: item.limiterId,
+      limiterName: item.limiterName,
       hardwareKitId: item.hardwareKitId,
-      hardwareKitName: item.hardwareKitName || item.hardware
+      hardwareKitName: item.hardwareKitName ?? item.hardware,
+      optionIds: item.optionIds,
+      architraveNames: item.architraveNames,
+      optionNames: item.optionNames,
+      edge: item.edge,
+      edgeId: item.edgeId,
+      edgeColorName: item.edgeColorName ?? item.edge_color_name,
+      glassColor: item.glassColor ?? item.glass_color,
+      reversible: item.reversible,
+      mirror: item.mirror,
+      threshold: item.threshold
     }));
     
     const result = await exportDocumentWithPDF(
@@ -242,6 +252,18 @@ async function postHandler(
   }
 }
 
+async function postHandler(
+  req: NextRequest,
+  user: AuthenticatedUser,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const loggingContext = getLoggingContextFromRequest(req);
+  const { id } = await params;
+  const { searchParams } = new URL(req.url);
+  const format = searchParams.get('format') || 'pdf';
+  return performExport(id, format, loggingContext);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -252,7 +274,7 @@ export async function POST(
   )(req);
 }
 
-// GET /api/documents/[id]/preview - Предпросмотр документа
+// GET /api/documents/[id]/export?format= — при format=pdf|excel|csv возвращает файл, иначе редирект на предпросмотр
 async function getHandler(
   req: NextRequest,
   user: AuthenticatedUser,
@@ -260,8 +282,11 @@ async function getHandler(
 ): Promise<NextResponse> {
   const loggingContext = getLoggingContextFromRequest(req);
   const { id } = await params;
-  
-  // Перенаправляем на страницу предпросмотра
+  const { searchParams } = new URL(req.url);
+  const format = searchParams.get('format');
+  if (format === 'pdf' || format === 'excel' || format === 'csv') {
+    return performExport(id, format, loggingContext);
+  }
   return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/documents/${id}/preview`);
 }
 

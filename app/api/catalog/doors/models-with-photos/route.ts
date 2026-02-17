@@ -60,7 +60,7 @@ async function getHandler(
     const properties = product.properties_data ?
       (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
 
-    const model = properties['Domeo_Название модели для Web'];
+    const model = properties['Название модели'];
     const productStyle = properties['Domeo_Стиль Web'];
     const productArticle = properties['Артикул поставщика'];
     const productPhotos = properties.photos || [];

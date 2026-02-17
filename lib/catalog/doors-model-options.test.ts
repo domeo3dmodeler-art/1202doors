@@ -41,8 +41,8 @@ describe('getProductsByModelAndStyle', () => {
     expect(r[0].properties['Domeo_Стиль Web']).toBe('Современные');
   });
 
-  it('совпадает по Domeo_Название модели для Web', () => {
-    const list = [product({ 'Domeo_Название модели для Web': 'Классика', 'Domeo_Стиль Web': 'Современные' })];
+  it('совпадает только по Код модели Domeo (Web)', () => {
+    const list = [product({ 'Код модели Domeo (Web)': 'Классика', 'Domeo_Стиль Web': 'Современные' })];
     const r = getProductsByModelAndStyle(list, 'Классика');
     expect(r).toHaveLength(1);
   });
@@ -96,6 +96,7 @@ describe('filterBySize', () => {
     expect(filterBySize(list, 800, 2000)).toHaveLength(1);
     expect(filterBySize(list, 700, 2000)).toHaveLength(1);
   });
+
 });
 
 describe('filterByFinish and filterByColor', () => {
@@ -109,10 +110,20 @@ describe('filterByFinish and filterByColor', () => {
 
   it('filterByColor по цвету', () => {
     const list = [
-      product({ 'Domeo_Цвет': 'Белый' }),
-      product({ 'Domeo_Цвет': 'Венге' })
+      product({ 'Цвет/Отделка': 'Белый' }),
+      product({ 'Цвет/Отделка': 'Венге' })
     ];
     expect(filterByColor(list, 'Белый')).toHaveLength(1);
+  });
+
+  it('filterByFinish без учёта регистра', () => {
+    const list = [
+      product({ 'Тип покрытия': 'Эмаль' }),
+      product({ 'Тип покрытия': 'ПВХ' })
+    ];
+    expect(filterByFinish(list, 'эмаль')).toHaveLength(1);
+    expect(filterByFinish(list, 'ЭМАЛЬ')).toHaveLength(1);
+    expect(filterByFinish(list, 'Пвх')).toHaveLength(1);
   });
 });
 
@@ -141,14 +152,14 @@ describe('collectOptions', () => {
         'Ширина/мм': 800,
         'Высота/мм': 2000,
         'Тип покрытия': 'ПВХ',
-        'Domeo_Цвет': 'Белый'
+        'Цвет/Отделка': 'Белый'
       }),
       product({
         'Domeo_Опции_Название_наполнения': 'Сильвер',
         'Ширина/мм': 800,
         'Высота/мм': 2100,
         'Тип покрытия': 'ПВХ',
-        'Domeo_Цвет': 'Венге'
+        'Цвет/Отделка': 'Венге'
       })
     ];
     const opt = collectOptions(list);
@@ -180,6 +191,40 @@ describe('collectOptions', () => {
     expect(opt.mirror_available).toBe(false);
     expect(opt.threshold_available).toBe(false);
   });
+
+  it('edges собираются из Кромка и из Domeo_Кромка_* при кромке в базе', () => {
+    const list = [
+      product({
+        'Кромка': 'Матовый хром',
+        'Domeo_Кромка_в_базе_включена': 'нет'
+      }),
+      product({
+        'Кромка': '',
+        'Domeo_Кромка_в_базе_включена': 'да',
+        'Domeo_Кромка_базовая_цвет': 'Матовый хром',
+        'Domeo_Кромка_Цвет_2': 'Матовое золото',
+        'Domeo_Кромка_Цвет_3': ''
+      })
+    ];
+    const opt = collectOptions(list);
+    expect(opt.edges).toContain('Матовый хром');
+    expect(opt.edges).toContain('Матовое золото');
+    expect(opt.edges.sort()).toEqual(['Матовое золото', 'Матовый хром'].sort());
+  });
+
+  it('edges только из Domeo_Кромка_* когда поле Кромка пусто (Эмаль/ПВХ)', () => {
+    const list = [
+      product({
+        'Кромка': '',
+        'Domeo_Кромка_в_базе_включена': 'да',
+        'Domeo_Кромка_базовая_цвет': 'Базовый',
+        'Domeo_Кромка_Цвет_2': 'Цвет 2'
+      })
+    ];
+    const opt = collectOptions(list);
+    expect(opt.edges).toContain('Базовый');
+    expect(opt.edges).toContain('Цвет 2');
+  });
 });
 
 describe('каскад целиком', () => {
@@ -192,7 +237,7 @@ describe('каскад целиком', () => {
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Тип покрытия': 'ПВХ',
-      'Domeo_Цвет': 'Белый'
+      'Цвет/Отделка': 'Белый'
     }),
     product({
       'Код модели Domeo (Web)': 'MOD',
@@ -202,7 +247,7 @@ describe('каскад целиком', () => {
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Тип покрытия': 'Эмаль',
-      'Domeo_Цвет': 'Слоновая кость'
+      'Цвет/Отделка': 'Слоновая кость'
     })
   ];
 

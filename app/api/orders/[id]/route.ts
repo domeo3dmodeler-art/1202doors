@@ -8,6 +8,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { canTransitionTo } from '@/lib/validation/status-transitions';
 import { validateStatusTransitionRequirements } from '@/lib/validation/status-requirements';
+import { deleteDocumentCommentsAndHistory } from '@/lib/documents/delete-document-relations';
 
 // GET /api/orders/[id] - Получение заказа по ID
 async function getHandler(
@@ -317,6 +318,7 @@ async function deleteHandler(
     throw new NotFoundError('Заказ', id);
   }
 
+  await deleteDocumentCommentsAndHistory(id);
   await prisma.order.delete({
     where: { id }
   });

@@ -32,6 +32,7 @@ interface DocumentItem {
   properties_data?: string | Record<string, unknown>;
   handleId?: string;
   limiterId?: string;
+  limiterName?: string;
   description?: string;
   model?: string;
   finish?: string;
@@ -41,6 +42,11 @@ interface DocumentItem {
   hardwareKitId?: string;
   hardwareKitName?: string;
   style?: string;
+  edge?: string;
+  reversible?: boolean;
+  mirror?: string;
+  threshold?: boolean;
+  optionIds?: string[];
 }
 
 interface DocumentData {
@@ -374,12 +380,13 @@ function extractSupplierSku(propertiesData: string | Record<string, unknown> | u
       ? JSON.parse(propertiesData) 
       : propertiesData;
     
-    // Ищем SKU поставщика в различных полях
-    return props['Артикул поставщика'] || 
+    // Приоритет: Код модели Domeo (Web) — актуальный идентификатор; «Артикул поставщика» в БД не используется (fallback для старых данных)
+    return (props['Код модели Domeo (Web)'] && String(props['Код модели Domeo (Web)']).trim()) ||
            props['SKU поставщика'] || 
            props['Фабрика_артикул'] ||
            props['Артикул'] || 
-           props['SKU'] || 
+           props['SKU'] ||
+           (props['Артикул поставщика'] && String(props['Артикул поставщика']).trim()) ||
            'N/A';
   } catch (error) {
     logger.warn('Failed to parse properties_data for SKU extraction', 'documents/generate', { error: error instanceof Error ? error.message : String(error) });
@@ -387,26 +394,49 @@ function extractSupplierSku(propertiesData: string | Record<string, unknown> | u
   }
 }
 
-// Функция для формирования наименования товара
+// Формат названия ограничителя: «Ограничитель скрытый магнитный SECRET DS Цвет хром» и т.д.
+function formatLimiterName(limiterName: string | undefined): string {
+  if (!limiterName || !limiterName.trim()) return 'Ограничитель';
+  const suffix = limiterName
+    .replace(/^Дверной ограничитель\s*/i, '')
+    .replace(/^Ограничитель\s*/i, '')
+    .trim()
+    .replace(/,?\s*цвет\s+/gi, ' Цвет ');
+  const trimmed = suffix.trim();
+  return trimmed ? `Ограничитель ${trimmed}` : 'Ограничитель';
+}
+
+// Функция для формирования наименования товара (без дублирования покрытия, все значимые параметры)
 function buildProductName(item: DocumentItem): string {
   const t = (item.type || (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door')) as DocumentItemType;
   if (t === 'handle' || t === 'backplate') {
     return item.description || (t === 'backplate' ? 'Завертка' : 'Ручка');
   }
   if (t === 'limiter') {
-    return item.description || 'Ограничитель';
+    return formatLimiterName(item.limiterName) || item.description || 'Ограничитель';
   }
-  // door: полное описание по формату
-  const parts = [
-    'Дверь',
-    item.model || 'Unknown',
-    `(${item.finish || 'Unknown'}, ${item.color || 'Unknown'}, ${item.width || 0} × ${item.height || 0} мм`
-  ];
-  if (item.hardwareKitId) {
-    parts[parts.length - 1] += `, Фурнитура - ${item.hardwareKitName || 'Базовый комплект'}`;
+  // door: полная спецификация без дублирования покрытия
+  const modelName = (item.model || 'Unknown').replace(/DomeoDoors_/g, '').replace(/_/g, ' ');
+  const finishVal = String(item.finish ?? '').trim();
+  const colorVal = String(item.color ?? '').trim();
+  const specParts: string[] = [];
+  if (finishVal) specParts.push(finishVal);
+  if (colorVal) {
+    const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
+      ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
+      : colorVal;
+    if (rest) specParts.push(rest);
   }
-  parts[parts.length - 1] += ')';
-  return parts.join(' ');
+  if (item.width != null && item.height != null) specParts.push(`${item.width} × ${item.height} мм`);
+  if (item.edge === 'да') specParts.push('Кромка: да');
+  if (item.reversible) specParts.push('Реверс: да');
+  if (item.mirror) specParts.push('Зеркало: да');
+  if (item.threshold) specParts.push('Порог: да');
+  if (item.optionIds?.length) specParts.push('Наличники: да');
+  const kitName = (item.hardwareKitName || 'Базовый').replace(/^Комплект фурнитуры — /, '');
+  specParts.push(`Фурнитура: ${kitName}`);
+  const specStr = specParts.filter((x) => x !== '—').join('; ');
+  return specStr ? `Дверь DomeoDoors ${modelName}; ${specStr}` : `Дверь DomeoDoors ${modelName}`;
 }
 
 async function postHandler(
@@ -672,43 +702,23 @@ async function postHandler(
 
     } else if (type === 'order') {
       let order;
-      
+
       if (existingDocument) {
-        // Используем существующий заказ
         order = existingDocument;
       } else {
-        // Создаем новый заказ
+        // Создаем новый заказ (схема Order: без created_by, subtotal, currency; состав в cart_data)
         order = await prisma.order.create({
           data: {
             number: documentNumber,
             cart_session_id: cartSessionId,
             client_id: clientId,
-            created_by: user.userId || 'system', // Используем userId из токена
-            status: 'PENDING',
-            subtotal: totalAmount,
+            complectator_id: user.userId || null,
+            status: 'DRAFT',
             total_amount: totalAmount,
-            currency: 'RUB',
             notes: 'Сгенерировано из конфигуратора дверей',
             cart_data: JSON.stringify(items)
           }
         });
-
-        // Создаем позиции заказа только для нового документа
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          const productName = buildProductName(item);
-          
-          await prisma.orderItem.create({
-            data: {
-              order_id: order.id,
-              product_id: item.id || `temp_${i}`,
-              quantity: item.qty || item.quantity || 1,
-              unit_price: item.unitPrice || 0,
-              total_price: (item.qty || item.quantity || 1) * (item.unitPrice || 0),
-              notes: `${productName} | Артикул: ${item.sku_1c || 'N/A'}`
-            }
-          });
-        }
       }
 
       // Получаем полные данные товаров из БД по точной конфигурации
@@ -785,7 +795,7 @@ async function postHandler(
                 
                 // Проверяем соответствие конфигурации
                 const styleMatch = !item.style || props['Domeo_Стиль Web'] === item.style;
-                const modelMatch = !item.model || props['Domeo_Название модели для Web'] === item.model;
+                const modelMatch = !item.model || props['Название модели'] === item.model;
                 const finishMatch = !item.finish || props['Тип покрытия'] === item.finish;
                 const colorMatch = !item.color || props['Общее_Цвет'] === item.color;
                 const widthMatch = !item.width || props['Общее_Ширина'] === item.width;
@@ -796,7 +806,7 @@ async function postHandler(
                   logger.debug('Товар из БД', 'documents/generate', {
                     itemIndex: i,
                     style: props['Domeo_Стиль Web'],
-                    model: props['Domeo_Название модели для Web'],
+                    model: props['Название модели'],
                     finish: props['Тип покрытия'],
                     color: props['Общее_Цвет'],
                     width: props['Общее_Ширина'],
@@ -834,7 +844,7 @@ async function postHandler(
                   
                   // Ищем по стилю и модели
                   const styleMatch = !item.style || props['Domeo_Стиль Web'] === item.style;
-                  const modelMatch = !item.model || props['Domeo_Название модели для Web'] === item.model;
+                  const modelMatch = !item.model || props['Название модели'] === item.model;
                   
                   if (styleMatch && modelMatch) {
                     productData = product;
@@ -843,7 +853,7 @@ async function postHandler(
                       sku: product.sku,
                       name: product.name,
                       style: props['Domeo_Стиль Web'],
-                      model: props['Domeo_Название модели для Web'],
+                      model: props['Название модели'],
                       propertiesCount: Object.keys(props).length
                     });
                     break;

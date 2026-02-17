@@ -53,13 +53,22 @@ export function getDoorPropertyWithFallback(properties: Record<string, unknown>,
 // ===================== Специализированные функции =====================
 
 /**
- * Получает название модели двери
+ * Название модели из полей товара (properties_data).
+ * @param properties - Объект со свойствами товара (properties_data)
+ * @returns Название модели или undefined
+ */
+export function getModelNameFromProps(properties: Record<string, unknown>): string | undefined {
+  const v = properties['Название модели'];
+  return typeof v === 'string' ? (v.trim() || undefined) : undefined;
+}
+
+/**
+ * Получает название модели двери («Название модели»).
  * @param properties - Объект со свойствами товара
  * @returns Название модели или undefined
  */
 export function getDoorModel(properties: Record<string, unknown>): string | undefined {
-  const value = getDoorPropertyWithFallback(properties, 'MODEL');
-  return typeof value === 'string' ? value : undefined;
+  return getModelNameFromProps(properties);
 }
 
 /**

@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getItemDisplayNameForExport, normalizeItemForDisplay } from "@/lib/export/display-names";
+
+function csvEscape(val: string): string {
+  const s = String(val ?? "");
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +19,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Генерируем CSV для заказа на фабрику
+    // Генерируем CSV для заказа на фабрику (единые названия в SupplierItemName)
     const header = [
       "N",
       "Supplier",
-      "Collection", 
+      "Collection",
       "SupplierItemName",
       "SupplierColorFinish",
       "Width",
@@ -32,23 +39,26 @@ export async function POST(req: NextRequest) {
     const lines = [header.join(",")];
 
     cart.items.forEach((item: any, index: number) => {
-      const optPrice = Math.round(item.unitPrice * 0.65); // Примерная оптовая цена
-      const retailPrice = item.unitPrice;
-      const sumOpt = optPrice * item.qty;
-      const sumRetail = retailPrice * item.qty;
+      const norm = normalizeItemForDisplay(item) as any;
+      const itemName = getItemDisplayNameForExport(norm);
+      const qty = item.qty ?? item.quantity ?? 1;
+      const optPrice = Math.round((item.unitPrice || 0) * 0.65);
+      const retailPrice = item.unitPrice || 0;
+      const sumOpt = optPrice * qty;
+      const sumRetail = retailPrice * qty;
 
       const line = [
         String(index + 1),
-        "Supplier1", // Демо данные
+        "Supplier1",
         "Collection A",
-        item.model,
-        `${item.color || ""}/${item.finish || ""}`,
-        String(item.width || ""),
-        String(item.height || ""),
+        csvEscape(itemName),
+        `${item.color || ""}/${item.finish || ""}`.replace(/^\/|\/$/g, ""),
+        String(item.width ?? ""),
+        String(item.height ?? ""),
         item.hardwareKitId || "",
         optPrice.toFixed(2),
         retailPrice.toFixed(2),
-        String(item.qty),
+        String(qty),
         sumOpt.toFixed(2),
         sumRetail.toFixed(2)
       ].join(",");

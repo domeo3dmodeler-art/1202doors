@@ -13,18 +13,21 @@ export interface StatusTransitionRequirements {
  */
 export const ORDER_STATUS_REQUIREMENTS: Record<string, Record<string, StatusTransitionRequirements>> = {
   order: {
-    'UNDER_REVIEW': {
+    // Переход в "Счет оплачен (Заказываем)" — требуется проект/планировка
+    'NEW_PLANNED': {
       requiredFields: ['project_file_url'],
       customValidation: (document: any) => {
         if (!document.project_file_url) {
           return {
             valid: false,
-            error: 'Для перехода в статус "На проверке" требуется загрузить проект/планировку'
+            error: 'Для перевода заказа в этот статус прикрепите файлы с Проектом/Планировкой.'
           };
         }
         return { valid: true };
       }
     },
+    // Переход в "На проверке" — исполнитель берёт заказ в работу; проект/планировку может загрузить позже
+    'UNDER_REVIEW': {},
     'AWAITING_MEASUREMENT': {
       requiredFields: ['project_file_url'],
       customValidation: (document: any) => {

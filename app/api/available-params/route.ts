@@ -38,8 +38,8 @@ async function getHandler(req: NextRequest) {
       if (props?.['Тип покрытия']) {
         availableParams.finishes.add(props['Тип покрытия']);
       }
-      if (props?.['Domeo_Цвет']) {
-        availableParams.colors.add(props['Domeo_Цвет']);
+      if (props?.['Цвет/Отделка']) {
+        availableParams.colors.add(props['Цвет/Отделка']);
       }
       if (props?.['Ширина/мм']) {
         availableParams.widths.add(Number(props['Ширина/мм']));
@@ -105,8 +105,8 @@ async function postHandler(req: NextRequest) {
         const props = product.properties_data ? 
           (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
         const styleMatch = props?.['Domeo_Стиль Web'] === style;
-        const modelMatch = props?.['Domeo_Название модели для Web']?.includes(model);
-        const colorMatch = !color || props?.['Domeo_Цвет'] === color; // Если цвет не указан, пропускаем проверку
+        const modelMatch = props?.['Название модели']?.includes(model);
+        const colorMatch = !color || props?.['Цвет/Отделка'] === color; // Если цвет не указан, пропускаем проверку
         
         return styleMatch && modelMatch && colorMatch;
       } catch (error) {
@@ -138,8 +138,8 @@ async function postHandler(req: NextRequest) {
       if (props?.['Тип покрытия']) {
         availableParams.finishes.add(props['Тип покрытия']);
       }
-      if (props?.['Domeo_Цвет']) {
-        availableParams.colors.add(props['Domeo_Цвет']);
+      if (props?.['Цвет/Отделка']) {
+        availableParams.colors.add(props['Цвет/Отделка']);
       }
       if (props?.['Ширина/мм']) {
         availableParams.widths.add(Number(props['Ширина/мм']));

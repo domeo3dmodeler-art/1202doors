@@ -6,6 +6,7 @@
 import { PrismaClient } from '@prisma/client';
 import { getDoorsCategoryId } from '../lib/catalog-categories';
 import { upsertPropertyPhoto, DOOR_MODEL_CODE_PROPERTY } from '../lib/property-photos';
+import { DOOR_PHOTOS_UPLOAD_PREFIX } from '../lib/configurator/photo-paths';
 
 const prisma = new PrismaClient();
 
@@ -16,7 +17,7 @@ const BINDINGS: Array<{ code: string; factoryNamePrefix: string; fallbackFile?: 
 ];
 
 const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
-const UPLOADS_PREFIX = '/uploads/final-filled/Цвет/';
+const UPLOADS_PREFIX = DOOR_PHOTOS_UPLOAD_PREFIX;
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');

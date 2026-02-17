@@ -42,12 +42,12 @@ export async function getPropertyPhotos(
     // Применяем то же преобразование, что и при импорте:
     // Убираем последнюю цифру после буквы и добавляем подчеркивание
     const normalizeModelName = (name: string) => {
-      return name.toLowerCase();
+      return String(name ?? '').trim().toLowerCase();
     };
 
     const normalizedValue = normalizeModelName(propertyValue);
 
-    // Фильтруем по нормализованному значению (без учета регистра)
+    // Фильтруем по нормализованному значению (без учета регистра, с trim)
     const filteredPhotos = photos.filter(photo => {
       const photoValue = normalizeModelName(photo.propertyValue);
       return photoValue === normalizedValue;
@@ -70,7 +70,8 @@ export const DOOR_COLOR_PROPERTY = 'Domeo_Модель_Цвет';
 export const DOOR_MODEL_CODE_PROPERTY = 'Код модели Domeo (Web)';
 
 /**
- * Получает фото по префиксу значения свойства (для списка цветов/покрытий по модели)
+ * Получает фото по префиксу значения свойства (для списка цветов/покрытий по модели).
+ * Сравнение без учёта регистра: в БД может быть "DomeoDoors_Cluster_3|...", а запрос с "domeodoors_cluster_3|".
  */
 export async function getPropertyPhotosByValuePrefix(
   categoryId: string,
@@ -78,15 +79,20 @@ export async function getPropertyPhotosByValuePrefix(
   valuePrefix: string
 ): Promise<PropertyPhotoInfo[]> {
   try {
+    const prefixNorm = String(valuePrefix ?? '').trim().toLowerCase();
+    if (!prefixNorm) return [];
     const photos = await prisma.propertyPhoto.findMany({
       where: {
         categoryId,
-        propertyName,
-        propertyValue: { startsWith: valuePrefix }
+        propertyName
       },
       orderBy: [{ propertyValue: 'asc' }, { photoType: 'asc' }]
     });
-    return photos;
+    const filtered = photos.filter(photo => {
+      const pv = String(photo.propertyValue ?? '').trim().toLowerCase();
+      return pv.startsWith(prefixNorm);
+    });
+    return filtered;
   } catch (error) {
     logger.error('Ошибка getPropertyPhotosByValuePrefix', 'lib/property-photos', error instanceof Error ? { error: error.message } : { error: String(error) });
     return [];

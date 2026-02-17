@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Info } from 'lucide-react';
 import { Button } from './ui';
 import { parseAndNormalizeColor } from '@/lib/handle-color-normalize';
+import { getImageSrc } from '@/lib/configurator/image-src';
 
 type Handle = {
   id: string;
@@ -110,17 +111,8 @@ export default function HandleSelectionModal({
 
   const [descriptionForHandleId, setDescriptionForHandleId] = useState<string | null>(null);
 
-  // Нормализуем путь к фото (внешние URL оставляем как есть)
-  const getNormalizedPhotoUrl = (photoPath: string) => {
-    if (!photoPath) return '';
-    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) return photoPath;
-    if (photoPath.startsWith('/api/')) return photoPath;
-    if (photoPath.startsWith('products/')) return `/api/uploads/${photoPath}`;
-    if (photoPath.startsWith('uploads/')) return `/api/${photoPath}`;
-    if (photoPath.startsWith('/uploads/')) return `/api${photoPath}`;
-    if (photoPath.startsWith('/')) return `/api${photoPath}`;
-    return `/api/uploads/${photoPath}`;
-  };
+  // Единый слой путей фото
+  const getNormalizedPhotoUrl = (photoPath: string) => getImageSrc(photoPath);
   
   const allPhotosInGroup = filteredHandles
     .flatMap(handle => handle.photos || [])

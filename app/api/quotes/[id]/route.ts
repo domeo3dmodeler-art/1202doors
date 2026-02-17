@@ -6,6 +6,7 @@ import { apiSuccess, withErrorHandling } from '@/lib/api/response';
 import { NotFoundError, BusinessRuleError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
+import { deleteDocumentCommentsAndHistory } from '@/lib/documents/delete-document-relations';
 
 // GET /api/quotes/[id] - Получить КП по ID
 async function getHandler(
@@ -179,6 +180,7 @@ async function deleteHandler(
     throw new BusinessRuleError('Нельзя удалить принятый КП');
   }
 
+  await deleteDocumentCommentsAndHistory(id);
   await prisma.quote.delete({
     where: { id }
   });

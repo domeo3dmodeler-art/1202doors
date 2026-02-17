@@ -67,22 +67,31 @@ export default function ExportButtons({
         setError(errorData.error || 'Ошибка экспорта');
         return;
       }
-      
-      // Обрабатываем ответ
-      const blob = await response.blob();
+
+      // API возвращает JSON с полем file.buffer (base64)
+      const data = await response.json();
+      if (!data?.file?.buffer) {
+        setError('Некорректный ответ сервера');
+        return;
+      }
+      const binary = atob(data.file.buffer);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: data.file.mimeType || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
-      
+      const filename = data.file.filename || `export.${format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv'}`;
+
       if (options.openInNewTab) {
         window.open(url, '_blank');
       } else {
         const a = document.createElement('a');
         a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || `export.${format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv'}`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         a.remove();
       }
-      
+
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка');

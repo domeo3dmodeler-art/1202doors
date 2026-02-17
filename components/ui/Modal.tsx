@@ -15,6 +15,8 @@ export interface ModalProps {
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
   className?: string;
+  /** Закрывать ли окно по клику на затемнённый фон (по умолчанию true) */
+  closeOnBackdropClick?: boolean;
 }
 
 export function Modal({ 
@@ -24,7 +26,8 @@ export function Modal({
   children, 
   footer,
   size = 'md',
-  className = ''
+  className = '',
+  closeOnBackdropClick = true
 }: ModalProps) {
   const styles = createComponentStyles();
   const modalRef = useRef<HTMLDivElement>(null);
@@ -149,7 +152,7 @@ export function Modal({
   return (
     <div 
       className={styles.modal.overlay} 
-      onClick={onClose}
+      onClick={closeOnBackdropClick ? onClose : undefined}
       style={(size === 'xl' || size === 'full') ? { 
         padding: '0',
         display: 'flex',

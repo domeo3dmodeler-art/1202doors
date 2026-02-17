@@ -49,7 +49,7 @@ export function useConfiguratorData() {
         // При ?refresh=1 в URL запрашиваем данные без кэша (после правок в БД)
         const refreshQ = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refresh') === '1' ? '?refresh=1' : '';
         const [modelsResponse, handlesRes, limitersRes, architravesRes, kitsRes] = await Promise.all([
-          fetch('/api/catalog/doors/complete-data' + refreshQ),
+          fetch('/api/catalog/doors/complete-data' + refreshQ, { cache: 'no-store' }),
           fetch('/api/catalog/hardware?type=handles'),
           fetch('/api/catalog/hardware?type=limiters'),
           fetch('/api/catalog/hardware?type=architraves'),
@@ -63,11 +63,12 @@ export function useConfiguratorData() {
             setRawModels(modelsData.models);
             setModels(modelsData.models.map((m: any) => ({
               id: m.modelKey || m.model || String(Math.random()),
+              model: m.modelKey || m.model || '',
               model_name: m.model || '',
               style: m.style || '',
               suppliers: Array.isArray(m.suppliers) ? m.suppliers : [],
-              photo: m.photo || m.photos?.cover || null,
-              photos: m.photos || { cover: m.photo, gallery: [] },
+              photo: m.photo ?? m.photos?.cover ?? null,
+              photos: m.photos ?? { cover: m.photo, gallery: [] },
               sizes: m.products?.map((p: any) => ({
                 width: Number(p.properties?.['Ширина/мм']) || 800,
                 height: Number(p.properties?.['Высота/мм']) || 2000,
@@ -210,8 +211,8 @@ function applyFoundModel(
     model_name: foundModel.model || '',
     style: foundModel.style || '',
     suppliers: Array.isArray(foundModel.suppliers) ? foundModel.suppliers : [],
-    photo: foundModel.photo || foundModel.photos?.cover || null,
-    photos: foundModel.photos || { cover: foundModel.photo, gallery: [] },
+    photo: foundModel.photo ?? foundModel.photos?.cover ?? null,
+    photos: foundModel.photos ?? { cover: foundModel.photo ?? null, gallery: [] },
     sizes: foundModel.products?.map((p: any) => ({
       width: Number(p.properties?.['Ширина/мм']) || 800,
       height: Number(p.properties?.['Высота/мм']) || 2000,
@@ -238,13 +239,13 @@ function applyFoundModel(
   } else {
     foundModel.products?.forEach((product: any) => {
       const props = product.properties || {};
-      if (props['Тип покрытия'] && props['Domeo_Цвет']) {
-        const coatingKey = `${props['Тип покрытия']}_${props['Domeo_Цвет']}`;
+      if (props['Тип покрытия'] && props['Цвет/Отделка']) {
+        const coatingKey = `${props['Тип покрытия']}_${props['Цвет/Отделка']}`;
         if (!coatingsMap.has(coatingKey)) {
           coatingsMap.set(coatingKey, {
             id: coatingKey,
             coating_type: props['Тип покрытия'] || '',
-            color_name: props['Domeo_Цвет'] || '',
+            color_name: props['Цвет/Отделка'] || '',
             photo_path: null,
           });
         }
@@ -306,7 +307,7 @@ function applyFoundModel(
   );
 }
 
-export function useModelDetails(modelId: string | null, rawModels?: any[]) {
+export function useModelDetails(modelId: string | null, rawModels?: any[], selectedStyle?: string | null) {
   const [model, setModel] = useState<DoorModel | null>(null);
   const [coatings, setCoatings] = useState<DoorCoating[]>([]);
   const [finishes, setFinishes] = useState<string[]>([]);
@@ -315,7 +316,7 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
   const [options, setOptions] = useState<DoorOption[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Если есть rawModels и выбран modelId — берём данные из кэша, без повторного запроса
+  // Если есть rawModels и выбран modelId — берём данные из кэша. При нескольких записях с одним modelKey (разные стили) выбираем запись с style === selectedStyle.
   useEffect(() => {
     if (!modelId) {
       setModel(null);
@@ -327,9 +328,10 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
       return;
     }
     if (rawModels && rawModels.length > 0) {
-      const foundModel = rawModels.find((m: any) =>
-        (m.modelKey || m.model) === modelId || m.model === modelId
-      );
+      const match = (m: any) => (m.modelKey || m.model) === modelId || m.model === modelId;
+      const foundModel = selectedStyle
+        ? rawModels.find((m: any) => match(m) && (m.style || '') === selectedStyle) ?? rawModels.find((m: any) => match(m))
+        : rawModels.find((m: any) => match(m));
       if (foundModel) {
         setLoading(false);
         applyFoundModel(foundModel, modelId, setModel, setCoatings, setEdges, setOptions, setFinishes, setColorsByFinish);
@@ -344,7 +346,7 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
         setLoading(true);
 
         const refreshQ = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refresh') === '1' ? '?refresh=1' : '';
-        const response = await fetch('/api/catalog/doors/complete-data' + refreshQ);
+        const response = await fetch('/api/catalog/doors/complete-data' + refreshQ, { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -352,9 +354,10 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
         const data = parseApiResponse<{ ok?: boolean; models: any[]; totalModels?: number; styles?: string[] }>(responseData);
 
         if (!cancelled && data && (data.ok !== false) && data.models && Array.isArray(data.models)) {
-          const foundModel = data.models.find((m: any) =>
-            (m.modelKey || m.model) === modelId || m.model === modelId
-          );
+          const match = (m: any) => (m.modelKey || m.model) === modelId || m.model === modelId;
+          const foundModel = selectedStyle
+            ? data.models.find((m: any) => match(m) && (m.style || '') === selectedStyle) ?? data.models.find((m: any) => match(m))
+            : data.models.find((m: any) => match(m));
           if (foundModel) {
             applyFoundModel(foundModel, modelId, setModel, setCoatings, setEdges, setOptions, setFinishes, setColorsByFinish);
           }
@@ -373,7 +376,7 @@ export function useModelDetails(modelId: string | null, rawModels?: any[]) {
     return () => {
       cancelled = true;
     };
-  }, [modelId, rawModels]);
+  }, [modelId, rawModels, selectedStyle]);
 
   return { model, coatings, finishes, colorsByFinish, edges, options, loading };
 }
@@ -385,7 +388,7 @@ export interface PriceCalculationParams {
   door_model_id?: string;
   style?: string;
   finish?: string;
-  /** Название цвета (Domeo_Цвет) для точного подбора товара */
+  /** Название цвета (Цвет/Отделка) для точного подбора товара */
   color?: string;
   coating_id?: string;
   edge_id?: string;
@@ -411,6 +414,21 @@ export interface PriceCalculationParams {
   supplier?: string;
 }
 
+/** Вариант двери из БД для корзины/экспорта (без повторного поиска) */
+export interface PriceDoorVariant {
+  modelName: string;
+  supplier: string;
+  priceOpt: string | number;
+  priceRrc: string | number;
+  material: string;
+  width: number | string;
+  height: number | string;
+  color: string;
+  skuInternal: string;
+  productId?: string;
+  productSku?: string | null;
+}
+
 /**
  * Интерфейс результата расчета цены
  */
@@ -420,6 +438,10 @@ export interface PriceData {
   breakdown: Array<{ label: string; amount: number }>;
   total: number;
   sku?: string;
+  /** Название модели из БД (подмодель по текущим фильтрам) — в корзину и в экспорт Excel */
+  model_name?: string | null;
+  /** Все подходящие по фильтру варианты (подмодели) — в корзину/заказ/экспорт */
+  matchingVariants?: PriceDoorVariant[];
 }
 
 /**
@@ -488,13 +510,17 @@ export function usePriceCalculation() {
 
       if (requestId !== lastRequestIdRef.current) return;
 
-      if (data && data.total !== undefined) {
+      if (data && data.notFound) {
+        setPriceData(null);
+      } else if (data && data.total !== undefined) {
         setPriceData({
           currency: data.currency || 'RUB',
           base: data.base || 0,
           breakdown: data.breakdown || [],
           total: data.total || 0,
           sku: data.sku,
+          model_name: data.model_name ?? undefined,
+          matchingVariants: Array.isArray(data.matchingVariants) ? data.matchingVariants : undefined,
         });
       } else {
         setPriceData(null);

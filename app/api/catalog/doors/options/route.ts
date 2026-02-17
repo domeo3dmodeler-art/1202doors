@@ -87,13 +87,15 @@ async function getHandler(
       
       // Фильтруем по стилю и модели если они указаны
       if (normalizedStyle && productStyle !== normalizedStyle) return;
-      if (model && !properties['Domeo_Название модели для Web']?.includes(model)) return;
+      const modelNameVal = properties['Название модели'];
+      if (model && !modelNameVal?.includes(model)) return;
 
       // Извлекаем данные из properties_data согласно реальной структуре
       if (productStyle) distinctStyles.add(productStyle);
-    if (properties['Domeo_Название модели для Web']) distinctModels.add(properties['Domeo_Название модели для Web']);
+    const mn = properties['Название модели'];
+    if (mn) distinctModels.add(mn);
     if (properties['Тип покрытия']) distinctFinishes.add(properties['Тип покрытия']);
-    if (properties['Domeo_Цвет']) distinctColors.add(properties['Domeo_Цвет']);
+    if (properties['Цвет/Отделка']) distinctColors.add(properties['Цвет/Отделка']);
     if (properties['Тип конструкции']) distinctTypes.add(properties['Тип конструкции']);
     if (properties['Ширина/мм']) distinctWidths.add(Number(properties['Ширина/мм']));
     if (properties['Высота/мм']) distinctHeights.add(Number(properties['Высота/мм']));

@@ -10,7 +10,6 @@ import {
   AlertCircle,
   MoreVertical,
   Download,
-  Eye,
   Search,
   BadgeCheck,
   XCircle,
@@ -29,6 +28,7 @@ import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 import { parseApiResponse } from '@/lib/utils/parse-api-response';
 import HistoryModal from '@/components/ui/HistoryModal';
 import CommentsModal from '@/components/ui/CommentsModal';
+import { getItemDisplayNameForExport } from '@/lib/export/display-names';
 
 // Вспомогательная функция для извлечения оригинального имени файла из URL
 const getOriginalFileName = (fileUrl: string): string => {
@@ -106,13 +106,19 @@ interface Order {
 
 interface OrdersBoardProps {
   executorId: string;
+  /** Поиск в шапке (если передан — свой блок поиска не показывается) */
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
 }
 
-export function OrdersBoard({ executorId }: OrdersBoardProps) {
+export function OrdersBoard({ executorId, searchQuery: searchQueryProp, onSearchQueryChange }: OrdersBoardProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<keyof typeof ORDER_STATUSES | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearch, setInternalSearch] = useState('');
+  const searchQuery = searchQueryProp !== undefined ? searchQueryProp : internalSearch;
+  const setSearchQuery = onSearchQueryChange ?? setInternalSearch;
+  const searchInHeader = searchQueryProp !== undefined;
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
 
@@ -209,23 +215,24 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
 
   return (
     <div className="space-y-3 min-w-0">
-      {/* Поиск */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <input
-          type="text"
-          placeholder="Поиск по номеру заказа, клиенту, адресу..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-        />
-      </div>
+      {!searchInHeader && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Поиск по номеру заказа, клиенту, адресу..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+          />
+        </div>
+      )}
 
-      {/* Вкладки статусов - компактные */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Вкладки статусов */}
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setActiveStatus('all')}
-          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors flex items-center space-x-1.5 ${
+          className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
             activeStatus === 'all'
               ? 'border-black bg-black text-white'
               : 'border-gray-300 text-gray-700 hover:border-black hover:bg-gray-50'
@@ -233,7 +240,7 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
         >
           <span>Все</span>
           {orders.length > 0 && (
-            <span className={`px-1 py-0.5 rounded text-[10px] ${
+            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
               activeStatus === 'all' ? 'bg-white/20' : 'bg-gray-100'
             }`}>
               {orders.length}
@@ -252,7 +259,7 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
               <button
                 key={status}
                 onClick={() => setActiveStatus(status as keyof typeof ORDER_STATUSES)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors flex items-center space-x-1.5 ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors flex items-center gap-1.5 ${
                   isActive
                     ? 'border-black bg-black text-white'
                     : 'border-gray-300 text-gray-700 hover:border-black hover:bg-gray-50'
@@ -260,9 +267,9 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
                 title={config.label}
               >
                 <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate max-w-[120px]">{config.label}</span>
+                <span className="truncate max-w-[200px]">{config.label}</span>
                 {count > 0 && (
-                  <span className={`px-1 py-0.5 rounded text-[10px] flex-shrink-0 ${
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${
                     isActive ? 'bg-white/20' : 'bg-gray-100'
                   }`}>
                     {count}
@@ -281,26 +288,26 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
             <table className="w-full table-auto border-collapse">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     ДАТА
                   </th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     ЛИД
                   </th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     КОМПЛЕКТАТОР
                   </th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     ФИО КЛИЕНТА
                   </th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     АДРЕС
                   </th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
-                    СТАТУС
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[90px]">
+                    СУММА
                   </th>
-                  <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-700 uppercase tracking-wider w-12">
-                    ДЕЙСТВИЯ
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                    СТАТУС
                   </th>
                 </tr>
               </thead>
@@ -353,23 +360,16 @@ export function OrdersBoard({ executorId }: OrdersBoardProps) {
                               {order.client.address}
                             </div>
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-right text-xs font-medium text-gray-900 tabular-nums">
+                            {(order.total_amount ?? order.invoice?.total_amount) != null
+                              ? `${Number(order.total_amount ?? order.invoice?.total_amount).toLocaleString('ru-RU')} ₽`
+                              : '—'}
+                          </td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${statusConfig.color}`} title={statusConfig.label}>
                               <StatusIcon className="h-3 w-3 mr-1 flex-shrink-0" />
-                              <span className="truncate max-w-[140px]">{statusConfig.label}</span>
+                              <span className="truncate max-w-[160px]">{statusConfig.label}</span>
                             </span>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOrderClick(order);
-                              }}
-                              className="inline-flex items-center justify-center p-1 text-gray-600 hover:text-black hover:bg-gray-100 rounded transition-colors"
-                              title="Просмотр заказа"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
                           </td>
                         </tr>
                       );
@@ -457,6 +457,32 @@ function OrderDetailModal({
   useEffect(() => {
     fetchSupplierOrders();
   }, [fetchSupplierOrders]);
+
+  // При открытии модалки загружаем полный заказ (с invoice.cart_data), чтобы товары и экспорт Excel имели актуальные данные
+  const loadFullOrder = useCallback(async () => {
+    if (!order?.id) return;
+    const orderId = order.id;
+    try {
+      const response = await fetchWithAuth(`/api/orders/${orderId}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      const parsedData = parseApiResponse<{ order?: any }>(data);
+      const orderData = parsedData && typeof parsedData === 'object' && 'order' in parsedData
+        ? (parsedData as { order?: any }).order
+        : null;
+      if (orderData && orderData.id === orderId) {
+        setCurrentOrder(orderData);
+      }
+    } catch (e) {
+      clientLogger.error('Error loading full order for modal', e);
+    }
+  }, [order?.id]);
+
+  useEffect(() => {
+    if (order?.id) {
+      loadFullOrder();
+    }
+  }, [order?.id, loadFullOrder]);
 
   // Загрузка информации о товарах из БД (для определения ручек)
   const fetchProductsInfo = useCallback(async (items: any[]) => {
@@ -546,20 +572,34 @@ function OrderDetailModal({
             productId: item.productId || item.id,
             name: item.name || item.model,
             model: item.model || item.name,
-            qty: item.qty || item.quantity || 1,
-            quantity: item.qty || item.quantity || 1,
-            unitPrice: item.unitPrice || item.price || 0,
-            price: item.unitPrice || item.price || 0,
+            model_name: item.model_name,
+            qty: item.qty ?? item.quantity ?? 1,
+            quantity: item.qty ?? item.quantity ?? 1,
+            unitPrice: item.unitPrice ?? item.price ?? 0,
+            price: item.unitPrice ?? item.price ?? 0,
             width: item.width,
             height: item.height,
             color: item.color,
             finish: item.finish,
-            type: item.type,
+            style: item.style,
+            type: item.type ?? item.itemType ?? undefined,
+            itemType: item.itemType ?? item.type ?? undefined,
             sku_1c: item.sku_1c,
             handleId: item.handleId,
             handleName: item.handleName,
+            limiterId: item.limiterId,
+            limiterName: item.limiterName,
             hardwareKitId: item.hardwareKitId,
-            hardwareKitName: item.hardwareKitName
+            hardwareKitName: item.hardwareKitName ?? item.hardware,
+            optionIds: item.optionIds,
+            architraveNames: item.architraveNames,
+            optionNames: item.optionNames,
+            edge: item.edge,
+            edgeColorName: item.edgeColorName ?? item.edge_color_name,
+            glassColor: item.glassColor ?? item.glass_color,
+            reversible: item.reversible,
+            mirror: item.mirror,
+            threshold: item.threshold
           }));
         } catch (parseError) {
           clientLogger.error('Error parsing cart_data', parseError);
@@ -626,11 +666,11 @@ function OrderDetailModal({
     try {
       setLoading(true);
       
-      // Получаем данные корзины из заказа
+      // Получаем данные корзины из счета или заказа (как для отображения и экспорта счета)
       let cartData;
       let items: any[] = [];
       
-      const sourceCartData = currentOrder.cart_data;
+      const sourceCartData = currentOrder.invoice?.cart_data || currentOrder.cart_data;
       
       if (sourceCartData) {
         try {
@@ -643,20 +683,45 @@ function OrderDetailModal({
             productId: item.productId || item.id,
             name: item.name || item.model,
             model: item.model || item.name,
-            qty: item.qty || item.quantity || 1,
-            quantity: item.qty || item.quantity || 1,
-            unitPrice: item.unitPrice || item.price || 0,
-            price: item.unitPrice || item.price || 0,
+            model_name: item.model_name,
+            matchingVariants: item.matchingVariants ?? item.matching_variants,
+            qty: item.qty ?? item.quantity ?? 1,
+            quantity: item.qty ?? item.quantity ?? 1,
+            unitPrice: item.unitPrice ?? item.price ?? 0,
+            price: item.unitPrice ?? item.price ?? 0,
             width: item.width,
             height: item.height,
             color: item.color,
             finish: item.finish,
-            type: item.type,
+            type: item.type ?? item.itemType,
+            itemType: item.itemType ?? item.type,
             sku_1c: item.sku_1c,
             handleId: item.handleId,
             handleName: item.handleName,
             hardwareKitId: item.hardwareKitId,
-            hardwareKitName: item.hardwareKitName
+            hardwareKitName: item.hardwareKitName ?? item.hardware,
+            limiterId: item.limiterId,
+            limiterName: item.limiterName,
+            style: item.style,
+            hardware: item.hardware,
+            edge: item.edge,
+            edgeId: item.edgeId ?? item.edge_id,
+            edge_color_name: item.edge_color_name ?? item.edgeColorName,
+            edgeColorName: item.edgeColorName ?? item.edge_color_name,
+            glassColor: item.glassColor ?? item.glass_color,
+            reversible: item.reversible,
+            mirror: item.mirror,
+            threshold: item.threshold === true || item.threshold === 1 || (typeof item.threshold === 'string' && item.threshold.toLowerCase() === 'да'),
+            optionIds: item.optionIds ?? item.option_ids,
+            architraveNames: item.architraveNames ?? item.architrave_names,
+            optionNames: item.optionNames,
+            option_ids: item.option_ids ?? item.optionIds,
+            architrave_names: item.architrave_names ?? item.architraveNames,
+            breakdown: item.breakdown,
+            specRows: item.specRows ?? item.spec_rows,
+            price_opt: item.price_opt,
+            filling: item.filling,
+            fillingName: item.fillingName
           }));
         } catch (parseError) {
           clientLogger.error('Error parsing cart_data', parseError);
@@ -669,7 +734,7 @@ function OrderDetailModal({
       }
       
       // Вычисляем общую сумму
-      const totalAmount = currentOrder.total_amount || 
+      const totalAmount = currentOrder.invoice?.total_amount ?? currentOrder.total_amount ?? 
         items.reduce((sum: number, item: any) => sum + (item.unitPrice || 0) * (item.qty || 1), 0);
       
       // Используем механизм экспорта из корзины с дедубликацией
@@ -908,22 +973,19 @@ function OrderDetailModal({
           updatedOrder: updatedOrderData
         });
         
-        // Обновляем статус заказа сразу из ответа
+        // Обновляем статус заказа сразу из ответа — модалка остаётся открытой, без перезагрузки
         if (updatedOrderData) {
           setCurrentOrder((prevOrder) => prevOrder ? { ...prevOrder, status: updatedOrderData.status || newStatus } : prevOrder);
-          // Обновляем newStatus на маппированный статус заказа
           const executorStatus = getExecutorOrderStatus(updatedOrderData.status || newStatus);
           setNewStatus(executorStatus);
         }
         
         toast.success('Статус изменен успешно');
         setShowStatusChangeModal(false);
-        // Обновляем данные заказа
-        await fetchOrder();
-        // Обновляем список заказов в родительском компоненте (с задержкой, чтобы избежать конфликтов)
-        setTimeout(() => {
-          onUpdate();
-        }, 100);
+        setLoading(false);
+        // Подгружаем полные данные заказа в фоне, без блокировки UI
+        fetchOrder();
+        onUpdate();
       } else {
         let errorData: any;
         try {
@@ -1454,29 +1516,8 @@ function OrderDetailModal({
                         const qty = item.qty || item.quantity || 1;
                         const price = item.unitPrice || item.price || 0;
                         const itemTotal = qty * price;
-                        
-                        // Определяем является ли товар ручкой - проверяем в БД по ID
-                        const productId = item.handleId || item.product_id || item.id;
-                        const productInfo = productId ? productsInfo.get(productId) : null;
-                        const isHandle = productInfo?.isHandle || item.type === 'handle' || !!item.handleId;
-                        
-                        // Для ручек используем название из БД или handleName, для остальных товаров - name/model
-                        let displayName: string;
-                        if (isHandle) {
-                          // Если есть информация из БД - используем её
-                          if (productInfo?.name) {
-                            displayName = productInfo.name;
-                          } else {
-                            // Иначе используем handleName или название из item
-                            displayName = item.handleName || item.name || item.product_name || 'Ручка';
-                          }
-                          // Добавляем префикс "Ручка " если его еще нет
-                          if (!displayName.toLowerCase().startsWith('ручка')) {
-                            displayName = `Ручка ${displayName}`;
-                          }
-                        } else {
-                          displayName = item.name || item.product_name || item.model || item.notes || 'Товар';
-                        }
+                        // Единая логика названий (дверь, ручка, завертка, ограничитель) как в экспорте
+                        const displayName = getItemDisplayNameForExport(item);
                         const cleanName = cleanProductName(displayName);
                         
                         return (

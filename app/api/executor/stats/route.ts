@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -42,23 +42,23 @@ async function getHandler(
   // Получаем статистику заказов поставщиков
   const totalSupplierOrders = await prisma.supplierOrder.count({
     where: {
-      created_by: user.userId
+      executor_id: user.userId
     }
   }).catch(() => 0);
 
   const pendingSupplierOrders = await prisma.supplierOrder.count({
     where: {
-      created_by: user.userId,
+      executor_id: user.userId,
       status: {
-        in: ['DRAFT', 'SENT', 'ORDER_PLACED']
+        in: ['PENDING', 'ORDERED', 'RECEIVED_FROM_SUPPLIER']
       }
     }
   }).catch(() => 0);
 
   const completedSupplierOrders = await prisma.supplierOrder.count({
     where: {
-      created_by: user.userId,
-      status: 'RECEIVED'
+      executor_id: user.userId,
+      status: 'COMPLETED'
     }
   }).catch(() => 0);
 
@@ -94,7 +94,7 @@ async function getHandler(
 
   const recentSupplierOrders = await prisma.supplierOrder.findMany({
     where: {
-      created_by: user.userId
+      executor_id: user.userId
     },
     take: 5,
     orderBy: { created_at: 'desc' },

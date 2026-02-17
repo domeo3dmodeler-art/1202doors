@@ -1,13 +1,14 @@
 /**
- * Сервис для импорта нового шаблона дверей из Excel файла newdata.xlsx
- * 
- * Обрабатывает 6 листов:
+ * Сервис для импорта шаблона дверей из Excel (листы 01, 03–06).
+ * Источник истины по каталогу дверей — final_filled 30.01.xlsx (import-final-filled.ts).
+ *
+ * Обрабатывает 5 листов:
  * 1. 01 Модели Поставщики
- * 2. 02 Покрытия Цвета
- * 3. 03 Кромка
- * 4. 04 Опции Дополнительные
- * 5. 05 Ручки Завертки
- * 6. 06 Ограничители
+ * 2. 03 Кромка
+ * 3. 04 Опции Дополнительные
+ * 4. 05 Ручки Завертки
+ * 5. 06 Ограничители
+ * Лист «02 Покрытия Цвета» устарел (Domeo_Название цвета и т.д.) — не используется, не пишется в БД.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -60,10 +61,9 @@ export class DoorsImportService {
       // Читаем Excel файл
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
-      // Проверяем наличие всех необходимых листов
+      // Проверяем наличие всех необходимых листов (02 Покрытия Цвета устарел — не требуем)
       const requiredSheets = [
         '01 Модели Поставщики',
-        '02 Покрытия Цвета',
         '03 Кромка',
         '04 Опции Дополнительные',
         '05 Ручки Завертки',
@@ -80,10 +80,9 @@ export class DoorsImportService {
         );
       }
 
-      // Читаем данные из всех листов
+      // Читаем данные из листов (02 Покрытия Цвета не читаем — устарел)
       const sheets = {
         models: this.readSheet(workbook, '01 Модели Поставщики'),
-        coatings: this.readSheet(workbook, '02 Покрытия Цвета'),
         edges: this.readSheet(workbook, '03 Кромка'),
         options: this.readSheet(workbook, '04 Опции Дополнительные'),
         handles: this.readSheet(workbook, '05 Ручки Завертки'),
@@ -104,17 +103,13 @@ export class DoorsImportService {
       };
 
       if (options.mode === 'preview') {
-        // Режим предпросмотра - только подсчитываем
         results.models = this.previewModels(sheets.models);
-        results.coatings = this.previewCoatings(sheets.coatings);
         results.edges = this.previewEdges(sheets.edges);
         results.options = this.previewOptions(sheets.options);
         results.handles = this.previewHandles(sheets.handles);
         results.limiters = this.previewLimiters(sheets.limiters);
       } else {
-        // Режим импорта - сохраняем в БД
         results.models = await this.importModels(sheets.models, options.updateMode);
-        results.coatings = await this.importCoatings(sheets.coatings, options.updateMode);
         results.edges = await this.importEdges(sheets.edges, options.updateMode);
         results.options = await this.importOptions(sheets.options, options.updateMode);
         results.handles = await this.importHandles(sheets.handles, options.updateMode);
@@ -322,134 +317,6 @@ export class DoorsImportService {
         // Проверяем существование
         // В реальной реализации нужно проверить в БД
         result.new++;
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Импорт покрытий (лист 02) - обновляет товары моделей с информацией о покрытиях
-   */
-  private async importCoatings(
-    data: any[],
-    updateMode: 'replace' | 'merge' | 'add_new'
-  ): Promise<{ total: number; new: number; updated: number; errors: number }> {
-    const result = { total: data.length, new: 0, updated: 0, errors: 0 };
-
-    for (const row of data) {
-      try {
-        const modelName = row['Модель (наша)'];
-        const coatingCode = row['Код покрытия'] || '';
-        const colorName = row['Название цвета (унифицированное)'] || '';
-        const colorHex = row['Цвет HEX'] || '';
-        const isWood = row['Это шпон (Да/Нет)']?.toLowerCase() === 'да';
-        const coverPhoto = row['Обложка (путь)'] || '';
-        const galleryJson = row['Галерея фото (JSON)'] || '[]';
-        const priceOpt = parseFloat(row['Цена опт (руб)']) || 0;
-        const priceRrc = parseFloat(row['Цена РРЦ (руб)']) || 0;
-        const sortOrder = parseInt(row['Порядок сортировки']) || 0;
-        const isActive = row['Активен (Да/Нет)']?.toLowerCase() === 'да';
-
-        if (!modelName || !coatingCode || !colorName) {
-          this.addError('02 Покрытия Цвета', row._rowIndex, 'Отсутствует модель, код покрытия или цвет');
-          result.errors++;
-          continue;
-        }
-
-        // Парсим галерею фото
-        let gallery: string[] = [];
-        try {
-          if (galleryJson) {
-            gallery = JSON.parse(galleryJson);
-          }
-        } catch (e) {
-          this.addWarning('02 Покрытия Цвета', row._rowIndex, 'Не удалось распарсить галерею фото JSON');
-        }
-
-        // Ищем все товары этой модели по точному совпадению в properties_data
-        // Используем поиск по JSON полю "Domeo_наименование модели для Web"
-        const modelProducts = await prisma.product.findMany({
-          where: {
-            catalog_category_id: this.categoryId,
-            properties_data: {
-              contains: `"Domeo_наименование модели для Web":"${modelName}"`
-            },
-            is_active: true
-          }
-        });
-
-        if (modelProducts.length === 0) {
-          this.addWarning('02 Покрытия Цвета', row._rowIndex, `Модель "${modelName}" не найдена. Сначала импортируйте модели.`);
-          continue;
-        }
-
-        // Обновляем каждый товар модели с информацией о покрытии
-        for (const product of modelProducts) {
-          try {
-            const properties = JSON.parse(product.properties_data || '{}');
-            
-            // Обновляем информацию о покрытии
-            properties['Domeo_Код покрытия'] = coatingCode;
-            properties['Domeo_Название цвета'] = colorName;
-            properties['Domeo_Цвет HEX'] = colorHex;
-            properties['Это шпон'] = isWood;
-            properties['Покрытие: Цена опт (руб)'] = priceOpt;
-            properties['Покрытие: Цена РРЦ (руб)'] = priceRrc;
-            properties['Покрытие: Порядок сортировки'] = sortOrder;
-            properties['Покрытие: Активен'] = isActive;
-
-            // Обновляем фото
-            if (!properties.photos) {
-              properties.photos = {};
-            }
-            if (coverPhoto) {
-              properties.photos.cover = coverPhoto;
-            }
-            if (gallery.length > 0) {
-              properties.photos.gallery = gallery;
-            }
-
-            // Обновляем цену товара, если указана цена покрытия
-            const newBasePrice = priceRrc || priceOpt || product.base_price;
-
-            await prisma.product.update({
-              where: { id: product.id },
-              data: {
-                properties_data: JSON.stringify(properties),
-                base_price: newBasePrice,
-                is_active: isActive && product.is_active
-              }
-            });
-
-            result.updated++;
-          } catch (error) {
-            this.addError('02 Покрытия Цвета', row._rowIndex, `Ошибка обновления товара ${product.sku}: ${error instanceof Error ? error.message : String(error)}`);
-            result.errors++;
-          }
-        }
-      } catch (error) {
-        this.addError('02 Покрытия Цвета', row._rowIndex, error instanceof Error ? error.message : String(error));
-        result.errors++;
-      }
-    }
-
-    return result;
-  }
-
-  private previewCoatings(data: any[]): { total: number; new: number; updated: number; errors: number } {
-    const result = { total: data.length, new: 0, updated: 0, errors: 0 };
-
-    for (const row of data) {
-      const modelName = row['Модель (наша)'];
-      const coatingCode = row['Код покрытия'];
-      const colorName = row['Название цвета (унифицированное)'];
-      
-      if (!modelName || !coatingCode || !colorName) {
-        result.errors++;
-      } else {
-        // В реальной реализации нужно проверить в БД
-        result.updated++;
       }
     }
 

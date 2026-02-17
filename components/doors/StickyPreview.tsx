@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { getImageSrc } from '@/lib/configurator/image-src';
 import { formatModelNameForCard, formatModelNameForPreview } from './utils';
 
 interface StickyPreviewProps {
@@ -20,30 +21,14 @@ export function StickyPreview({ item }: StickyPreviewProps) {
       return;
     }
 
-    // Если фото уже предзагружено в item.photo, используем его мгновенно
+    // Если фото уже предзагружено в item.photo — единый слой getImageSrc (Цвет→doors, uploadsproducts и т.д.)
     if (item.photo && typeof item.photo === 'string') {
-      let imageUrl: string;
-      if (item.photo.startsWith('http://') || item.photo.startsWith('https://')) {
-        imageUrl = item.photo;
-      } else if (item.photo.startsWith('/uploads/')) {
-        imageUrl = `/api${item.photo}`;
-      } else if (item.photo.startsWith('/uploadsproducts')) {
-        // Корректируем: /uploadsproducts/... -> /uploads/products/...
-        imageUrl = `/api/uploads/products/${item.photo.substring(17)}`; // убираем первые 17 символов '/uploadsproducts'
-      } else if (item.photo.startsWith('/uploads')) {
-        // Корректируем: /uploads... -> /uploads/...
-        imageUrl = `/api/uploads/${item.photo.substring(8)}`;
-      } else if (item.photo.startsWith('products/')) {
-        imageUrl = `/api/uploads/${item.photo}`;
-      } else if (item.photo.startsWith('uploads/')) {
-        imageUrl = `/api/${item.photo}`;
-      } else {
-        imageUrl = `/api/uploads/${item.photo}`;
+      const imageUrl = getImageSrc(item.photo);
+      if (imageUrl) {
+        setImageSrc(imageUrl);
+        setIsLoading(false);
+        return;
       }
-      
-      setImageSrc(imageUrl);
-      setIsLoading(false);
-      return;
     }
 
     // Fallback: загружаем фото через старый API (для совместимости)
@@ -57,22 +42,7 @@ export function StickyPreview({ item }: StickyPreviewProps) {
         if (response.ok) {
           const data = await response.json();
           if (data.photos && data.photos.length > 0) {
-            const photoPath = data.photos[0];
-            let imageUrl: string;
-            if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-              imageUrl = photoPath;
-            } else if (photoPath.startsWith('/uploads/')) {
-              imageUrl = `/api${photoPath}`;
-            } else if (photoPath.startsWith('/uploads')) {
-              imageUrl = `/api/uploads/${photoPath.substring(8)}`;
-            } else if (photoPath.startsWith('products/')) {
-              imageUrl = `/api/uploads/${photoPath}`;
-            } else if (photoPath.startsWith('uploads/')) {
-              imageUrl = `/api/${photoPath}`;
-            } else {
-              imageUrl = `/api/uploads/${photoPath}`;
-            }
-            setImageSrc(imageUrl);
+            setImageSrc(getImageSrc(data.photos[0]));
           } else {
             setImageSrc(null);
           }

@@ -6,7 +6,9 @@ import { describe, it, expect } from 'vitest';
 import {
   getProductRrc,
   pickMaxPriceProduct,
+  pickProductBySelection,
   heightForMatching,
+  roundUpTo100,
   filterProducts,
   calculateDoorPrice,
   HEIGHT_BAND_2301_2500,
@@ -54,6 +56,16 @@ describe('heightForMatching', () => {
   });
 });
 
+describe('roundUpTo100', () => {
+  it('округление вверх до 100 руб', () => {
+    expect(roundUpTo100(0)).toBe(0);
+    expect(roundUpTo100(100)).toBe(100);
+    expect(roundUpTo100(101)).toBe(200);
+    expect(roundUpTo100(28750)).toBe(28800);
+    expect(roundUpTo100(21600)).toBe(21600);
+  });
+});
+
 describe('pickMaxPriceProduct', () => {
   it('6. выбирает товар с максимальной РРЦ', () => {
     const products: ProductWithProps[] = [
@@ -67,13 +79,44 @@ describe('pickMaxPriceProduct', () => {
   });
 });
 
+describe('pickProductBySelection', () => {
+  it('предпочитает подмодель с типом покрытия в названии и без Флекс/Порта', () => {
+    const products: ProductWithProps[] = [
+      doorProduct({
+        id: 'flex',
+        properties_data: {
+          'Название модели': 'ДПГ Флекс Эмаль Порта ПТА-50 В',
+          'Цена РРЦ': 20000,
+          'Тип покрытия': 'Эмаль'
+        }
+      }),
+      doorProduct({
+        id: 'glad',
+        properties_data: {
+          'Название модели': 'Дверь Гладкое эмаль ДГ',
+          'Цена РРЦ': 17000,
+          'Тип покрытия': 'Эмаль'
+        }
+      })
+    ];
+    const picked = pickProductBySelection(products, { finish: 'Эмаль' });
+    expect(picked.id).toBe('glad');
+    expect((picked.properties_data as Record<string, unknown>)['Название модели']).toBe('Дверь Гладкое эмаль ДГ');
+  });
+
+  it('при одном товаре возвращает его', () => {
+    const single = [doorProduct({ id: 'x', properties_data: { 'Название модели': 'Любая', 'Цена РРЦ': 10000 } })];
+    expect(pickProductBySelection(single, { finish: 'ПВХ' }).id).toBe('x');
+  });
+});
+
 describe('filterProducts', () => {
   const baseDoor = doorProduct({
     properties_data: {
       'Код модели Domeo (Web)': 'MODEL-A',
       'Domeo_Стиль Web': 'Современные',
       'Тип покрытия': 'ПВХ',
-      'Domeo_Цвет': 'Белый',
+      'Цвет/Отделка': 'Белый',
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Domeo_Опции_Название_наполнения': 'Голд',
@@ -105,6 +148,88 @@ describe('filterProducts', () => {
     const sel: PriceSelection = { model: 'MODEL-A', width: 800, height: HEIGHT_BAND_2301_2500 };
     expect(filterProducts(list, sel, false, false)).toHaveLength(1);
   });
+
+  it('10b. при выбранном цвете товары с пустым Цвет/Отделка не подходят (однозначный выбор подмодели)', () => {
+    const withColor = doorProduct({
+      properties_data: {
+        'Код модели Domeo (Web)': 'BASE_1',
+        'Domeo_Стиль Web': 'Современная',
+        'Тип покрытия': 'Эмаль',
+        'Цвет/Отделка': 'Агат (Ral 7038)',
+        'Ширина/мм': 800,
+        'Высота/мм': 2100,
+        'Цена РРЦ': 61800
+      }
+    });
+    const noColor = doorProduct({
+      properties_data: {
+        'Код модели Domeo (Web)': 'BASE_1',
+        'Domeo_Стиль Web': 'Современная',
+        'Тип покрытия': 'Эмаль',
+        'Ширина/мм': 800,
+        'Высота/мм': 2100,
+        'Цена РРЦ': 38900
+      }
+    });
+    const list = [withColor, noColor];
+    const sel: PriceSelection = {
+      model: 'BASE_1',
+      style: 'Современная',
+      finish: 'Эмаль',
+      color: 'Агат (Ral 7038)',
+      width: 800,
+      height: 2100
+    };
+    const matched = filterProducts(list, sel, true, true);
+    expect(matched).toHaveLength(1);
+    expect(Number((matched[0].properties_data as Record<string, unknown>)['Цена РРЦ'])).toBe(61800);
+  });
+
+  it('10b2. тип покрытия сравнивается без учёта регистра', () => {
+    const list = [
+      doorProduct({
+        properties_data: {
+          'Код модели Domeo (Web)': 'M1',
+          'Domeo_Стиль Web': 'Современные',
+          'Тип покрытия': 'Эмаль',
+          'Цвет/Отделка': 'Белый',
+          'Ширина/мм': 800,
+          'Высота/мм': 2000,
+          'Цена РРЦ': 25000
+        }
+      })
+    ];
+    expect(
+      filterProducts(list, { model: 'M1', style: 'Современные', finish: 'эмаль', color: 'Белый', width: 800, height: 2000 }, true, true)
+    ).toHaveLength(1);
+    expect(
+      filterProducts(list, { model: 'M1', style: 'Современные', finish: 'ПВХ', color: 'Белый', width: 800, height: 2000 }, true, true)
+    ).toHaveLength(0);
+  });
+
+  it('10c. при выбранном цвете и allowEmptyColor товары без Цвет/Отделка подходят (fallback после импорта без цвета)', () => {
+    const noColor = doorProduct({
+      properties_data: {
+        'Код модели Domeo (Web)': 'M1',
+        'Domeo_Стиль Web': 'Современные',
+        'Тип покрытия': 'ПВХ',
+        'Ширина/мм': 800,
+        'Высота/мм': 2000,
+        'Цена РРЦ': 25000
+      }
+    });
+    const list = [noColor];
+    const sel: PriceSelection = {
+      model: 'M1',
+      style: 'Современные',
+      finish: 'ПВХ',
+      color: 'Белый',
+      width: 800,
+      height: 2000
+    };
+    expect(filterProducts(list, sel, true, true, false)).toHaveLength(0);
+    expect(filterProducts(list, sel, true, true, true)).toHaveLength(1);
+  });
 });
 
 describe('calculateDoorPrice — базовая дверь', () => {
@@ -116,7 +241,7 @@ describe('calculateDoorPrice — базовая дверь', () => {
         'Код модели Domeo (Web)': 'M1',
         'Domeo_Стиль Web': 'Современные',
         'Тип покрытия': 'ПВХ',
-        'Domeo_Цвет': 'Белый',
+        'Цвет/Отделка': 'Белый',
         'Ширина/мм': 800,
         'Высота/мм': 2000,
         'Цена РРЦ': 20000
@@ -140,19 +265,19 @@ describe('calculateDoorPrice — базовая дверь', () => {
     getOptionProducts: () => []
   };
 
-  it('11. итог = сумма breakdown (базовая дверь)', () => {
+  it('11. итог = сумма breakdown округлённая вверх до 100 руб (базовая дверь)', () => {
     const r = calculateDoorPrice(baseInput);
     expect(r.currency).toBe('RUB');
     expect(r.base).toBe(20000);
     expect(r.breakdown).toHaveLength(1);
     expect(r.breakdown[0].label).toBe('Дверь');
     expect(r.breakdown[0].amount).toBe(20000);
-    expect(r.total).toBe(20000);
     const sumBreakdown = r.breakdown.reduce((s, b) => s + b.amount, 0);
-    expect(r.total).toBe(sumBreakdown);
+    expect(r.total).toBe(roundUpTo100(sumBreakdown));
+    expect(r.total).toBe(20000);
   });
 
-  it('12. total округляется до целого', () => {
+  it('12. total округляется вверх до 100 руб', () => {
     const prodWithFloat = [
       doorProduct({
         properties_data: {
@@ -162,7 +287,7 @@ describe('calculateDoorPrice — базовая дверь', () => {
       })
     ];
     const r = calculateDoorPrice({ ...baseInput, products: prodWithFloat });
-    expect(r.total).toBe(20000);
+    expect(r.total).toBe(20000); // roundUpTo100(19999.7)
   });
 });
 
@@ -173,7 +298,7 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
       'Код модели Domeo (Web)': 'M2',
       'Domeo_Стиль Web': 'Современные',
       'Тип покрытия': 'Эмаль',
-      'Domeo_Цвет': 'Слоновая кость',
+      'Цвет/Отделка': 'Слоновая кость',
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Цена РРЦ': 25000,
@@ -181,7 +306,7 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
     }
   });
 
-  it('13. надбавка за высоту 2301–2500: процент от базы', () => {
+  it('13. надбавка за высоту 2301–2500: процент от базы, итог округляется вверх до 100 руб', () => {
     const r = calculateDoorPrice({
       products: [product2350],
       selection: {
@@ -200,8 +325,8 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
     expect(r.base).toBe(25000);
     const surcharge = r.breakdown.find((b) => b.label.includes('2301–2500'));
     expect(surcharge).toBeDefined();
-    expect(surcharge!.amount).toBe(Math.round((25000 * 15) / 100));
-    expect(r.total).toBe(r.base + surcharge!.amount);
+    expect(surcharge!.amount).toBe(Math.round((25000 * 15) / 100)); // 3750
+    expect(r.total).toBe(28800); // 28750 округлено вверх до 100
   });
 
   const product2750 = doorProduct({
@@ -210,7 +335,7 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
       'Код модели Domeo (Web)': 'M3',
       'Domeo_Стиль Web': 'Классика',
       'Тип покрытия': 'ПВХ',
-      'Domeo_Цвет': 'Дуб',
+      'Цвет/Отделка': 'Дуб',
       'Ширина/мм': 900,
       'Высота/мм': 2000,
       'Цена РРЦ': 18000,
@@ -218,7 +343,7 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
     }
   });
 
-  it('14. надбавка за высоту 2501–3000: процент от базы', () => {
+  it('14. надбавка за высоту 2501–3000: процент от базы, итог округляется вверх до 100 руб', () => {
     const r = calculateDoorPrice({
       products: [product2750],
       selection: {
@@ -236,8 +361,8 @@ describe('calculateDoorPrice — надбавка за высоту', () => {
     });
     const surcharge = r.breakdown.find((b) => b.label.includes('2501–3000'));
     expect(surcharge).toBeDefined();
-    expect(surcharge!.amount).toBe(Math.round((18000 * 20) / 100));
-    expect(r.total).toBe(r.base + surcharge!.amount);
+    expect(surcharge!.amount).toBe(Math.round((18000 * 20) / 100)); // 3600
+    expect(r.total).toBe(21600); // 21600 уже кратно 100
   });
 });
 
@@ -248,7 +373,7 @@ describe('calculateDoorPrice — реверс, зеркало, порог', () =
       'Код модели Domeo (Web)': 'M4',
       'Domeo_Стиль Web': 'Современные',
       'Тип покрытия': 'ПВХ',
-      'Domeo_Цвет': 'Белый',
+      'Цвет/Отделка': 'Белый',
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Цена РРЦ': 22000,
@@ -356,7 +481,7 @@ describe('calculateDoorPrice — кромка, комплект, ручка, з�
       'Код модели Domeo (Web)': 'M5',
       'Domeo_Стиль Web': 'Современные',
       'Тип покрытия': 'ПВХ',
-      'Domeo_Цвет': 'Белый',
+      'Цвет/Отделка': 'Белый',
       'Ширина/мм': 800,
       'Высота/мм': 2000,
       'Цена РРЦ': 17000,
@@ -476,7 +601,7 @@ describe('calculateDoorPrice — кромка, комплект, ручка, з�
     });
     const limRow = r.breakdown.find((b) => b.label.includes('Ограничитель'));
     expect(limRow?.amount).toBe(450);
-    expect(r.total).toBe(17000 + 450);
+    expect(r.total).toBe(17500); // roundUpTo100(17000 + 450)
   });
 
   it('23. опции (option_ids) — наличники и т.д. суммируются', () => {
@@ -504,7 +629,7 @@ describe('calculateDoorPrice — кромка, комплект, ручка, з�
     });
     const optRow = r.breakdown.find((b) => b.label.includes('Наличник'));
     expect(optRow?.amount).toBe(850);
-    expect(r.total).toBe(17000 + 850);
+    expect(r.total).toBe(17900); // roundUpTo100(17000 + 850)
   });
 });
 
@@ -516,7 +641,7 @@ describe('calculateDoorPrice — связи и граничные случаи',
           'Код модели Domeo (Web)': 'X',
           'Domeo_Стиль Web': 'Современные',
           'Тип покрытия': 'ПВХ',
-          'Domeo_Цвет': 'Белый',
+          'Цвет/Отделка': 'Белый',
           'Ширина/мм': 800,
           'Высота/мм': 2000,
           'Цена РРЦ': 10000
@@ -541,7 +666,7 @@ describe('calculateDoorPrice — связи и граничные случаи',
         'Код модели Domeo (Web)': 'M6',
         'Domeo_Стиль Web': 'Классика',
         'Тип покрытия': 'Эмаль',
-        'Domeo_Цвет': 'Венге',
+        'Цвет/Отделка': 'Венге',
         'Ширина/мм': 900,
         'Высота/мм': 2000,
         'Цена РРЦ': 28000,
@@ -581,7 +706,7 @@ describe('calculateDoorPrice — связи и граничные случаи',
       getOptionProducts: () => []
     });
     const sumBreakdown = r.breakdown.reduce((s, b) => s + b.amount, 0);
-    expect(r.total).toBe(sumBreakdown);
-    expect(r.total).toBe(28000 + 600 + 900 + 3000 + 1500);
+    expect(r.total).toBe(roundUpTo100(sumBreakdown));
+    expect(r.total).toBe(34000); // 28000+600+900+3000+1500 уже кратно 100
   });
 });

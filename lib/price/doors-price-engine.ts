@@ -43,6 +43,10 @@ export interface PriceResult {
   breakdown: BreakdownItem[];
   total: number;
   sku: string | null;
+  /** Название модели из БД (подмодель по фильтрам) — для корзины и экспорта в Excel */
+  model_name: string | null;
+  /** Все подходящие по фильтру товары (подмодели) — для корзины/заказа/экспорта без повторного поиска в БД */
+  matchingProducts?: ProductWithProps[];
 }
 
 function parseProductProperties(value: unknown): Record<string, unknown> {
@@ -59,7 +63,10 @@ function parseProductProperties(value: unknown): Record<string, unknown> {
 
 export function getProductRrc(product: ProductWithProps): number {
   const props = parseProductProperties(product.properties_data);
-  const rrc = Number(props['Цена РРЦ']);
+  const rrc =
+    Number(props['Цена РРЦ']) ||
+    Number(props['Цена РРЦ (руб)']) ||
+    Number(props['Цена розница']);
   if (Number.isFinite(rrc) && rrc > 0) return rrc;
   return Number(product.base_price || 0);
 }
@@ -68,6 +75,41 @@ export function pickMaxPriceProduct<T extends ProductWithProps>(products: T[]): 
   return products.reduce((maxProduct, currentProduct) => {
     return getProductRrc(currentProduct) > getProductRrc(maxProduct) ? currentProduct : maxProduct;
   }, products[0]);
+}
+
+/**
+ * Выбор одной подмодели из подходящих: предпочитаем ту, чьё «Название модели» соответствует
+ * выбранному типу покрытия (Эмаль/ПВХ/ПЭТ/Шпон) и по возможности «гладкую» подмодель, а не Флекс/Порта.
+ * Иначе в экспорт попадала бы подмодель с макс. РРЦ (например ДПГ Флекс Эмаль Порта) вместо нужной (Дверь Гладкое эмаль ДГ).
+ */
+export function pickProductBySelection<T extends ProductWithProps>(
+  products: T[],
+  selection: { finish?: string | null }
+): T {
+  if (products.length === 0) throw new Error('pickProductBySelection: пустой массив');
+  if (products.length === 1) return products[0];
+
+  const selFinish = selection.finish != null ? String(selection.finish).trim().toLowerCase() : '';
+
+  function getModelName(p: ProductWithProps): string {
+    const props = parseProductProperties(p.properties_data);
+    return String(props['Название модели'] ?? '').trim().toLowerCase();
+  }
+
+  // Сначала оставляем товары, у которых Название модели содержит выбранный тип покрытия
+  let preferred = products;
+  if (selFinish) {
+    const byFinish = products.filter((p) => getModelName(p).includes(selFinish));
+    if (byFinish.length > 0) preferred = byFinish;
+  }
+
+  // Предпочитаем подмодели без «Флекс» и «Порта» (гладкие), чтобы не подставлять ДПГ Флекс Эмаль Порта для Эмаль
+  const noFlexPorta = preferred.filter(
+    (p) => !getModelName(p).includes('флекс') && !getModelName(p).includes('порта')
+  );
+  if (noFlexPorta.length > 0) preferred = noFlexPorta;
+
+  return pickMaxPriceProduct(preferred);
 }
 
 export const HEIGHT_BAND_2301_2500 = 2350;
@@ -79,47 +121,78 @@ export function heightForMatching(selectionHeight: number | undefined): number |
   return selectionHeight;
 }
 
+/** Округление итоговой цены вверх до 100 руб. */
+export function roundUpTo100(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.ceil(n / 100) * 100;
+}
+
+/** Нормализация строки для сравнения (trim); пустая строка после trim → null. */
+function normStr(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
+/**
+ * Подбор товаров дверей по выбору пользователя.
+ * Совпадение по: Код модели Domeo (Web), Стиль (Domeo_Стиль Web), Тип покрытия, Цвет/Отделка, размеры, наполнение, поставщик.
+ * Название модели в фильтр не входит (оно привязано к коду и стилю в БД; цвета в каталоге привязаны к Название модели через PropertyPhoto).
+ * @param allowEmptyColor — если true, при выбранном цвете подходят и товары без Цвет/Отделка (импорт из «Цены базовые» не заполняет цвет; одна цена на покрытие).
+ */
 export function filterProducts(
   products: ProductWithProps[],
   selection: PriceSelection,
   requireStyle: boolean,
-  requireFinish: boolean
+  requireFinish: boolean,
+  allowEmptyColor: boolean = false
 ): ProductWithProps[] {
+  const selStyle = normStr(selection.style);
+  const selModel = normStr(selection.model);
+  const selFinish = normStr(selection.finish);
+  const selColor = normStr(selection.color);
+  const selFilling = normStr(selection.filling);
+  const selSupplier = normStr(selection.supplier);
+
   return products.filter((p) => {
     const properties = parseProductProperties(p.properties_data);
+    const dbStyle = normStr(properties['Domeo_Стиль Web']);
+    const modelCode = normStr(properties['Код модели Domeo (Web)']);
+    const dbFinish = normStr(properties['Тип покрытия']);
+    const dbColor = normStr(properties['Цвет/Отделка']);
 
     const styleMatch =
       !requireStyle ||
-      !selection.style ||
-      properties['Domeo_Стиль Web'] === selection.style ||
-      (typeof selection.style === 'string' &&
-        (properties['Domeo_Стиль Web'] as string)?.startsWith?.(selection.style.slice(0, 8)));
+      !selStyle ||
+      dbStyle === selStyle ||
+      (dbStyle != null && selStyle != null && dbStyle.startsWith(selStyle.slice(0, 8)));
 
-    const modelName = properties['Domeo_Название модели для Web'];
-    const modelCode = properties['Код модели Domeo (Web)'] ?? properties['Артикул поставщика'];
     const modelMatch =
-      !selection.model ||
-      modelName === selection.model ||
-      modelCode === selection.model ||
-      (typeof selection.model === 'string' &&
-        ((modelName as string)?.includes?.(selection.model) || (modelCode as string)?.includes?.(selection.model)));
+      !selModel ||
+      modelCode === selModel ||
+      (modelCode != null && selModel != null && modelCode.includes(selModel));
 
     if (!styleMatch || !modelMatch) return false;
 
-    const finishMatch = !requireFinish || !selection.finish || properties['Тип покрытия'] === selection.finish;
+    const finishMatch =
+      !requireFinish ||
+      !selFinish ||
+      dbFinish === selFinish ||
+      (dbFinish != null && selFinish != null && dbFinish.trim().toLowerCase() === selFinish.trim().toLowerCase());
     const colorMatch =
-      !selection.color || properties['Domeo_Цвет'] === selection.color || properties['Domeo_Цвет'] == null;
-    const typeMatch = !selection.type || properties['Тип конструкции'] === selection.type;
+      !selColor ||
+      (dbColor != null && dbColor !== '' && dbColor === selColor) ||
+      (allowEmptyColor && selColor != null && (dbColor == null || dbColor === ''));
     const widthMatch = !selection.width || properties['Ширина/мм'] == selection.width;
     const heightToMatch = heightForMatching(selection.height ?? undefined);
     const heightMatch = !heightToMatch || properties['Высота/мм'] == heightToMatch;
     const fillingMatch =
-      !selection.filling ||
-      String(properties['Domeo_Опции_Название_наполнения'] ?? '').trim() === selection.filling;
+      !selFilling ||
+      (normStr(properties['Domeo_Опции_Название_наполнения']) ?? '') === selFilling;
     const supplierMatch =
-      !selection.supplier || String(properties['Поставщик'] ?? '').trim() === selection.supplier;
+      !selSupplier || (normStr(properties['Поставщик']) ?? '') === selSupplier;
 
-    return finishMatch && colorMatch && typeMatch && widthMatch && heightMatch && fillingMatch && supplierMatch;
+    return finishMatch && colorMatch && widthMatch && heightMatch && fillingMatch && supplierMatch;
   });
 }
 
@@ -139,18 +212,23 @@ export interface EngineInput {
 export function calculateDoorPrice(input: EngineInput): PriceResult {
   const { products, selection, hardwareKits, handles, getLimiter, getOptionProducts } = input;
 
-  let matching = filterProducts(products, selection, true, true);
-  if (matching.length === 0) matching = filterProducts(products, selection, true, false);
-  if (matching.length === 0) matching = filterProducts(products, selection, false, false);
+  let matching = filterProducts(products, selection, true, true, false);
+  if (matching.length === 0) matching = filterProducts(products, selection, true, true, true);
+  if (matching.length === 0) matching = filterProducts(products, selection, true, false, true);
+  if (matching.length === 0) matching = filterProducts(products, selection, false, false, true);
 
   if (matching.length === 0) {
     throw new Error(`Товар с указанными параметрами не найден: ${JSON.stringify(selection)}`);
   }
 
-  const product = pickMaxPriceProduct(matching);
+  const product = pickProductBySelection(matching, selection);
   const properties = parseProductProperties(product.properties_data);
 
-  const rrcPrice = Number(properties['Цена РРЦ']) || 0;
+  const rrcPrice =
+    Number(properties['Цена РРЦ']) ||
+    Number(properties['Цена РРЦ (руб)']) ||
+    Number(properties['Цена розница']) ||
+    0;
   const basePrice = Number(product.base_price || 0);
   let doorPrice = rrcPrice || basePrice;
 
@@ -294,11 +372,14 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
     }
   }
 
+  const modelName = String(properties['Название модели'] ?? '').trim() || null;
   return {
     currency: 'RUB',
     base: doorPrice,
     breakdown,
-    total: Math.round(total),
-    sku: product.sku ?? null
+    total: roundUpTo100(total),
+    sku: product.sku ?? null,
+    model_name: modelName,
+    matchingProducts: matching
   };
 }

@@ -1,0 +1,16 @@
+const fs = require('fs');
+const path = require('path');
+const base = path.join(process.cwd(), 'public', 'uploads', 'final-filled');
+const dirs = fs.readdirSync(base);
+const sub = dirs.find(d => d === 'doors') || dirs.find(d => d === 'Цвет') || dirs[0];
+const colorDir = path.join(base, sub);
+const files = fs.readdirSync(colorDir);
+const lower = f => f.toLowerCase();
+const hasLedoux = files.filter(f => /ledoux|ledou/i.test(f));
+const hasRuby = files.filter(f => /ruby|руби/i.test(f));
+const hasGabriel = files.filter(f => /gabriel|gabri|габри/i.test(f));
+console.log('Ledoux files:', hasLedoux.length, hasLedoux.slice(0, 8));
+console.log('Ruby files:', hasRuby.length, hasRuby.slice(0, 8));
+console.log('Gabriel files:', hasGabriel.length, hasGabriel.slice(0, 8));
+console.log('\nFirst 60 filenames:');
+files.slice(0, 60).forEach(f => console.log(f));

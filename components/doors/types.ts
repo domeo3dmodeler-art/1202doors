@@ -31,6 +31,21 @@ export type ProductLike = {
   model?: string | null;
 };
 
+/** Один подходящий по фильтру вариант двери из БД — для экспорта без повторного поиска (Название модели, Поставщик, Цена опт, РРЦ, артикул и т.д.) */
+export interface DoorVariant {
+  modelName: string;
+  supplier: string;
+  priceOpt: string | number;
+  priceRrc: string | number;
+  material: string;
+  width: number | string;
+  height: number | string;
+  color: string;
+  skuInternal: string;
+  productId?: string;
+  productSku?: string | null;
+}
+
 /** Тип строки в корзине: дверь (полная конфигурация), ручка или завертка отдельной строкой */
 export type CartItemType = 'door' | 'handle' | 'backplate' | 'limiter';
 
@@ -40,6 +55,10 @@ export type CartItem = {
   itemType?: CartItemType;
   style?: string;
   model?: string;
+  /** Название модели из БД (подмодель по фильтрам) — в заказ и в экспорт Excel */
+  model_name?: string | null;
+  /** Все подходящие по фильтру варианты (подмодели) из БД — в заказ и экспорт Excel без повторного поиска */
+  matchingVariants?: DoorVariant[];
   finish?: string;
   type?: string;
   width?: number;
@@ -55,18 +74,32 @@ export type CartItem = {
   baseAtAdd?: number;
   /** Кромка (да/нет) */
   edge?: string;
+  /** Название цвета кромки для экспорта на фабрику */
+  edgeColorName?: string;
+  /** Цвет стекла для экспорта на фабрику */
+  glassColor?: string;
   limiterId?: string;
   limiterName?: string;
   coatingId?: string;
   edgeId?: string;
   /** ID опций-товаров (только наличники); зеркало/порог не отдельные строки */
   optionIds?: string[];
+  /** Названия наличников для экспорта в Excel */
+  architraveNames?: string[];
+  optionNames?: string[];
   /** Реверс двери — учтён в цене */
   reversible?: boolean;
   /** Зеркало: 'one' | 'both' и т.д. — учтено в цене, не отдельная строка */
   mirror?: string;
   /** Порог — учтён в цене, не отдельная строка */
   threshold?: boolean;
+  /** Снимок спецификации из калькулятора (как в блоке «Спецификация») — для точного отображения в корзине */
+  specRows?: Array<{ label: string; value: string }>;
+  /** Разбивка цены по опциям (из калькулятора) — для экспорта в Excel колонок «опция, цена» */
+  breakdown?: Array<{ label: string; amount: number }>;
+  /** Наполнение (название) — для экспорта в Excel колонку «Наполнение» */
+  filling?: string;
+  fillingName?: string;
 };
 
 export type DomainKits = { id: string; name: string; group?: number; price_rrc?: number }[];

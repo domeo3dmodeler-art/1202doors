@@ -175,3 +175,6 @@ tsconfig.tsbuildinfo
 # Test results
 test-results/
 playwright-report/
+
+# Scripts output (reports, generated data)
+scripts/output/

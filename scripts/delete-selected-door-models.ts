@@ -4,12 +4,19 @@ import { DOOR_COLOR_PROPERTY } from '../lib/property-photos';
 
 const prisma = new PrismaClient();
 
+/** Модели без цвета — удалить из БД (по «Название модели»). */
 const TARGET_MODEL_NAMES = [
-  'Дверное полотно Elegance 1 ПГ иск.п.',
-  'Дверное полотно Elegance 2 ПГ иск.п.',
-  'Дверное полотно Elegance 3 ПГ иск.п.',
-  'Дверь In44 ДГ КП',
-  'Дверь In9 invisible box ДГ Универсальное КП',
+  'ДПГ Классико-70',
+  'ДПГ Классико-92',
+  'ДПГ Флекс Эмаль Неоклассико-11',
+  'ДПГ Флекс Эмаль Неоклассико-12',
+  'ДПГ Флекс Эмаль Порта- 4АB',
+  'ДПГ Флекс Эмаль Порта- 4AB',
+  'ДПГ Флекс Эмаль Порта ПТА-50 В',
+  'ДПГ Флекс Эмаль Порта ПТА-50.11 В',
+  'ДПГ Флекс Эмаль Порта ПТА-51 В',
+  'ДПГ Флекс Эмаль Порта-51 4AB',
+  'ДПГ Флекс Эмаль Порта-52 4AB',
 ];
 
 function parseProps(value: unknown): Record<string, unknown> {
@@ -39,8 +46,8 @@ async function main() {
 
   const toDeleteProducts = products.filter((p) => {
     const props = parseProps(p.properties_data);
-    const modelName = String(props['Название модели'] ?? '').trim();
-    return TARGET_MODEL_NAMES.includes(modelName);
+    const name = String(props['Название модели'] ?? '').trim();
+    return TARGET_MODEL_NAMES.includes(name);
   });
 
   const allColorPhotos = await prisma.propertyPhoto.findMany({

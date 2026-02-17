@@ -84,10 +84,22 @@ export default function CommentsModal({
         clientLogger.debug('🔍 User data from API:', data);
         setCurrentUser({ id: data.user.id, role: data.user.role });
       } else {
-        clientLogger.warn('Failed to fetch current user:', response.status);
+        const body = await response.text();
+        let parsed: unknown = null;
+        try {
+          parsed = body ? JSON.parse(body) : null;
+        } catch {
+          parsed = body || null;
+        }
+        clientLogger.warn('Failed to fetch current user', {
+          status: response.status,
+          statusText: response.statusText,
+          body: parsed
+        });
       }
     } catch (error) {
-      clientLogger.error('Error fetching current user:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      clientLogger.error('Error fetching current user', { message: err.message, stack: err.stack });
     }
   }, []);
 

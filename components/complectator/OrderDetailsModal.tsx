@@ -11,6 +11,8 @@ import { getValidTransitions } from '@/lib/validation/status-transitions';
 import { clientLogger } from '@/lib/logging/client-logger';
 import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 import { parseApiResponse } from '@/lib/utils/parse-api-response';
+import { getItemDisplayNameForExport } from '@/lib/export/display-names';
+import { getImageSrc } from '@/lib/configurator/image-src';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -110,14 +112,8 @@ const getOriginalFileName = (fileUrl: string): string => {
 // Вспомогательная функция для скачивания файла с правильным именем
 const downloadFile = async (fileUrl: string, defaultName: string = 'file') => {
   try {
-    // Нормализуем URL: если начинается с /uploads/, заменяем на /api/uploads/
-    let normalizedUrl = fileUrl;
-    if (normalizedUrl.startsWith('/uploads/')) {
-      normalizedUrl = normalizedUrl.replace('/uploads/', '/api/uploads/');
-    } else if (!normalizedUrl.startsWith('/api/uploads/') && !normalizedUrl.startsWith('http')) {
-      // Если URL не начинается с /api/uploads/ и не абсолютный, добавляем /api/uploads/
-      normalizedUrl = `/api/uploads/${normalizedUrl.startsWith('/') ? normalizedUrl.substring(1) : normalizedUrl}`;
-    }
+    // Единый слой путей: getImageSrc даёт URL для раздачи (Next.js: /uploads/... из public/)
+    const normalizedUrl = getImageSrc(fileUrl) || fileUrl;
     
     clientLogger.debug('Downloading file:', { originalUrl: fileUrl, normalizedUrl });
     
@@ -344,23 +340,21 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
     // Комплектатор управляет статусами заказа напрямую
     const currentStatus = order.status;
     
-    // Комплектатор может работать со статусами: DRAFT, SENT, NEW_PLANNED, RETURNED_TO_COMPLECTATION
-    const complectatorStatuses = ['DRAFT', 'SENT', 'NEW_PLANNED', 'RETURNED_TO_COMPLECTATION'];
+    // Комплектатор может работать только со статусами: DRAFT, SENT, NEW_PLANNED (статус «Вернуть в комплектацию» недоступен)
+    const complectatorStatuses = ['DRAFT', 'SENT', 'NEW_PLANNED'];
     
-    // Если текущий статус не статус комплектатора (кроме NEW_PLANNED), комплектатор не может его изменить
+    // Если заказ у исполнителя — комплектатор не может менять статус
     if (!complectatorStatuses.includes(currentStatus)) {
       return [];
     }
     
     const allTransitions = getValidTransitions('order', currentStatus);
     
-    // Фильтруем переходы для комплектатора согласно каноническому документу:
-    // - Из DRAFT: может перевести в SENT или CANCELLED
-    // - Из SENT: может перевести в NEW_PLANNED или CANCELLED
-    // - Из NEW_PLANNED: может перевести в CANCELLED (только отмена)
-    // - Из RETURNED_TO_COMPLECTATION: может перевести в DRAFT, SENT или NEW_PLANNED
+    // Разрешенные переходы для комплектатора:
+    // - Из DRAFT: SENT или CANCELLED
+    // - Из SENT: NEW_PLANNED или CANCELLED
+    // - Из NEW_PLANNED: только CANCELLED
     
-    // Определяем разрешенные статусы в зависимости от текущего статуса
     let allowedStatuses: string[] = [];
     
     if (currentStatus === 'DRAFT') {
@@ -368,9 +362,7 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
     } else if (currentStatus === 'SENT') {
       allowedStatuses = ['NEW_PLANNED', 'CANCELLED'];
     } else if (currentStatus === 'NEW_PLANNED') {
-      allowedStatuses = ['CANCELLED', 'RETURNED_TO_COMPLECTATION'];
-    } else if (currentStatus === 'RETURNED_TO_COMPLECTATION') {
-      allowedStatuses = ['DRAFT', 'SENT', 'NEW_PLANNED'];
+      allowedStatuses = ['CANCELLED'];
     }
     
     // Фильтруем переходы только из разрешенных
@@ -728,17 +720,14 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
 
     setExportingInvoice(true);
     try {
-      // Преобразуем items в формат, ожидаемый API
       const formattedItems = items.map((item: any) => {
-        // Нормализуем данные товара
-        const quantity = item.qty || item.quantity || 1;
-        const unitPrice = item.unitPrice || item.price || item.unit_price || 0;
-        
+        const quantity = item.qty ?? item.quantity ?? 1;
+        const unitPrice = item.unitPrice ?? item.price ?? item.unit_price ?? 0;
         return {
           id: item.id || item.productId || item.product_id || `item-${Math.random()}`,
-          productId: item.productId || item.product_id || item.id || `product-${Math.random()}`,
-          name: item.name || item.model || 'Товар',
-          model: item.model || item.name || 'Товар',
+          productId: item.productId || item.product_id || item.id,
+          name: item.name,
+          model: item.model,
           qty: quantity,
           quantity: quantity,
           unitPrice: unitPrice,
@@ -748,16 +737,27 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
           color: item.color,
           finish: item.finish,
           style: item.style,
-          type: item.type || 'door',
+          type: item.type ?? item.itemType ?? undefined,
+          itemType: item.itemType ?? item.type ?? undefined,
           sku_1c: item.sku_1c,
           handleId: item.handleId,
           handleName: item.handleName,
+          limiterId: item.limiterId,
+          limiterName: item.limiterName,
           hardwareKitId: item.hardwareKitId,
-          hardwareKitName: item.hardwareKitName
+          hardwareKitName: item.hardwareKitName ?? item.hardware,
+          optionIds: item.optionIds,
+          architraveNames: item.architraveNames,
+          optionNames: item.optionNames,
+          edge: item.edge,
+          edgeColorName: item.edgeColorName ?? item.edge_color_name,
+          glassColor: item.glassColor ?? item.glass_color,
+          reversible: item.reversible,
+          mirror: item.mirror,
+          threshold: item.threshold
         };
       });
 
-      // Вычисляем общую сумму, если она не указана
       const totalAmount = order.total_amount || formattedItems.reduce((sum: number, item: any) => 
         sum + (item.unitPrice || 0) * (item.qty || 1), 0
       );
@@ -870,17 +870,14 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
 
     setExportingQuote('exporting');
     try {
-      // Преобразуем items в формат, ожидаемый API
       const formattedItems = items.map((item: any) => {
-        // Нормализуем данные товара
-        const quantity = item.qty || item.quantity || 1;
-        const unitPrice = item.unitPrice || item.price || item.unit_price || 0;
-        
+        const quantity = item.qty ?? item.quantity ?? 1;
+        const unitPrice = item.unitPrice ?? item.price ?? item.unit_price ?? 0;
         return {
           id: item.id || item.productId || item.product_id || `item-${Math.random()}`,
-          productId: item.productId || item.product_id || item.id || `product-${Math.random()}`,
-          name: item.name || item.model || 'Товар',
-          model: item.model || item.name || 'Товар',
+          productId: item.productId || item.product_id || item.id,
+          name: item.name,
+          model: item.model,
           qty: quantity,
           quantity: quantity,
           unitPrice: unitPrice,
@@ -890,16 +887,27 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
           color: item.color,
           finish: item.finish,
           style: item.style,
-          type: item.type || 'door',
+          type: item.type ?? item.itemType ?? undefined,
+          itemType: item.itemType ?? item.type ?? undefined,
           sku_1c: item.sku_1c,
           handleId: item.handleId,
           handleName: item.handleName,
+          limiterId: item.limiterId,
+          limiterName: item.limiterName,
           hardwareKitId: item.hardwareKitId,
-          hardwareKitName: item.hardwareKitName
+          hardwareKitName: item.hardwareKitName ?? item.hardware,
+          optionIds: item.optionIds,
+          architraveNames: item.architraveNames,
+          optionNames: item.optionNames,
+          edge: item.edge,
+          edgeColorName: item.edgeColorName ?? item.edge_color_name,
+          glassColor: item.glassColor ?? item.glass_color,
+          reversible: item.reversible,
+          mirror: item.mirror,
+          threshold: item.threshold
         };
       });
 
-      // Вычисляем общую сумму, если она не указана
       const totalAmount = order.total_amount || formattedItems.reduce((sum: number, item: any) => 
         sum + (item.unitPrice || 0) * (item.qty || 1), 0
       );
@@ -1522,26 +1530,8 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                         const quantity = item.quantity || item.qty || 1;
                         const unitPrice = item.unit_price || item.price || 0;
                         const totalPrice = quantity * unitPrice;
-                        
-                        // Простое определение ручки: проверяем type или handleId из корзины
-                        const isHandle = item.type === 'handle' || !!item.handleId;
-                        
-                        // Формируем название товара точно как в корзине
-                        let displayName: string;
-                        if (item.name) {
-                          // Если есть сохраненное название - используем его
-                          displayName = item.name;
-                        } else if (isHandle) {
-                          // Ручка - формируем название
-                          const handleName = item.handleName || 'Неизвестная ручка';
-                          displayName = `Ручка ${handleName}`;
-                        } else {
-                          // Дверь - формируем полное название как в корзине
-                          const modelName = item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель';
-                          const hardwareKitName = item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый';
-                          displayName = `Дверь DomeoDoors ${modelName} (${item.finish || ''}, ${item.color || ''}, ${item.width || ''} × ${item.height || ''} мм, Фурнитура - ${hardwareKitName})`;
-                        }
-                        
+                        // Единое наименование товара заказа для всех ЛК (как в экспорте)
+                        const displayName = getItemDisplayNameForExport(item);
                         return (
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-2 py-3 text-center text-sm text-gray-900 font-medium">
@@ -1846,6 +1836,11 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                     );
                   })}
                 </select>
+                {newStatus === 'NEW_PLANNED' && !order?.project_file_url && (
+                  <p className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    Для перевода заказа в этот статус прикрепите файлы с Проектом/Планировкой.
+                  </p>
+                )}
               </div>
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button
@@ -1868,15 +1863,20 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                       hasOrder: !!order,
                       orderId: order?.id
                     });
-                    if (newStatus && !changingStatus && order) {
-                      handleStatusChange();
-                    } else {
+                    if (!newStatus || changingStatus || !order) {
                       clientLogger.warn('🔘 Кнопка "Изменить" заблокирована', {
                         newStatus,
                         changingStatus,
                         hasOrder: !!order
                       });
+                      return;
                     }
+                    // Переход в "Счет оплачен (Заказываем)" возможен только при загруженном проекте/планировке
+                    if (newStatus === 'NEW_PLANNED' && !order.project_file_url) {
+                      toast.error('Для перевода заказа в этот статус прикрепите файлы с Проектом/Планировкой.');
+                      return;
+                    }
+                    handleStatusChange();
                   }}
                   disabled={!newStatus || changingStatus}
                   className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

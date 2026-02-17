@@ -112,13 +112,15 @@ export async function findExistingDocument(
     // Этап 1: Строгий поиск по всем критериям
     let existing = null;
     
+    const amountTolerance = { gte: totalAmount - 0.01, lte: totalAmount + 0.01 };
+
     if (type === 'quote') {
       existing = await prisma.quote.findFirst({
         where: {
           parent_document_id: parentDocumentId,
           cart_session_id: cartSessionId,
           client_id: clientId,
-          total_amount: totalAmount
+          total_amount: amountTolerance
         } as any,
         orderBy: { created_at: 'desc' }
       });
@@ -128,7 +130,7 @@ export async function findExistingDocument(
           parent_document_id: parentDocumentId,
           cart_session_id: cartSessionId,
           client_id: clientId,
-          total_amount: totalAmount
+          total_amount: amountTolerance
         } as any,
         orderBy: { created_at: 'desc' }
       });
@@ -137,10 +139,7 @@ export async function findExistingDocument(
         where: {
           parent_document_id: parentDocumentId,
           cart_session_id: cartSessionId,
-          total_amount: {
-            gte: totalAmount - 0.01,
-            lte: totalAmount + 0.01
-          }
+          total_amount: amountTolerance
         } as any,
         orderBy: { created_at: 'desc' }
       });

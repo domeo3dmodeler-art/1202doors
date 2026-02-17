@@ -1,11 +1,11 @@
 /**
  * Утилиты для работы с фото моделей
- * Система привязки фото к свойству "Domeo_Название модели для Web"
+ * Система привязки фото к свойству "Название модели"
  */
 
 export interface ModelPhoto {
   id: string;
-  modelName: string; // "Domeo_Название модели для Web"
+  modelName: string; // "Название модели"
   photoPath: string;
   isCover: boolean;
   sortOrder: number;
@@ -113,7 +113,7 @@ export function getModelPhotos(modelName: string, allProducts: any[], photoPrope
   const modelProducts = allProducts.filter(product => {
     try {
       const properties = JSON.parse(product.properties_data || '{}');
-      return properties['Domeo_Название модели для Web'] === modelName;
+      return properties['Название модели'] === modelName;
     } catch {
       return false;
     }

@@ -10,6 +10,8 @@ export interface ModelOptionsData {
   finishes: string[];
   colorsByFinish: Record<string, string[]>;
   edges: string[];
+  /** Кромка в базе по отфильтрованному набору (текущее покрытие/подмодель). Base 1 = 4 подмодели; при ПЭТ только одна, без кромки в базе. */
+  edge_in_base: boolean;
   mirror_available: boolean;
   threshold_available: boolean;
   filteredCount: number;
@@ -23,6 +25,7 @@ const emptyOptions: ModelOptionsData = {
   finishes: [],
   colorsByFinish: {},
   edges: [],
+  edge_in_base: false,
   mirror_available: false,
   threshold_available: false,
   filteredCount: 0,
@@ -82,6 +85,7 @@ export function useModelOptions(
           finishes: Array.isArray(payload.finishes) ? payload.finishes : [],
           colorsByFinish: payload.colorsByFinish && typeof payload.colorsByFinish === 'object' ? payload.colorsByFinish : {},
           edges: Array.isArray(payload.edges) ? payload.edges : [],
+          edge_in_base: payload.edge_in_base !== undefined ? Boolean(payload.edge_in_base) : false,
           mirror_available: Boolean(payload.mirror_available),
           threshold_available: Boolean(payload.threshold_available),
           filteredCount: Number(payload.filteredCount) || 0,

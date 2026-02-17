@@ -60,9 +60,10 @@ async function getHandler(
       if (style && properties['Domeo_Стиль Web'] !== style) return false;
       
       // Модель: по коду Domeo (Web) или по фабричному названию
-      if (model && properties['Код модели Domeo (Web)'] !== model && properties['Domeo_Название модели для Web'] !== model) return false;
+      const modelNameVal = properties['Название модели'];
+      if (model && properties['Код модели Domeo (Web)'] !== model && modelNameVal !== model) return false;
       if (finish && properties['Тип покрытия'] !== finish) return false;
-      if (color && properties['Domeo_Цвет'] !== color) return false;
+      if (color && properties['Цвет/Отделка'] !== color) return false;
       if (type && properties['Тип конструкции'] !== type) return false;
       // НЕ фильтруем по width и height - они нужны для каскадной фильтрации
       
@@ -100,7 +101,7 @@ async function getHandler(
       sampleProducts.forEach((product: { properties_data: unknown }, index: number) => {
         const properties = product.properties_data ?
           (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
-        logger.debug(`   Товар ${index + 1}: модель="${properties['Domeo_Название модели для Web']}", стиль="${properties['Domeo_Стиль Web']}"`, 'catalog/doors/cascade-options');
+        logger.debug(`   Товар ${index + 1}: модель="${properties['Название модели']}", стиль="${properties['Domeo_Стиль Web']}"`, 'catalog/doors/cascade-options');
       });
     }
 
@@ -126,7 +127,7 @@ async function getHandler(
 
       // Добавляем опции, которые еще не выбраны, ИЛИ уже выбраны (чтобы они отображались в селекте)
       if (properties['Тип покрытия']) availableOptions.finish.add(properties['Тип покрытия']);
-      if (properties['Domeo_Цвет']) availableOptions.color.add(properties['Domeo_Цвет']);
+      if (properties['Цвет/Отделка']) availableOptions.color.add(properties['Цвет/Отделка']);
       if (properties['Тип конструкции']) availableOptions.type.add(properties['Тип конструкции']);
       if (properties['Ширина/мм']) availableOptions.width.add(Number(properties['Ширина/мм']));
       if (properties['Высота/мм']) availableOptions.height.add(Number(properties['Высота/мм']));

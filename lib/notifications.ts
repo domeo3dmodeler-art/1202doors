@@ -153,7 +153,7 @@ export async function notifyDocumentCreated(
   };
 
   const recipients = {
-    order: ['complectator', 'manager'] as const,
+    order: ['manager'] as const, // комплектатору не отправляем «Создан новый заказ»
     invoice: ['manager'] as const,
     supplier_order: ['complectator', 'executor'] as const
   };

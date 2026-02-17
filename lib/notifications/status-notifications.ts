@@ -42,31 +42,31 @@ export const STATUS_NOTIFICATIONS = {
   },
   order: {
     'SENT': {
-      recipients: ['complectator'],
+      recipients: [], // комплектатору не отправляем «Счет по заказу отправлен клиенту»
       message: 'Счет по заказу отправлен клиенту.'
     },
     'NEW_PLANNED': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Счет оплачен. Заказ готов к обработке.'
     },
     'UNDER_REVIEW': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Заказ переведен на проверку.'
     },
     'AWAITING_MEASUREMENT': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Заказ ожидает замера. Требуются точные размеры с объекта.'
     },
     'AWAITING_INVOICE': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Заказ ожидает оптовые счета. Запрошены счета у поставщиков.'
     },
     'READY_FOR_PRODUCTION': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Заказ готов к запуску в производство. Все документы готовы. Требуется ваша команда на запуск.'
     },
     'COMPLETED': {
-      recipients: ['complectator', 'executor', 'manager'],
+      recipients: ['executor', 'manager'], // комплектатору не отправляем
       message: 'Заказ выполнен и готов к отгрузке/установке.'
     },
     'RETURNED_TO_COMPLECTATION': {
@@ -74,7 +74,7 @@ export const STATUS_NOTIFICATIONS = {
       message: 'Заказ возвращен вам для доработки.'
     },
     'CANCELLED': {
-      recipients: ['complectator', 'executor'],
+      recipients: ['executor'], // комплектатору не отправляем
       message: 'Заказ отменен.'
     }
   },

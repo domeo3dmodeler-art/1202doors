@@ -150,7 +150,25 @@ export default function QuickCartSidebar({
           height: item.height,
           color: item.color,
           finish: item.finish,
-          sku_1c: item.sku_1c
+          sku_1c: item.sku_1c,
+          handleId: item.handleId,
+          handleName: item.handleName,
+          limiterId: item.limiterId,
+          limiterName: item.limiterName,
+          type: item.type ?? (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door'),
+          edge: item.edge,
+          edgeId: item.edgeId,
+          edgeColorName: item.edgeColorName,
+          threshold: item.threshold,
+          optionIds: item.optionIds,
+          architraveNames: item.architraveNames,
+          optionNames: item.optionNames,
+          reversible: item.reversible,
+          mirror: item.mirror,
+          glassColor: item.glassColor,
+          hardwareKitId: item.hardwareKitId,
+          hardwareKitName: item.hardwareKitName,
+          style: item.style
         }));
 
         const totalAmount = calculation?.total || cart.items.reduce(
@@ -191,7 +209,7 @@ export default function QuickCartSidebar({
     // Для Invoice и Quote: создаем через Order-first логику
     setIsExporting(true);
     try {
-      // Шаг 1: Создаем Order из корзины
+      // Шаг 1: Создаем Order из корзины (полный набор полей для Excel: кромка, порог, наличники)
       const items = cart.items.map((item: any) => ({
         id: item.id || item.productId,
         productId: item.productId || item.id,
@@ -205,7 +223,25 @@ export default function QuickCartSidebar({
         height: item.height,
         color: item.color,
         finish: item.finish,
-        sku_1c: item.sku_1c
+        sku_1c: item.sku_1c,
+        handleId: item.handleId,
+        handleName: item.handleName,
+        limiterId: item.limiterId,
+        limiterName: item.limiterName,
+        type: item.type ?? (item.handleId ? 'handle' : item.limiterId ? 'limiter' : 'door'),
+        edge: item.edge,
+        edgeId: item.edgeId,
+        edgeColorName: item.edgeColorName,
+        threshold: item.threshold,
+        optionIds: item.optionIds,
+        architraveNames: item.architraveNames,
+        optionNames: item.optionNames,
+        reversible: item.reversible,
+        mirror: item.mirror,
+        glassColor: item.glassColor,
+        hardwareKitId: item.hardwareKitId,
+        hardwareKitName: item.hardwareKitName,
+        style: item.style
       }));
 
       const totalAmount = calculation?.total || cart.items.reduce(

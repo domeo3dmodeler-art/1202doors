@@ -59,7 +59,7 @@ async function main() {
     const width = Number(props['Ширина/мм']) || 0;
     const height = Number(props['Высота/мм']) || 0;
     const finish = String(props['Тип покрытия'] ?? '').trim() || '—';
-    const color = String(props['Domeo_Цвет'] ?? '').trim() || '—';
+    const color = String(props['Цвет/Отделка'] ?? '').trim() || '—';
     const price = Number(props['Цена РРЦ']) || p.base_price || 0;
     const modelName = String(props['Domeo_Название модели для Web'] ?? '').trim();
 

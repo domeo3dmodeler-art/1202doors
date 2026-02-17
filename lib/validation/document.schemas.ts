@@ -3,14 +3,17 @@
 
 import { z } from 'zod';
 
-// Схема для элемента документа
+// Схема для элемента документа (type может приходить как itemType из корзины конфигуратора)
 export const documentItemSchema = z.object({
   id: z.string().optional(),
   productId: z.string().optional(),
   product_id: z.string().optional(),
-  type: z.string().min(1),
+  type: z.string().min(1).optional(),
+  itemType: z.string().optional(),
   name: z.string().optional(),
   model: z.string().optional(),
+  /** Название модели из БД (подмодель) — для экспорта в Excel */
+  model_name: z.string().nullable().optional(),
   qty: z.number().int().positive().optional(),
   quantity: z.number().int().positive().optional(),
   unitPrice: z.number().nonnegative().optional(),
@@ -21,13 +24,59 @@ export const documentItemSchema = z.object({
   color: z.string().optional(),
   finish: z.string().optional(),
   style: z.string().optional(),
-  sku_1c: z.string().nullable().optional(),
+  sku_1c: z.union([z.string(), z.number()]).nullable().optional(),
   handleId: z.string().optional(),
   handleName: z.string().optional(),
   hardwareKitId: z.string().optional(),
   hardwareKitName: z.string().optional(),
-  hardware: z.string().optional()
-});
+  hardware: z.string().optional(),
+  limiterId: z.string().optional(),
+  limiterName: z.string().optional(),
+  // Опции двери для экспорта на фабрику (сохраняем в cart_data)
+  edge: z.string().optional(),
+  edgeId: z.string().optional(),
+  edgeColorName: z.string().optional(),
+  edge_color_name: z.string().optional(),
+  glassColor: z.string().optional(),
+  glass_color: z.string().optional(),
+  reversible: z.boolean().optional(),
+  mirror: z.string().optional(),
+  /** Порог: из конфигуратора приходит boolean, из других источников может 1 или "да" */
+  threshold: z
+    .union([z.boolean(), z.literal(1), z.literal(0), z.string()])
+    .optional()
+    .transform((v) => v === true || v === 1 || (typeof v === 'string' && v.toLowerCase().trim() === 'да')),
+  optionIds: z.array(z.string()).optional(),
+  option_ids: z.array(z.string()).optional(),
+  /** Названия наличников для экспорта (вместо только «да») */
+  architraveNames: z.array(z.string()).optional(),
+  architrave_names: z.array(z.string()).optional(),
+  optionNames: z.array(z.string()).optional(),
+  price_opt: z.number().nonnegative().optional(),
+  specRows: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  /** Разбивка цены по опциям (из калькулятора) — для экспорта в Excel колонок «опция, цена» */
+  breakdown: z.array(z.object({ label: z.string(), amount: z.number() })).optional(),
+  /** Подходящие по фильтру варианты двери из БД (для экспорта без повторного поиска) */
+  matchingVariants: z.array(z.object({
+    modelName: z.string(),
+    supplier: z.string(),
+    priceOpt: z.union([z.string(), z.number()]),
+    priceRrc: z.union([z.string(), z.number()]),
+    material: z.string(),
+    width: z.union([z.number(), z.string()]),
+    height: z.union([z.number(), z.string()]),
+    color: z.string(),
+    skuInternal: z.string(),
+    productId: z.string().optional(),
+    productSku: z.string().nullable().optional()
+  })).optional()
+}).transform((data) => ({
+  ...data,
+  type: (data.type ?? data.itemType ?? undefined) as string | undefined,
+  // Единый вид для экспорта: дублируем snake_case → camelCase
+  optionIds: data.optionIds ?? data.option_ids,
+  architraveNames: data.architraveNames ?? data.architrave_names
+}));
 
 // Схема для создания документа
 export const createDocumentRequestSchema = z.object({
@@ -60,7 +109,9 @@ export const generateDocumentItemSchema = z.object({
   id: z.string().optional(),
   type: z.enum(['door', 'handle', 'backplate', 'limiter']).optional(),
   model: z.string().optional(),
+  model_name: z.string().nullable().optional(),
   style: z.string().optional(),
+  finish: z.string().optional(),
   color: z.string().optional(),
   width: z.number().nonnegative().optional(),
   height: z.number().nonnegative().optional(),
@@ -69,13 +120,44 @@ export const generateDocumentItemSchema = z.object({
   sku_1c: z.union([z.string(), z.number()]).nullable().optional(),
   handleId: z.string().optional(),
   limiterId: z.string().optional(),
+  limiterName: z.string().optional(),
   coatingId: z.string().optional(),
   edgeId: z.string().optional(),
+  edge: z.string().optional(),
+  /** Название цвета кромки (для экспорта на фабрику) */
+  edgeColorName: z.string().optional(),
+  edge_color_name: z.string().optional(),
+  /** Цвет стекла (для экспорта на фабрику) */
+  glassColor: z.string().optional(),
+  glass_color: z.string().optional(),
   optionIds: z.array(z.string()).optional(),
+  architraveNames: z.array(z.string()).optional(),
+  optionNames: z.array(z.string()).optional(),
   hardwareKitId: z.string().optional(),
+  hardwareKitName: z.string().optional(),
   reversible: z.boolean().optional(),
   mirror: z.string().optional(),
-  threshold: z.boolean().optional()
+  threshold: z.boolean().optional(),
+  /** Разбивка цены по опциям (из калькулятора) — для экспорта в Excel колонок «опция, цена» */
+  breakdown: z.array(z.object({ label: z.string(), amount: z.number() })).optional(),
+  /** Варианты из БД (для экспорта без повторного поиска); РРЦ/опт в экспорте берутся из БД */
+  matchingVariants: z.array(z.object({
+    modelName: z.string(),
+    supplier: z.string(),
+    priceOpt: z.union([z.string(), z.number()]),
+    priceRrc: z.union([z.string(), z.number()]),
+    material: z.string(),
+    width: z.union([z.number(), z.string()]),
+    height: z.union([z.number(), z.string()]),
+    color: z.string(),
+    skuInternal: z.string(),
+    productId: z.string().optional(),
+    productSku: z.string().nullable().optional()
+  })).optional(),
+  price_opt: z.number().nonnegative().optional(),
+  /** Наполнение (название) — для экспорта в Excel */
+  filling: z.string().optional(),
+  fillingName: z.string().optional()
 });
 
 // Тело запроса генерации документа из страницы дверей

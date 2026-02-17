@@ -65,7 +65,7 @@ async function applyDatabaseOptimizations() {
       },
       {
         name: 'color_extracted',
-        expression: "json_extract(properties_data, '$.Domeo_Цвет')"
+        expression: "json_extract(properties_data, '$.Цвет/Отделка')"
       },
       {
         name: 'finish_extracted',

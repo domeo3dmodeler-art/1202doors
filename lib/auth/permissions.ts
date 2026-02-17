@@ -145,29 +145,25 @@ export function canUserChangeStatus(
       if (roleStr === 'complectator') {
         const executorStatuses = ['NEW_PLANNED', 'UNDER_REVIEW', 'AWAITING_MEASUREMENT', 'AWAITING_INVOICE', 'READY_FOR_PRODUCTION', 'COMPLETED'];
         
-        // Если текущий статус - статус исполнителя (кроме NEW_PLANNED), комплектатор не может его изменить
+        // Если текущий статус — статус исполнителя (кроме NEW_PLANNED), комплектатор не может его изменить
         if (currentStatus && executorStatuses.includes(currentStatus) && currentStatus !== 'NEW_PLANNED') {
           return false;
         }
         
-        // Комплектатор может изменять статусы DRAFT, SENT, NEW_PLANNED, RETURNED_TO_COMPLECTATION
-        const complectatorStatuses = ['DRAFT', 'SENT', 'NEW_PLANNED', 'RETURNED_TO_COMPLECTATION'];
+        // Комплектатор может изменять только DRAFT, SENT, NEW_PLANNED (статус «Вернуть в комплектацию» недоступен комплектатору)
+        const complectatorStatuses = ['DRAFT', 'SENT', 'NEW_PLANNED'];
         if (currentStatus && !complectatorStatuses.includes(currentStatus)) {
           return false;
         }
         
-        // Разрешаем переходы между статусами комплектатора
+        // Разрешаем переходы: только DRAFT → SENT/CANCELLED, SENT → NEW_PLANNED/CANCELLED, NEW_PLANNED → CANCELLED
         if (currentStatus === 'DRAFT' && (newStatus === 'SENT' || newStatus === 'CANCELLED')) {
           return true;
         }
         if (currentStatus === 'SENT' && (newStatus === 'NEW_PLANNED' || newStatus === 'CANCELLED')) {
           return true;
         }
-        if (currentStatus === 'NEW_PLANNED' && (newStatus === 'CANCELLED' || newStatus === 'RETURNED_TO_COMPLECTATION')) {
-          return true;
-        }
-        // Комплектатор может вернуть заказ из RETURNED_TO_COMPLECTATION в DRAFT, SENT или NEW_PLANNED
-        if (currentStatus === 'RETURNED_TO_COMPLECTATION' && (newStatus === 'DRAFT' || newStatus === 'SENT' || newStatus === 'NEW_PLANNED')) {
+        if (currentStatus === 'NEW_PLANNED' && newStatus === 'CANCELLED') {
           return true;
         }
         

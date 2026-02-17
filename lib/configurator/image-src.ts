@@ -1,7 +1,8 @@
 /**
  * Единый слой отображения фото в конфигураторе дверей.
- * Источники данных: API complete-data (модели, покрытия), API hardware (ручки, наличники, ограничители).
- * Пути из API: /uploads/..., http(s)://...; локальные раздаются через /api/uploads/.
+ * Источники: API complete-data (модели, покрытия), API hardware (ручки, наличники, ограничители).
+ *
+ * Все пути /uploads/... отдаются статикой из public/uploads/ (Next.js).
  */
 
 /** Допустимые расширения для распознавания URL как картинки */
@@ -10,34 +11,43 @@ const DIRECT_YANDEX = /downloader\.disk\.yandex|get\.disk\.yandex/i;
 const CLOUD_PAGE = /360\.yandex\.ru|\/client\/disk\//i;
 
 /**
- * Нормализует путь из API в валидный URL для запроса.
+ * Нормализует путь из API в валидный URL для <img src>.
  * - Пустой / не строка → ''
- * - http(s) — отдаём как есть, кроме страниц облака (360.yandex.ru и т.п.) → ''
- * - Строка с пробелом и без расширения картинки → ''
- * - Путь, начинающийся с / → как есть (далее toDisplayUrl переведёт /uploads/ в /api/uploads/)
+ * - http(s) — как есть (кроме страниц облака)
+ * - /uploads/... → как есть (Next.js отдаёт из public/uploads/)
+ * - относительный (final-filled/..., uploads/...) → приводим к /uploads/...
  */
 export function resolveImagePath(path: string | null | undefined): string {
   if (path == null || typeof path !== 'string') return '';
-  const t = path.trim();
+  let t = path.trim();
   if (!t) return '';
   if (t.startsWith('http://') || t.startsWith('https://')) {
     if (t.includes(' ') && !IMAGE_EXT.test(t)) return '';
-    // Cloud URLs can still point to an image file; block only non-image cloud pages.
     if (CLOUD_PAGE.test(t) && !DIRECT_YANDEX.test(t) && !IMAGE_EXT.test(t)) return '';
     return t;
   }
   if (t.includes(' ') && !IMAGE_EXT.test(t)) return '';
+  // Опечатка в старых данных: /uploadsproducts/ → /uploads/products/
+  if (t.toLowerCase().includes('uploadsproducts')) return t.replace(/\/?uploadsproducts/gi, '/uploads/products');
+  // Папку переименовали Цвет → doors; старые пути из БД подставляем
+  if (t.includes('final-filled/Цвет') || t.includes('final-filled/Цвет/')) {
+    t = t.replace(/final-filled\/Цвет\/?/g, 'final-filled/doors/');
+  }
+  if (t.startsWith('/uploads/')) return t;
   if (t.startsWith('/')) return t;
-  return `/${t.replace(/^\//, '')}`;
+  const withLeading = t.replace(/^\//, '');
+  if (withLeading.toLowerCase().startsWith('uploads/')) return '/' + withLeading;
+  if (withLeading.includes('final-filled') || withLeading.includes('products/')) return '/uploads/' + withLeading.replace(/^uploads\//i, '');
+  return `/${withLeading}`;
 }
 
 /**
- * Возвращает URL для подстановки в <img src>.
- * Пути /uploads/... отдаём через /api/uploads/... (раздача из public/uploads).
+ * URL для <img src>. Все пути /uploads/... отдаются статикой из public/uploads/ (Next.js).
+ * Раньше двери шли через /api для fallback по имени — сейчас все photoPath заполнены, статика достаточна.
  */
 export function toDisplayUrl(resolvedPath: string): string {
   if (!resolvedPath) return '';
-  if (resolvedPath.startsWith('/uploads/')) return '/api/uploads/' + resolvedPath.slice(9);
+  if (resolvedPath.startsWith('/uploads/')) return resolvedPath;
   return resolvedPath;
 }
 

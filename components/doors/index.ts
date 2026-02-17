@@ -11,6 +11,7 @@ export { DoorConfiguration } from './DoorConfiguration';
 export { DoorPreview } from './DoorPreview';
 export { DoorSidebar } from './DoorSidebar';
 export { CartManager } from './CartManager';
+export { FilterDebugModal } from './FilterDebugModal';
 
 // Экспорт типов
 export type * from './types';

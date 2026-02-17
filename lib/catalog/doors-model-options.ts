@@ -12,9 +12,7 @@ export function getProductsByModelAndStyle(
 ): ProductLike[] {
   return products.filter((p) => {
     const code = String(p.properties['Код модели Domeo (Web)'] ?? '').trim();
-    const modelMatch =
-      code === modelCode || p.properties['Domeo_Название модели для Web'] === modelCode;
-    if (!modelMatch) return false;
+    if (code !== modelCode) return false;
     if (style) {
       const s = String(p.properties['Domeo_Стиль Web'] ?? '').trim();
       if (s !== style) return false;
@@ -56,12 +54,19 @@ export function filterBySize(
 
 export function filterByFinish(products: ProductLike[], finish: string): ProductLike[] {
   if (!finish.trim()) return products;
-  return products.filter((p) => String(p.properties['Тип покрытия'] ?? '').trim() === finish);
+  const norm = finish.trim().toLowerCase();
+  return products.filter((p) => String(p.properties['Тип покрытия'] ?? '').trim().toLowerCase() === norm);
+}
+
+/** Цвет товара — только Цвет/Отделка (Domeo_Цвет устарел). */
+function getCanonicalColor(properties: Record<string, unknown>): string {
+  const v = properties['Цвет/Отделка'];
+  return String(v ?? '').trim();
 }
 
 export function filterByColor(products: ProductLike[], color: string): ProductLike[] {
   if (!color.trim()) return products;
-  return products.filter((p) => String(p.properties['Domeo_Цвет'] ?? '').trim() === color);
+  return products.filter((p) => getCanonicalColor(p.properties || {}) === color);
 }
 
 export const HEIGHT_BAND_2301_2500 = 2350;
@@ -112,7 +117,7 @@ export function collectOptions(products: ProductLike[]): CollectedOptions {
     if (h > 0) heights.add(h);
 
     const finish = String(p.properties['Тип покрытия'] ?? '').trim();
-    const color = String(p.properties['Domeo_Цвет'] ?? '').trim();
+    const color = getCanonicalColor(p.properties || {});
     if (finish) {
       finishes.add(finish);
       if (!colorsByFinish[finish]) colorsByFinish[finish] = new Set<string>();
@@ -121,6 +126,16 @@ export function collectOptions(products: ProductLike[]): CollectedOptions {
 
     const edge = String(p.properties['Кромка'] ?? '').trim();
     if (edge && edge !== '-' && edge !== '') edges.add(edge);
+    // Варианты кромки из листа «Наценка за кромку» (Domeo_Кромка_*), т.к. поле «Кромка» при импорте не заполняется
+    const edgeInBase = String(p.properties['Domeo_Кромка_в_базе_включена'] ?? '').trim().toLowerCase() === 'да';
+    if (edgeInBase) {
+      const baseColor = String(p.properties['Domeo_Кромка_базовая_цвет'] ?? '').trim();
+      if (baseColor) edges.add(baseColor);
+      for (const i of [2, 3, 4] as const) {
+        const colorVal = String(p.properties[`Domeo_Кромка_Цвет_${i}`] ?? '').trim();
+        if (colorVal) edges.add(colorVal);
+      }
+    }
   }
 
   return {

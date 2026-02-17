@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ModernPhotoGallery } from '@/components/ModernPhotoGallery';
+import { getImageSrc } from '@/lib/configurator/image-src';
 import { formatModelNameForCard, formatModelNameForPreview } from './utils';
 
 interface ModelItem {
@@ -71,14 +72,7 @@ export function DoorPreview({
                     }
                     
                     if (selectedModelCard && selectedModelCard.photo) {
-                      const photo = selectedModelCard.photo;
-                      const src = photo.startsWith('http://') || photo.startsWith('https://')
-                        ? photo
-                        : photo.startsWith('/uploadsproducts')
-                        ? `/api/uploads/products/${photo.substring(17)}`
-                        : photo.startsWith('/uploads/')
-                        ? `/api${photo}`
-                        : `/api/uploads${photo}`;
+                      const src = getImageSrc(selectedModelCard.photo);
                       return (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

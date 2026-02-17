@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
@@ -68,13 +68,10 @@ async function postHandler(
     return sum + (qty * price);
   }, 0);
 
-  // Определяем complectator_id если пользователь - комплектатор
-  let finalComplectatorId: string | null = null;
-  if (user.role === 'complectator' && user.userId !== 'system') {
-    finalComplectatorId = user.userId;
-  } else if (complectator_id) {
-    finalComplectatorId = complectator_id;
-  }
+  // Комплектатор — тот, кто создал заказ (при создании подставляем текущего пользователя)
+  const finalComplectatorId = user.userId && user.userId !== 'system'
+    ? user.userId
+    : (complectator_id || null);
 
   // Подготавливаем данные для DocumentService
   const documentRequest: CreateDocumentRequest = {
@@ -426,12 +423,10 @@ async function getHandler(
       .map(order => order.complectator_id)
       .filter((id): id is string => id !== null);
 
+    // Комплектатор — кто создал заказ; подставляем ФИО любого пользователя по id
     const complectators = complectatorIds.length > 0
       ? await prisma.user.findMany({
-          where: {
-            id: { in: complectatorIds },
-            role: 'complectator'
-          },
+          where: { id: { in: complectatorIds } },
           select: {
             id: true,
             first_name: true,

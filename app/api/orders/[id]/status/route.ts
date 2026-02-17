@@ -98,19 +98,29 @@ async function handler(
       }
     }
 
+    const docForValidation = {
+      project_file_url: order.project_file_url,
+      door_dimensions: doorDimensions,
+      measurement_done: order.measurement_done,
+      project_complexity: order.project_complexity
+    };
     const validationResult = validateStatusTransitionRequirements(
       'order',
       order.status,
       status,
-      {
-        project_file_url: order.project_file_url,
-        door_dimensions: doorDimensions,
-        measurement_done: order.measurement_done,
-        project_complexity: order.project_complexity
-      }
+      docForValidation
     );
 
     if (!validationResult.valid) {
+      logger.warn('Требования для перехода статуса не выполнены', 'orders/[id]/status', {
+        orderId: id,
+        currentStatus: order.status,
+        newStatus: status,
+        error: validationResult.error,
+        hasProjectFile: !!order.project_file_url,
+        projectFileUrlLength: order.project_file_url?.length ?? 0,
+        hasDoorDimensions: Array.isArray(doorDimensions) ? doorDimensions.length > 0 : !!doorDimensions
+      }, loggingContext);
       throw new BusinessRuleError(validationResult.error || 'Не выполнены требования для перехода в новый статус');
     }
   }

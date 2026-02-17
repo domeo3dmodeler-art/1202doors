@@ -7,6 +7,7 @@ import { ValidationError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getDoorsCategoryId } from '@/lib/catalog-categories';
+import { getPropertyPhotos, getPropertyPhotosByValuePrefix, structurePropertyPhotos, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '@/lib/property-photos';
 
 // Кэш для фотографий
 const photosCache = new Map<string, { photos: string[], timestamp: number }>();
@@ -133,7 +134,8 @@ async function getHandler(
       return {
         ...product,
         parsedProperties: properties,
-        productModel: properties['Domeo_Название модели для Web'],
+        productModel: properties['Название модели'],
+        productDomeoCode: typeof properties['Код модели Domeo (Web)'] === 'string' ? String(properties['Код модели Domeo (Web)']).trim() : '',
         productArticle: properties['Артикул поставщика'],
         productPhotos
       };
@@ -143,13 +145,30 @@ async function getHandler(
         ...product,
         parsedProperties: {},
         productModel: null,
+        productDomeoCode: '',
         productArticle: null,
         productPhotos: []
       };
     }
   });
 
-  // Точное совпадение модели
+  const modelNorm = model.trim().toLowerCase();
+
+  // 1) Совпадение по Код модели Domeo (Web) — приоритет для UI (modelKey)
+  for (const product of parsedProducts) {
+    const code = (product as { productDomeoCode?: string }).productDomeoCode;
+    if (code && code.toLowerCase() === modelNorm) {
+      const productPhotos = (product as { productPhotos?: string[] }).productPhotos ?? [];
+      if (productPhotos.length > 0) {
+        photos.push(productPhotos[0]);
+        logger.debug('API photos - фото по коду модели (из товара)', 'catalog/doors/photos/GET', { model, photosCount: 1 }, loggingContext);
+      }
+      break;
+    }
+  }
+
+  // 2) Точное совпадение по Название модели
+  if (photos.length === 0) {
   for (const product of parsedProducts) {
     if (product.productModel === model && product.productPhotos.length > 0) {
       logger.debug(`Найдена модель с фотографиями`, 'catalog/doors/photos/GET', {
@@ -171,8 +190,9 @@ async function getHandler(
       break; // Берем первое найденное фото
     }
   }
+  }
 
-  // Если не найдено точное совпадение, ищем по частичному совпадению
+  // 3) Частичное совпадение по Название модели
   if (photos.length === 0) {
     for (const product of parsedProducts) {
       // Частичное совпадение (модель содержит искомое название)
@@ -195,6 +215,31 @@ async function getHandler(
 
         break;
       }
+    }
+  }
+
+  // 4) Fallback: PropertyPhoto по коду модели, затем по префиксу кода в Domeo_Модель_Цвет. Правила: docs/DOOR_CONFIGURATOR_DATA_RULES.md
+  if (photos.length === 0 && modelNorm) {
+    try {
+      const doorsCategoryId = await getDoorsCategoryId();
+      if (doorsCategoryId) {
+        const byCode = await getPropertyPhotos(doorsCategoryId, DOOR_MODEL_CODE_PROPERTY, modelNorm);
+        const structured = structurePropertyPhotos(byCode);
+        if (structured.cover) {
+          photos.push(structured.cover);
+          logger.debug('API photos - фото из PropertyPhoto по коду', 'catalog/doors/photos/GET', { model }, loggingContext);
+        }
+        if (photos.length === 0) {
+          const byPrefix = await getPropertyPhotosByValuePrefix(doorsCategoryId, DOOR_COLOR_PROPERTY, modelNorm + '|');
+          const byPrefixStructured = structurePropertyPhotos(byPrefix);
+          if (byPrefixStructured.cover) {
+            photos.push(byPrefixStructured.cover);
+            logger.debug('API photos - фото из PropertyPhoto по префиксу кода', 'catalog/doors/photos/GET', { model }, loggingContext);
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('API photos - ошибка чтения PropertyPhoto', 'catalog/doors/photos/GET', { model, error: err }, loggingContext);
     }
   }
 

@@ -51,7 +51,7 @@ async function getHandler(
       const properties = product.properties_data ?
         (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
 
-      const productModel = properties['Domeo_Название модели для Web'];
+      const productModel = properties['Название модели'];
       
       // Поддерживаем старый формат (массив) и новый (объект с cover/gallery)
       let productPhotos: string[] = [];
@@ -84,7 +84,7 @@ async function getHandler(
         const properties = product.properties_data ?
           (typeof product.properties_data === 'string' ? JSON.parse(product.properties_data) : product.properties_data) : {};
 
-        const productModel = properties['Domeo_Название модели для Web'];
+        const productModel = properties['Название модели'];
         
         // Поддерживаем старый формат (массив) и новый (объект с cover/gallery)
         let productPhotos: string[] = [];
