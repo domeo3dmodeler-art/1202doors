@@ -63,14 +63,20 @@ class RateLimiter {
 
 // Глобальные экземпляры rate limiter'ов
 export const apiRateLimiter = new RateLimiter(15 * 60 * 1000, 100); // 100 запросов за 15 минут
-export const authRateLimiter = new RateLimiter(15 * 60 * 1000, 5); // 5 попыток входа за 15 минут
+export const authRateLimiter = new RateLimiter(15 * 60 * 1000, 30); // 30 попыток входа за 15 минут (защита от брутфорса, но без блокировки обычного входа)
 export const uploadRateLimiter = new RateLimiter(60 * 1000, 10); // 10 загрузок за минуту
+/** Жёсткий лимит для публичных эндпоинтов (health, тяжёлые API) — защита от сканеров */
+export const publicApiRateLimiter = new RateLimiter(60 * 1000, 60); // 60 запросов в минуту с одного IP
+/** Глобальный лимит на все API с одного IP — защита от сканеров и флуда */
+export const globalApiRateLimiter = new RateLimiter(15 * 60 * 1000, 400); // 400 запросов за 15 минут с одного IP
 
 // Очистка каждые 5 минут
 setInterval(() => {
   apiRateLimiter.cleanup();
   authRateLimiter.cleanup();
   uploadRateLimiter.cleanup();
+  publicApiRateLimiter.cleanup();
+  globalApiRateLimiter.cleanup();
 }, 5 * 60 * 1000);
 
 export function getClientIP(request: Request): string {

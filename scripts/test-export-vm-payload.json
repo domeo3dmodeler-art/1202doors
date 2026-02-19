@@ -1,0 +1,10 @@
+{
+  "type": "invoice",
+  "format": "pdf",
+  "clientId": "test-client-export",
+  "items": [
+    { "id": "d1", "type": "door", "name": "Дверь Test", "model": "Base1", "qty": 1, "unitPrice": 50000 },
+    { "id": "h1", "type": "handle", "name": "Ручка Test", "qty": 1, "unitPrice": 2500 }
+  ],
+  "totalAmount": 52500
+}

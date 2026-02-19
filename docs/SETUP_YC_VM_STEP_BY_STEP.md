@@ -237,9 +237,11 @@ JWT_SECRET=придумайте-секрет-не-короче-32-символо
 
 ### Шаг 3.5. Установить зависимости, Prisma и миграции
 
+Установка с **`--ignore-scripts`** отключает postinstall/preinstall у всех пакетов (защита от вредоносного кода в зависимостях, см. docs/NPM_SUPPLY_CHAIN_SECURITY.md). Prisma generate запускаем вручную после установки.
+
 ```bash
 cd ~/1002doors
-npm ci
+npm ci --ignore-scripts
 npx prisma generate
 npx prisma migrate deploy
 ```
@@ -360,7 +362,7 @@ npm run sync:staging
 - [ ] **3.2** Установлен Node.js 20.
 - [ ] **3.3** Репозиторий склонирован в `~/1002doors`.
 - [ ] **3.4** В `~/1002doors/.env` заданы `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV`.
-- [ ] **3.5** Выполнены `npm ci`, `prisma generate`, `prisma migrate deploy`.
+- [ ] **3.5** Выполнены `npm ci --ignore-scripts`, `prisma generate`, `prisma migrate deploy`.
 - [ ] **3.6** Выполнен `npm run build`.
 - [ ] **3.7** Создан и запущен юнит `domeo-staging`, приложение в статусе active.
 - [ ] **3.8** http://158.160.74.180:3000 и `/api/health` открываются и отвечают.

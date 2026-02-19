@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getClientIP, publicApiRateLimiter, createNextRateLimitResponse } from '@/lib/security/rate-limiter';
 
 export const runtime = 'nodejs';
 
@@ -81,8 +82,13 @@ async function checkStorage(): Promise<{ status: 'ok' | 'error' | 'not_configure
 /**
  * Health check endpoint
  * GET /api/health
+ * Rate limited to reduce impact of scanners/bots.
  */
-export async function GET(): Promise<NextResponse<HealthCheckResult>> {
+export async function GET(request: NextRequest): Promise<NextResponse<HealthCheckResult | { error: string; message: string }>> {
+  const clientIP = getClientIP(request);
+  if (!publicApiRateLimiter.isAllowed(clientIP)) {
+    return createNextRateLimitResponse(publicApiRateLimiter, clientIP);
+  }
   const timestamp = new Date().toISOString();
   
   // Проверяем все компоненты

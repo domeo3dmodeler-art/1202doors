@@ -8,8 +8,8 @@ param([switch]$SkipPhotos = $false)
 $ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "petr@158.160.72.3" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771510238528\ssh-key-1771510238528" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@158.160.13.144" }
 $StagingHostOnly = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { $StagingHost }
 $PgDump = "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"
 $OutputDir = Join-Path $ProjectRoot "scripts\output"
@@ -84,9 +84,12 @@ $remoteScript = @"
 set -e
 cd ~/1002doors
 PGPASSWORD=
-if [ -f .env ]; then
-  PGPASSWORD=`$(grep DATABASE_URL .env | sed -n 's|.*postgresql://[^:]*:\([^@]*\)@.*|\1|p')
-fi
+for envf in .env ~/domeo-app/.env; do
+  if [ -f "`$envf" ]; then
+    PGPASSWORD=`$(grep DATABASE_URL "`$envf" 2>/dev/null | sed -n 's|.*postgresql://[^:]*:\([^@]*\)@.*|\1|p')
+    [ -n "`$PGPASSWORD" ] && break
+  fi
+done
 if [ -f full_backup.dump ]; then
   echo 'Restoring database...'
   PGPASSWORD=`$PGPASSWORD pg_restore -h localhost -U domeo_user -d domeo --no-owner --no-acl --clean --if-exists full_backup.dump 2>/dev/null || true
@@ -95,12 +98,13 @@ if [ -f full_backup.dump ]; then
   echo 'Database restored.'
 fi
 echo 'Restarting app...'
-if systemctl is-active --quiet domeo-staging 2>/dev/null; then
+if systemctl is-active --quiet domeo-standalone 2>/dev/null; then
+  sudo systemctl restart domeo-standalone
+elif systemctl is-active --quiet domeo-staging 2>/dev/null; then
   sudo systemctl restart domeo-staging
 else
-  pkill -f 'node.*next' 2>/dev/null || true
-  sleep 2
-  NODE_ENV=production nohup npx next start -H 0.0.0.0 -p 3000 > /tmp/domeo.log 2>&1 &
+  pkill -f 'node.*server.js' 2>/dev/null; pkill -f 'node.*next' 2>/dev/null; sleep 2
+  (cd ~/domeo-app 2>/dev/null && NODE_ENV=production nohup node server.js > /tmp/domeo.log 2>&1 &) || (cd ~/1002doors 2>/dev/null && NODE_ENV=production nohup npx next start -H 0.0.0.0 -p 3000 > /tmp/domeo.log 2>&1 &)
 fi
 sleep 4
 curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health

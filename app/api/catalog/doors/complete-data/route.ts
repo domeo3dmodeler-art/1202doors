@@ -6,6 +6,7 @@ import { getPropertyPhotos, getPropertyPhotosByValuePrefix, structurePropertyPho
 import { getDoorsCategoryId } from '../../../../../lib/catalog-categories';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getClientIP, publicApiRateLimiter, createNextRateLimitResponse } from '@/lib/security/rate-limiter';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getCompleteDataCache, clearCompleteDataCache } from '../../../../../lib/catalog/complete-data-cache';
 import { join, basename } from 'path';
@@ -33,6 +34,10 @@ export const DELETE = withErrorHandling(
 async function getHandler(
   req: NextRequest
 ): Promise<NextResponse> {
+  const clientIP = getClientIP(req);
+  if (!publicApiRateLimiter.isAllowed(clientIP)) {
+    return createNextRateLimitResponse(publicApiRateLimiter, clientIP);
+  }
   const loggingContext = getLoggingContextFromRequest(req);
   const { searchParams } = new URL(req.url);
   const style = searchParams.get('style');

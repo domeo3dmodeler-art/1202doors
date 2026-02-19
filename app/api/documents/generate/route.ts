@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
 import ExcelJS from 'exceljs';
 import { findExistingDocument } from '@/lib/export/puppeteer-generator';
 import { logger } from '@/lib/logging/logger';
@@ -57,13 +57,13 @@ interface DocumentData {
   totalAmount: number;
 }
 
-// Функция для генерации PDF документа
+// Функция для генерации PDF документа (системный Chrome, PUPPETEER_EXECUTABLE_PATH на сервере)
 async function generatePDF(data: DocumentData): Promise<Buffer> {
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || await chromium.executablePath();
+  const executablePath = getPuppeteerExecutablePath();
   const browser = await puppeteer.launch({
-    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    args: DEFAULT_PUPPETEER_ARGS,
     executablePath,
-    headless: chromium.headless,
+    headless: true,
     timeout: 30000
   });
   

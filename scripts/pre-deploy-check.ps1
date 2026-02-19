@@ -24,7 +24,19 @@ function Run-Step {
     }
 }
 
-Write-Host "Pre-deploy check (lint, type-check, test, build)" -ForegroundColor Yellow
+Write-Host "Pre-deploy check (audit, lint, type-check, test, build)" -ForegroundColor Yellow
+
+# npm audit: проверка известных уязвимостей и вредоносных пакетов (цепочка поставок)
+Write-Host "`n--- npm audit ---" -ForegroundColor Cyan
+$auditResult = npm audit 2>&1
+$auditExit = $LASTEXITCODE
+if ($auditExit -ne 0) {
+    Write-Host $auditResult -ForegroundColor Gray
+    Write-Host "WARN: npm audit reported issues (review above). Critical/High should be fixed before deploy. See docs/NPM_SUPPLY_CHAIN_SECURITY.md" -ForegroundColor Yellow
+    # Не падаем по умолчанию, только предупреждение; при желании раскомментировать: $script:failed = $true
+} else {
+    Write-Host "OK: npm audit (no known vulnerabilities)" -ForegroundColor Green
+}
 
 Run-Step "Lint" { npm run lint }
 Run-Step "Type-check" { npm run type-check }

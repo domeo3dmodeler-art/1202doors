@@ -1,0 +1,29 @@
+# Сборка артефакта в изолированном окружении (без кэша node_modules с хоста).
+# Запуск: docker build -f Dockerfile.build -t 1002doors-build .
+# Затем: docker create --name 1002doors-build-temp 1002doors-build
+#        docker cp 1002doors-build-temp:/out/artifact.tar.gz ./dist/1002doors-artifact.tar.gz
+#        docker cp 1002doors-build-temp:/out/artifact.tar.gz.sha256 ./dist/
+#        docker rm -f 1002doors-build-temp
+
+FROM node:20-bookworm AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+ENV NEXT_BUILD_ARTIFACT=1
+ENV NODE_ENV=production
+RUN npm run build
+
+RUN test -f .next/standalone/server.js
+
+RUN mkdir -p /out && \
+    tar -czf /out/artifact.tar.gz \
+      .next/standalone \
+      .next/static \
+      public \
+      package.json \
+      prisma
+
+RUN sha256sum /out/artifact.tar.gz > /out/artifact.tar.gz.sha256

@@ -1,6 +1,6 @@
-// lib/pdf/htmlToPdf.ts
-import chromium from '@sparticuz/chromium';
+// lib/pdf/htmlToPdf.ts (копия логики из @/lib/pdf/htmlToPdf для совместимости)
 import puppeteer from 'puppeteer-core';
+import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
 
 export type HtmlToPdfOptions = {
   format?: 'A4' | 'Letter' | 'Legal';
@@ -15,21 +15,17 @@ export type HtmlToPdfOptions = {
 };
 
 /**
- * Генерация PDF из HTML. Работает в безголовом окружении (Replit/YC/Vercel):
- * - puppeteer-core + @sparticuz/chromium
- * - executablePath берём из chromium.executablePath() или из env
+ * Генерация PDF из HTML. puppeteer-core + системный Chrome (PUPPETEER_EXECUTABLE_PATH на сервере).
  */
 export async function htmlToPdfBuffer(
   html: string,
   opts: HtmlToPdfOptions = {}
 ): Promise<Buffer> {
-  const executablePath =
-    process.env.PUPPETEER_EXECUTABLE_PATH || (await chromium.executablePath());
-
+  const executablePath = getPuppeteerExecutablePath();
   const browser = await puppeteer.launch({
-    args: chromium.args,
+    args: DEFAULT_PUPPETEER_ARGS,
     executablePath,
-    headless: true, // не используем chromium.headless из-за несовпадения типов
+    headless: true,
   });
 
   try {

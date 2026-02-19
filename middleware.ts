@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { getClientIP, globalApiRateLimiter, createNextRateLimitResponse } from '@/lib/security/rate-limiter';
 
 // Пути, которые требуют авторизации
 const protectedPaths = ['/admin', '/complectator', '/executor', '/universal'];
@@ -33,7 +34,17 @@ const factoryExportPaths = [
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
+  // Глобальный rate limit на все /api/* — защита от сканеров и флуда
+  if (pathname.startsWith('/api')) {
+    const clientIP = getClientIP(request);
+    const isLocalDev = process.env.NODE_ENV === 'development' && (clientIP === 'unknown' || clientIP === '127.0.0.1' || clientIP === '::1');
+    if (!isLocalDev && !globalApiRateLimiter.isAllowed(clientIP)) {
+      return createNextRateLimitResponse(globalApiRateLimiter, clientIP);
+    }
+    return NextResponse.next();
+  }
+
   // Проверяем, является ли путь защищенным
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
   
@@ -162,14 +173,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public (public files)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    // Обрабатываем и /api/* (для rate limit), и страницы (для auth)
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

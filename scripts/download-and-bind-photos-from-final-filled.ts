@@ -457,19 +457,13 @@ async function main() {
   if (!skipDownload && !dryRun && entriesToDownload.length > 0) {
     fs.mkdirSync(outDir, { recursive: true });
     if (useBrowser) {
-      const puppeteer = await import('puppeteer-extra');
-      const StealthPlugin = (await import('puppeteer-extra-plugin-stealth')).default;
-      puppeteer.default.use(StealthPlugin());
+      const puppeteer = await import('puppeteer-core');
+      const { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } = await import('../lib/export/puppeteer-executable');
       browser = await puppeteer.default.launch({
+        executablePath: getPuppeteerExecutablePath(),
         headless,
         defaultViewport: { width: 1280, height: 800 },
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-features=IsolateOrigins,site-per-process',
-        ],
-        ignoreDefaultArgs: ['--enable-automation'],
+        args: [...DEFAULT_PUPPETEER_ARGS, '--disable-blink-features=AutomationControlled'],
       });
       page = await browser.newPage();
       await page.setUserAgent(

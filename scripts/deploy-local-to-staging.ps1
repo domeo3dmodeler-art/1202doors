@@ -12,9 +12,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 # Путь к ключу: задайте 1002DOORS_SSH_KEY в окружении (см. docs/SSH_KEY_AND_YC_VM.md)
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" }
-# Хост: 1002DOORS_STAGING_HOST для другой ВМ (например petr@158.160.74.180)
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "petr@158.160.72.3" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771392782781\ssh-key-1771392782781" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@84.201.160.50" }
 $StagingHostOnly = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { $StagingHost }
 $RemotePath = "~/1002doors"
 # Keepalive чтобы соединение не обрывалось при долгой загрузке (Windows scp/ssh принимают каждый -o отдельно)
@@ -26,12 +25,12 @@ if (-not (Test-Path $KeyPath)) {
 }
 
 if ($UseGit) {
-    # Деплой без scp: одна команда на ВМ — git pull, build, restart. Сначала локально: git add & commit & push
-    Write-Host "Deploy via Git: pull + build + restart on VM (no file upload)..." -ForegroundColor Cyan
-    $gitCmd = 'cd ~/1002doors && git pull 2>&1 && npm run build 2>&1 && sudo systemctl restart domeo-staging && echo Done.'
+    # Деплой без scp: git pull, установка зависимостей без скриптов (защита цепочки поставок), build, restart
+    Write-Host "Deploy via Git: pull + npm ci --ignore-scripts + prisma generate + build + restart on VM..." -ForegroundColor Cyan
+    $gitCmd = 'cd ~/1002doors && git pull 2>&1 && npm ci --ignore-scripts 2>&1 && npx prisma generate 2>&1 && npm run build 2>&1 && sudo systemctl restart domeo-staging && echo Done.'
     & ssh -i $KeyPath -T @SshOpts -o ConnectTimeout=300 $StagingHost ('bash --norc --noprofile -c ' + [char]39 + $gitCmd + [char]39)
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Command failed or SSH dropped. On VM run manually: cd ~/1002doors && git pull && npm run build && sudo systemctl restart domeo-staging" -ForegroundColor Yellow
+        Write-Host "Command failed or SSH dropped. On VM run manually: cd ~/1002doors && git pull && npm ci --ignore-scripts && npx prisma generate && npm run build && sudo systemctl restart domeo-staging" -ForegroundColor Yellow
     } else {
         Write-Host "Done. Open http://${StagingHostOnly}:3000/doors" -ForegroundColor Green
     }
@@ -62,7 +61,8 @@ if ($FullSync) {
         @{ local = "lib\export\excel-door-fields.ts"; remote = "lib/export/excel-door-fields.ts" },
         @{ local = "lib\price\doors-price-engine.ts"; remote = "lib/price/doors-price-engine.ts" },
         @{ local = "prisma\schema.prisma"; remote = "prisma/schema.prisma" },
-        @{ local = "prisma\seed.ts"; remote = "prisma/seed.ts" }
+        @{ local = "prisma\seed.ts"; remote = "prisma/seed.ts" },
+        @{ local = "lib\security\rate-limiter.ts"; remote = "lib/security/rate-limiter.ts" }
     )
     Write-Host "Uploading file list to VM ($StagingHostOnly)..." -ForegroundColor Cyan
     foreach ($f in $files) {
@@ -87,14 +87,14 @@ if ($FullSync) {
 }
 
 if (-not $SkipBuild) {
-    Write-Host "Building on VM (npm run build, may take ~2 min)..." -ForegroundColor Cyan
-    $buildCmd = 'cd ~/1002doors && npm run build 2>&1'
+    Write-Host "Installing deps and building on VM (may take 3-5 min)..." -ForegroundColor Cyan
+    $buildCmd = 'cd ~/1002doors && npm ci --ignore-scripts 2>&1 && npx prisma generate 2>&1 && npm run build 2>&1'
     & ssh -i $KeyPath -T @SshOpts -o ConnectTimeout=300 $StagingHost ('bash --norc --noprofile -c ' + [char]39 + $buildCmd + [char]39)
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed or SSH disconnected. If build finished on VM, run restart manually." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "SkipBuild: on VM run: cd ~/1002doors && npm run build" -ForegroundColor Yellow
+    Write-Host "SkipBuild: on VM run: cd ~/1002doors; npm ci --ignore-scripts; npx prisma generate; npm run build" -ForegroundColor Yellow
 }
 
 Write-Host "Restarting app on VM..." -ForegroundColor Cyan

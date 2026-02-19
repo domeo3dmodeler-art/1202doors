@@ -3,7 +3,7 @@ import fs from 'fs';
 import { prisma } from '@/lib/prisma';
 import ExcelJS from 'exceljs';
 import puppeteer, { Browser } from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
 import { 
   findExistingDocument as findExistingDocumentDedup, 
   findExistingOrder,
@@ -14,66 +14,9 @@ import { getItemDisplayName, getItemType, normalizeItemForExport } from '@/lib/e
 import { getMatchingProducts, getModelNameByCode, getFirstProductPropsByModelCode } from '@/lib/catalog/product-match';
 import { EXCEL_DOOR_FIELDS, getDoorFieldValue, type ExcelDoorFieldName } from '@/lib/export/excel-door-fields';
 
-const isWindows = process.platform === 'win32';
-const isDarwin = process.platform === 'darwin';
-
-/** Путь к исполняемому файлу Chrome/Chromium для Puppeteer (Windows, macOS, Linux) */
-async function resolveChromiumPath(): Promise<string> {
-  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
-  if (envPath && fs.existsSync(envPath)) return envPath;
-
-  if (isWindows) {
-    const winPaths = [
-      path.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      path.join(process.env.LOCALAPPDATA || '', 'Chromium', 'Application', 'chrome.exe'),
-    ].filter(Boolean);
-    for (const p of winPaths) {
-      if (p && fs.existsSync(p)) {
-        logger.debug('Найден Chrome по пути (Windows)', 'puppeteer-generator', { executablePath: p });
-        return p;
-      }
-    }
-    throw new Error(
-      'Chrome не найден. Установите Google Chrome или задайте PUPPETEER_EXECUTABLE_PATH (например: set PUPPETEER_EXECUTABLE_PATH="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")'
-    );
-  }
-
-  if (isDarwin) {
-    const home = process.env.HOME || '';
-    const macPaths = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      path.join(home, 'Applications', 'Google Chrome.app', 'Contents', 'MacOS', 'Google Chrome'),
-      path.join(home, 'Applications', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
-    ].filter(Boolean);
-    for (const p of macPaths) {
-      if (p && fs.existsSync(p)) {
-        logger.debug('Найден Chrome/Chromium по пути (macOS)', 'puppeteer-generator', { executablePath: p });
-        return p;
-      }
-    }
-    throw new Error(
-      'Chrome не найден. Установите Google Chrome из https://www.google.com/chrome/ или задайте PUPPETEER_EXECUTABLE_PATH (например: export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")'
-    );
-  }
-
-  // Linux и прочие (в т.ч. Docker / сервер)
-  let executablePath = await chromium.executablePath();
-  if (executablePath && fs.existsSync(executablePath)) return executablePath;
-  if (executablePath && executablePath.includes('/tmp/chromium')) {
-    logger.warn('Обнаружен /tmp/chromium, заменяем на /usr/bin/chromium', 'puppeteer-generator', { originalPath: executablePath });
-    executablePath = '/usr/bin/chromium';
-  }
-  const possiblePaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/chrome'];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      const stat = fs.statSync(p);
-      if (stat.isFile()) return p;
-    }
-  }
-  return executablePath || '/usr/bin/chromium';
+/** Путь к Chrome для Puppeteer (только env + системные пути, без npm-браузера) */
+function resolveChromiumPath(): string {
+  return getPuppeteerExecutablePath();
 }
 
 // Кэш для товаров по категориям
@@ -264,57 +207,11 @@ export async function generatePDFWithPuppeteer(data: any): Promise<Buffer> {
 
     logger.debug('Запускаем Puppeteer браузер с Chromium', 'puppeteer-generator');
     
-    let executablePath: string;
-    try {
-      executablePath = await resolveChromiumPath();
-      logger.debug('Создаем браузер с executablePath', 'puppeteer-generator', { executablePath });
-    } catch (error) {
-      logger.warn('Ошибка получения пути к Chromium', 'puppeteer-generator', error instanceof Error ? { error: error.message, stack: error.stack } : { error: String(error) });
-      executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || (isWindows ? '' : '/usr/bin/chromium');
-      if (!executablePath || (isWindows && !fs.existsSync(executablePath))) {
-        throw error;
-      }
-    }
-    
+    const executablePath = resolveChromiumPath();
+    logger.debug('Создаем браузер с executablePath', 'puppeteer-generator', { executablePath });
+
     const browser = await puppeteer.launch({
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-client-side-phishing-detection',
-        '--disable-crash-reporter',
-        '--disable-default-apps',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--disable-popup-blocking',
-        '--disable-prompt-on-repost',
-        '--disable-sync',
-        '--disable-translate',
-        '--disable-web-resources',
-        '--enable-features=NetworkService,NetworkServiceInProcess',
-        '--force-color-profile=srgb',
-        '--hide-scrollbars',
-        '--ignore-certificate-errors',
-        '--ignore-certificate-errors-spki-list',
-        '--ignore-gpu-blacklist',
-        '--ignore-ssl-errors',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--no-pings',
-        '--password-store=basic',
-        '--single-process',
-        '--use-gl=swiftshader',
-        '--window-size=1920,1080'
-      ],
+      args: [...DEFAULT_PUPPETEER_ARGS, '--single-process', '--use-gl=swiftshader', '--ignore-certificate-errors', '--ignore-ssl-errors'],
       executablePath,
       headless: true,
       timeout: 60000,

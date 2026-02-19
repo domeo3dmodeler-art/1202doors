@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import ExcelJS from 'exceljs';
 import { logger } from '@/lib/logging/logger';
+import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
 
 // POST /api/test/export-performance - Тест производительности экспорта
 export async function POST(request: NextRequest) {
@@ -61,33 +62,11 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`;
 
-      // Запускаем Puppeteer с правильными настройками для Windows
+      const executablePath = getPuppeteerExecutablePath();
       const browser = await puppeteer.launch({
+        executablePath,
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-extensions',
-          '--disable-plugins',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--disable-translate',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-default-browser-check',
-          '--no-pings',
-          '--password-store=basic',
-          '--use-mock-keychain'
-        ],
+        args: DEFAULT_PUPPETEER_ARGS,
         timeout: 30000
       });
 

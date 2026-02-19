@@ -87,17 +87,19 @@ export function withOptionalAuth(handler: (req: NextRequest, context: AuthContex
 }
 
 /**
- * Проверка CORS для API
+ * Проверка CORS для API.
+ * В production используйте ALLOWED_ORIGIN или NEXT_PUBLIC_APP_URL (например https://yourdomain.com).
  */
 export function withCORS(handler: (req: NextRequest) => Promise<NextResponse>) {
   return async (req: NextRequest): Promise<NextResponse> => {
     const response = await handler(req);
-    
-    // Добавляем CORS заголовки
-    response.headers.set('Access-Control-Allow-Origin', '*');
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+    const allowedOrigin = process.env.ALLOWED_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
+    const origin = isProduction && allowedOrigin ? allowedOrigin : '*';
+    response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
     return response;
   };
 }

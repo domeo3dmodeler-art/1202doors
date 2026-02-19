@@ -168,16 +168,16 @@ export async function POST(req: NextRequest) {
     });
 
     // Устанавливаем cookie на сервере
-        response.cookies.set('auth-token', token, {
-          httpOnly: false, // Позволяем доступ из JavaScript
-          secure: false,   // Для локальной разработки
-          sameSite: 'lax',
-          maxAge: 86400,   // 24 часа
-          path: '/',
-          // Дополнительные параметры для Yandex браузера
-          domain: undefined, // Явно убираем domain
-          partitioned: false // Отключаем partitioned cookies
-        });
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+    response.cookies.set('auth-token', token, {
+      httpOnly: isProduction, // В production недоступен из JS (защита от XSS)
+      secure: isProduction,   // В production только по HTTPS
+      sameSite: isProduction ? 'strict' : 'lax',
+      maxAge: 86400,   // 24 часа
+      path: '/',
+      domain: undefined,
+      partitioned: false
+    });
     
     // Логирование только в development
     if (process.env.NODE_ENV === 'development') {

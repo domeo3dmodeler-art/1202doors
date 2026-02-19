@@ -1,20 +1,25 @@
 # Деплой на Yandex Cloud
 
-**Безопасная работа с SSH-ключом и новая ВМ (158.160.74.180):** см. [SSH_KEY_AND_YC_VM.md](./SSH_KEY_AND_YC_VM.md) — хранение ключа, права, `~/.ssh/config`, переменные `1002DOORS_SSH_KEY` и `1002DOORS_STAGING_HOST` для скриптов.
+**Рекомендуемый способ (без npm на ВМ — нет риска перегрузки и потери SSH):** деплой **артефактом** — сборка только на вашем ПК, на ВМ загружается готовый архив. См. [DEPLOY_STANDALONE_ARTIFACT.md](./DEPLOY_STANDALONE_ARTIFACT.md). Команда: **`npm run deploy:standalone`** (или `.\scripts\deploy-standalone-to-vm.ps1`).
+
+**SSH и новая ВМ:** [SSH_KEY_AND_YC_VM.md](./SSH_KEY_AND_YC_VM.md) — ключ, права, `~/.ssh/config`, переменные `1002DOORS_SSH_KEY` и `1002DOORS_STAGING_HOST`.  
+**Создать новую ВМ с нуля:** [NEW_YC_VM_CORRECT_DEPLOY.md](./NEW_YC_VM_CORRECT_DEPLOY.md).  
+**Если используете деплой через git + npm на ВМ:** [VM_SSH_AND_TRAFFIC_ISSUES.md](./VM_SSH_AND_TRAFFIC_ISSUES.md) — почему пропадает SSH и как снизить риски.
 
 ## Текущее состояние (актуально после синхронизации)
 
+- **Рабочая staging ВМ:** **84.201.160.50** — приложение в `~/1002doors`, systemd `domeo-staging`. Каталог дверей: **http://84.201.160.50:3000/doors**
 - **Локальные данные:** товары и каталог хранятся в **SQLite** — `prisma/database/dev.db` (в репозитории 1002doors). Для выгрузки на ВМ данные сначала переносятся в PostgreSQL, затем делается дамп и синхронизация.
 - **Локальный PostgreSQL:** `127.0.0.1:6432`, БД `domeo_production`, пользователь `domeo_user` (`.env.postgresql`). Нужен для дампа перед отправкой на ВМ.
-- **Staging ВМ:** `158.160.72.3`, приложение в `~/1002doors`, БД на ВМ: `domeo`, пользователь `domeo_user`. Фото уже на ВМ в `~/1002doors/public/uploads/`. Обязательные подпапки в `public/uploads/final-filled/`: **`04_Ручки_Завертки`** (ручки; имя с подчёркиваниями), **`Наличники`** (наличники; подпапки по поставщику: наличники фрамир, портика_юркас и т.д.), при необходимости `doors/`, `05 Ограничители/`.
+- **На ВМ:** БД `domeo`, пользователь `domeo_user`. Фото в `~/1002doors/public/uploads/`. Обязательные подпапки в `public/uploads/final-filled/`: **`04_Ручки_Завертки`**, **`Наличники`**, при необходимости `doors/`, `05 Ограничители/`.
 - **Перенос с диска на ВМ (одной командой):**  
   1) Перенести данные из SQLite в PostgreSQL: `npx tsx scripts/sqlite-to-postgres.ts`  
-  2) Выполнить `npm run sync:staging` — скрипт упаковывает **public/uploads** (все папки: 04_Ручки_Завертки, Наличники, doors и т.д.), загружает архив на ВМ, распаковывает в public/, затем дамп БД и перезапуск.  
+  2) Выполнить `npm run sync:staging` — скрипт упаковывает **public/uploads**, загружает на ВМ, дамп БД и перезапуск.  
   Только БД без фото: `.\scripts\sync-staging-full.ps1 -SkipPhotos`.  
   Полный цикл с SQLite: `npm run sync:staging:from-sqlite`.
-- **Проверка:** http://158.160.72.3:3000 и http://158.160.72.3:3000/api/health.
+- **Проверка:** http://84.201.160.50:3000 , http://84.201.160.50:3000/doors , http://84.201.160.50:3000/api/health
 
-### Если http://158.160.72.3:3000 не открывается
+### Если http://84.201.160.50:3000 не открывается
 
 1. **Группа безопасности в Yandex Cloud** — порт 3000 должен быть открыт для входящего трафика:
    - Консоль Yandex Cloud → Compute Cloud → ВМ → вкладка «Сеть» → группа безопасности.

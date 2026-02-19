@@ -8,8 +8,9 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = { 
   reactStrictMode: true,
-  // output: 'standalone' для production и staging сборки (для Docker)
-  ...((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') && { output: 'standalone' }),
+  // output: 'standalone' для production/staging и для безопасного артефакта (см. scripts/build-artifact.sh)
+  ...((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging' || process.env.NEXT_BUILD_ARTIFACT === '1') && { output: 'standalone' }),
+  outputFileTracingRoot: path.join(__dirname),
   
   // Оптимизация производительности
   compress: true,
@@ -96,6 +97,20 @@ const nextConfig = {
           },
         ],
       },
+      // Заголовки безопасности (приложение может работать без nginx)
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';",
+          },
+        ],
+      },
     ];
   },
   
@@ -112,10 +127,13 @@ const nextConfig = {
   
   // Оптимизация webpack
   webpack: (config, { dev, isServer }) => {
-    // Исправление для Prisma Client
-    // Настраиваем resolve для правильного разрешения путей Prisma
+    // Явный alias @ на корень проекта (исправляет "Module not found" для @/lib, @/components на части сборки)
+    const root = path.resolve(__dirname);
+    const prismaClientPath = path.resolve(__dirname, 'node_modules/@prisma/client');
     config.resolve.alias = {
       ...config.resolve.alias,
+      '@': root,
+      '@prisma/client': prismaClientPath,
       '.prisma/client': path.resolve(__dirname, 'node_modules/.prisma/client'),
     };
     
