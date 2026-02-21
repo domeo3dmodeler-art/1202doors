@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logging/logger';
 import { getLoggingContextFromRequest } from '@/lib/auth/logging-context';
-import { getPropertyPhotos, getPropertyPhotosByValuePrefix, structurePropertyPhotos, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../../../../../lib/property-photos';
+import { getPropertyPhotosFromPool, getPropertyPhotosByValuePrefixFromPool, structurePropertyPhotos, loadAllPropertyPhotosForDoors, DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY } from '../../../../../lib/property-photos';
 import { getDoorsCategoryId } from '../../../../../lib/catalog-categories';
 import { apiSuccess, apiError, ApiErrorCode, withErrorHandling } from '@/lib/api/response';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -45,8 +45,10 @@ async function getHandler(
 
   const completeDataCache = getCompleteDataCache();
   const cacheKey = style || 'all';
-  // Не используем кэш: всегда читаем из БД, чтобы photo из property_photos отображались
-  // if (cached) return ... — отключено
+  const cached = completeDataCache.get(cacheKey);
+  if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return apiSuccess({ ok: true, ...(cached.data as object) });
+  }
 
   logger.info('API complete-data - загрузка данных для стиля', 'catalog/doors/complete-data/GET', { style: style || 'все' }, loggingContext);
 
@@ -66,19 +68,22 @@ async function getHandler(
       });
     }
 
-    const products = await prisma.product.findMany({
-      where: {
-        catalog_category_id: DOORS_CATEGORY_ID,
-        is_active: true
-      },
-      select: {
-        id: true,
-        sku: true,
-        properties_data: true
-      }
-    });
+    const [products, photoPool] = await Promise.all([
+      prisma.product.findMany({
+        where: {
+          catalog_category_id: DOORS_CATEGORY_ID,
+          is_active: true
+        },
+        select: {
+          id: true,
+          sku: true,
+          properties_data: true
+        }
+      }),
+      loadAllPropertyPhotosForDoors(DOORS_CATEGORY_ID)
+    ]);
 
-  logger.debug(`Загружено ${products.length} товаров из БД`, 'catalog/doors/complete-data/GET', { productsCount: products.length }, loggingContext);
+  logger.debug(`Загружено ${products.length} товаров, ${photoPool.length} записей PropertyPhoto`, 'catalog/doors/complete-data/GET', { productsCount: products.length, photoPoolCount: photoPool.length }, loggingContext);
 
   // Обработка данных
   const models: any[] = [];
@@ -244,7 +249,7 @@ async function getHandler(
     // Список покрытий и цветов: сначала из PropertyPhoto (полный каталог по модели), затем дополняем из товаров — после отката в товарах по одному цвету на покрытие, в PropertyPhoto все цвета.
     const coatingsMap = new Map<string, { id: string; coating_type: string; color_name: string; photo_path: string | null }>();
     const prefixModel = `${modelKey}|`;
-    const colorPhotosForModel = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, prefixModel);
+    const colorPhotosForModel = getPropertyPhotosByValuePrefixFromPool(photoPool, DOOR_COLOR_PROPERTY, prefixModel);
     for (const ph of colorPhotosForModel) {
       const parts = String(ph.propertyValue ?? '').split('|');
       const finish = parts.length >= 3 ? parts[1].trim() : '';
@@ -277,7 +282,7 @@ async function getHandler(
     let firstColorCover: string | null = null;
     for (const [, entry] of coatingsMap) {
       const propertyValue = `${modelKey}|${entry.coating_type}|${entry.color_name}`;
-      const colorPhotos = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, propertyValue);
+      const colorPhotos = getPropertyPhotosFromPool(photoPool, DOOR_COLOR_PROPERTY, propertyValue);
       const coverPhoto = colorPhotos.find((ph: { photoType: string }) => ph.photoType === 'cover');
       const rawPath = coverPhoto?.photoPath;
       let photo_path = rawPath ? normalizePhotoPath(rawPath) : null;
@@ -300,17 +305,17 @@ async function getHandler(
     // Обложка модели: 1) по коду (Код модели Domeo (Web)), 2) по префиксу кода в Domeo_Модель_Цвет, 3) первое из coatings, 4) null
     let modelCover: string | null = null;
     if (normalizedCode) {
-      const byCode = await getPropertyPhotos(DOORS_CATEGORY_ID, DOOR_MODEL_CODE_PROPERTY, normalizedCode);
+      const byCode = getPropertyPhotosFromPool(photoPool, DOOR_MODEL_CODE_PROPERTY, normalizedCode);
       const structuredByCode = structurePropertyPhotos(byCode);
       modelCover = resolveDoorPhotoToExistingFile(normalizePhotoPath(structuredByCode.cover));
     }
     if (!modelCover && normalizedCode) {
-      const byPrefix = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, normalizedCode + '|');
+      const byPrefix = getPropertyPhotosByValuePrefixFromPool(photoPool, DOOR_COLOR_PROPERTY, normalizedCode + '|');
       const structuredByPrefix = structurePropertyPhotos(byPrefix);
       modelCover = resolveDoorPhotoToExistingFile(normalizePhotoPath(structuredByPrefix.cover));
     }
     if (!modelCover && modelKey.trim() !== normalizedCode) {
-      const byKeyPrefix = await getPropertyPhotosByValuePrefix(DOORS_CATEGORY_ID, DOOR_COLOR_PROPERTY, modelKey.trim() + '|');
+      const byKeyPrefix = getPropertyPhotosByValuePrefixFromPool(photoPool, DOOR_COLOR_PROPERTY, modelKey.trim() + '|');
       const structuredByKey = structurePropertyPhotos(byKeyPrefix);
       modelCover = resolveDoorPhotoToExistingFile(normalizePhotoPath(structuredByKey.cover));
     }

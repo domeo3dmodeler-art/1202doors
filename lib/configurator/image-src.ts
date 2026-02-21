@@ -1,8 +1,8 @@
 /**
  * Единый слой отображения фото в конфигураторе дверей.
  * Источники: API complete-data (модели, покрытия), API hardware (ручки, наличники, ограничители).
- *
- * Все пути /uploads/... отдаются статикой из public/uploads/ (Next.js).
+ * Пути /uploads/... по умолчанию отдаются статикой; только фото ручек идут через /api/uploads/
+ * для корректной кириллицы и fallback на ВМ.
  */
 
 /** Допустимые расширения для распознавания URL как картинки */
@@ -26,6 +26,8 @@ export function resolveImagePath(path: string | null | undefined): string {
     if (CLOUD_PAGE.test(t) && !DIRECT_YANDEX.test(t) && !IMAGE_EXT.test(t)) return '';
     return t;
   }
+  // Уже готовый URL из API — не менять (иначе на ВМ получается 503 при запросе статики)
+  if (t.startsWith('/api/')) return t;
   if (t.includes(' ') && !IMAGE_EXT.test(t)) return '';
   // Опечатка в старых данных: /uploadsproducts/ → /uploads/products/
   if (t.toLowerCase().includes('uploadsproducts')) return t.replace(/\/?uploadsproducts/gi, '/uploads/products');
@@ -42,12 +44,10 @@ export function resolveImagePath(path: string | null | undefined): string {
 }
 
 /**
- * URL для <img src>. Все пути /uploads/... отдаются статикой из public/uploads/ (Next.js).
- * Раньше двери шли через /api для fallback по имени — сейчас все photoPath заполнены, статика достаточна.
+ * URL для <img src>. Локальные /uploads/... отдаются статикой (остальные фото без изменений).
  */
 export function toDisplayUrl(resolvedPath: string): string {
   if (!resolvedPath) return '';
-  // Всегда отдаём абсолютный путь для локальных URL (избегаем 404 при относительном uploads/...)
   if (resolvedPath.startsWith('http://') || resolvedPath.startsWith('https://')) return resolvedPath;
   if (!resolvedPath.startsWith('/')) return '/' + resolvedPath;
   return resolvedPath;
@@ -101,12 +101,34 @@ export function getImageSrcWithPlaceholder(
 /** Базовый путь к mockup-фото ручек (если в каталоге нет фото) */
 const HANDLE_MOCKUP_BASE = '/data/mockups/ruchki';
 
+/** Путь считается фото ручки (папка 04_Ручки или имя handle_*_main) — тогда отдаём через /api/uploads/. */
+function isHandlePhotoPath(path: string): boolean {
+  if (path.startsWith('/api/')) return false; // уже готовый URL из API
+  return (path.includes('04_') && (path.includes('Ручки') || path.includes('handle_'))) || (path.includes('handle_') && path.includes('_main'));
+}
+
+/** Базовый путь к фото ручек в API (fallback для «голых» имён файлов из БД). */
+const HANDLES_API_PREFIX = '/api/uploads/final-filled/04_Ручки_Завертки';
+
 /**
- * URL фото ручки: приоритет — путь из API (ProductImage / properties), иначе mockup по имени.
+ * URL фото ручки: приоритет — путь из API (уже может быть /api/uploads/...), иначе mockup по имени.
+ * Пути /uploads/... переводим в /api/uploads/...; голые имена (PRIZMA_BL.png, handle_XXX.png) — в /api/uploads/.../handle_*_main.*
  */
 export function getHandleImageSrc(photoPath: string | undefined, handleName?: string): string {
   const fromApi = getImageSrc(photoPath);
-  if (fromApi) return fromApi;
+  if (fromApi) {
+    if (fromApi.startsWith('/api/')) return fromApi;
+    if (isHandlePhotoPath(fromApi)) return '/api' + fromApi;
+    // Голое имя файла (только имя, без каталога) — отдаём через API (fallback на ВМ найдёт handle_*_main.*)
+    const bareName = fromApi.replace(/^\//, '');
+    if (bareName && !bareName.includes('/') && IMAGE_EXT.test(bareName)) {
+      const base = bareName.replace(/\.[^/.]+$/, '');
+      const ext = bareName.split('.').pop()?.toLowerCase() || 'png';
+      const handleBase = base.toLowerCase().startsWith('handle_') ? base : `handle_${base}_main`;
+      return `${HANDLES_API_PREFIX}/${handleBase}.${ext}`;
+    }
+    return fromApi;
+  }
   if (handleName) {
     const name = handleName.trim().replace(/\s+/g, '_');
     if (name) return `${HANDLE_MOCKUP_BASE}/${name}.png`;

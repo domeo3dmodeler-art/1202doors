@@ -40,8 +40,10 @@ upstream domeo_backend {
     keepalive 16;
 }
 
-limit_req_zone \$binary_remote_addr zone=api_limit:20m rate=3r/s;
-limit_req_zone \$binary_remote_addr zone=strict_limit:10m rate=1r/s;
+# Обычный сёрфинг: 15 r/s, burst 50 (Next.js грузит много чанков параллельно)
+limit_req_zone \$binary_remote_addr zone=api_limit:20m rate=15r/s;
+# Тяжёлые API (complete-data и т.п.): строже
+limit_req_zone \$binary_remote_addr zone=strict_limit:10m rate=3r/s;
 limit_conn_zone \$binary_remote_addr zone=conn_limit:10m;
 
 server {
@@ -55,8 +57,8 @@ server {
     if (\$bad_bot) { return 444; }
 
     location ~ ^/api/(health|catalog/doors/complete-data) {
-        limit_req zone=strict_limit burst=5 nodelay;
-        limit_conn conn_limit 5;
+        limit_req zone=strict_limit burst=15 nodelay;
+        limit_conn conn_limit 10;
         proxy_pass http://domeo_backend;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -66,8 +68,8 @@ server {
     }
 
     location / {
-        limit_req zone=api_limit burst=10 nodelay;
-        limit_conn conn_limit 10;
+        limit_req zone=api_limit burst=50 nodelay;
+        limit_conn conn_limit 25;
         proxy_pass http://domeo_backend;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;

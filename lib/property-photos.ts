@@ -99,6 +99,66 @@ export async function getPropertyPhotosByValuePrefix(
   }
 }
 
+const normalizeValue = (name: string) => String(name ?? '').trim().toLowerCase();
+
+/**
+ * Одна загрузка всех PropertyPhoto для категории дверей (оба свойства: цвета и коды моделей).
+ * Используется в complete-data, чтобы не делать сотни запросов в цикле по моделям.
+ */
+export async function loadAllPropertyPhotosForDoors(categoryId: string): Promise<PropertyPhotoInfo[]> {
+  try {
+    const rows = await prisma.propertyPhoto.findMany({
+      where: {
+        categoryId,
+        propertyName: { in: [DOOR_COLOR_PROPERTY, DOOR_MODEL_CODE_PROPERTY] }
+      },
+      orderBy: [{ propertyValue: 'asc' }, { photoType: 'asc' }]
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      categoryId: r.categoryId,
+      propertyName: r.propertyName,
+      propertyValue: r.propertyValue,
+      photoPath: r.photoPath,
+      photoType: r.photoType,
+      originalFilename: r.originalFilename ?? undefined,
+      fileSize: r.fileSize ?? undefined,
+      mimeType: r.mimeType ?? undefined,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt
+    }));
+  } catch (error) {
+    logger.error('Ошибка loadAllPropertyPhotosForDoors', 'lib/property-photos', error instanceof Error ? { error: error.message } : { error: String(error) });
+    return [];
+  }
+}
+
+/** Поиск по точному значению в предзагруженном пуле (без запроса к БД). */
+export function getPropertyPhotosFromPool(
+  pool: PropertyPhotoInfo[],
+  propertyName: string,
+  propertyValue: string
+): PropertyPhotoInfo[] {
+  const normalized = normalizeValue(propertyValue);
+  if (!normalized) return [];
+  return pool.filter((photo) => {
+    return photo.propertyName === propertyName && normalizeValue(photo.propertyValue) === normalized;
+  });
+}
+
+/** Поиск по префиксу значения в предзагруженном пуле (без запроса к БД). */
+export function getPropertyPhotosByValuePrefixFromPool(
+  pool: PropertyPhotoInfo[],
+  propertyName: string,
+  valuePrefix: string
+): PropertyPhotoInfo[] {
+  const prefixNorm = normalizeValue(valuePrefix);
+  if (!prefixNorm) return [];
+  return pool.filter((photo) => {
+    return photo.propertyName === propertyName && normalizeValue(photo.propertyValue).startsWith(prefixNorm);
+  });
+}
+
 /**
  * Структурирует фото в обложку и галерею
  */

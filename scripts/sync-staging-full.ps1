@@ -8,9 +8,10 @@ param([switch]$SkipPhotos = $false)
 $ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771510238528\ssh-key-1771510238528" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@158.160.13.144" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
 $StagingHostOnly = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { $StagingHost }
+$RemoteAppPath = if ($env:1002DOORS_REMOTE_APP_PATH) { $env:1002DOORS_REMOTE_APP_PATH } else { "~/1002doors" }
 $PgDump = "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"
 $OutputDir = Join-Path $ProjectRoot "scripts\output"
 $DumpFile = Join-Path $OutputDir "full_backup.dump"
@@ -29,10 +30,10 @@ if (-not $SkipPhotos -and (Test-Path $UploadsDir)) {
         if (Test-Path $archive) {
             $sz = (Get-Item $archive).Length / 1MB
             Write-Host "Uploading uploads archive ($([math]::Round($sz, 1)) MB) to VM..." -ForegroundColor Cyan
-            scp -i $KeyPath -o StrictHostKeyChecking=no $archive "${StagingHost}:~/1002doors/uploads_staging.tar.gz"
+            scp -i $KeyPath -o StrictHostKeyChecking=no $archive "${StagingHost}:${RemoteAppPath}/uploads_staging.tar.gz"
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "Extracting uploads on VM..." -ForegroundColor Cyan
-                $extractScript = "mkdir -p ~/1002doors/public && cd ~/1002doors/public && tar -xzf ../uploads_staging.tar.gz && rm -f ../uploads_staging.tar.gz && echo 'Uploads extracted.'"
+                $extractScript = "mkdir -p ${RemoteAppPath}/public && cd ${RemoteAppPath}/public && tar -xzf ../uploads_staging.tar.gz && rm -f ../uploads_staging.tar.gz && echo 'Uploads extracted.'"
                 $extractScript | ssh -i $KeyPath -o StrictHostKeyChecking=no $StagingHost "bash -s"
             }
             Remove-Item $archive -Force -ErrorAction SilentlyContinue
@@ -70,7 +71,7 @@ if (-not $dbUrl) { Write-Host "WARN: .env.postgresql not found or no DATABASE_UR
                 $dumpSize = (Get-Item $DumpFile).Length / 1MB
                 if ($dumpSize -gt 0) {
                     Write-Host "Dump created: $DumpFile ($([math]::Round($dumpSize, 2)) MB). Uploading..."
-                    scp -i $KeyPath -o StrictHostKeyChecking=no $DumpFile "${StagingHost}:~/1002doors/full_backup.dump"
+                    scp -i $KeyPath -o StrictHostKeyChecking=no $DumpFile "${StagingHost}:${RemoteAppPath}/full_backup.dump"
                     if ($LASTEXITCODE -eq 0) { $doRestore = $true } else { Write-Host "WARN: scp dump failed" }
                 } else { Write-Host "WARN: Dump file empty. Skip."; Remove-Item $DumpFile -Force }
             } else { Write-Host "WARN: pg_dump failed (is PostgreSQL running?). Skip dump." }
@@ -82,7 +83,7 @@ if (-not $dbUrl) { Write-Host "WARN: .env.postgresql not found or no DATABASE_UR
 # Пароль для pg_restore берём из .env на ВМ (bash); экранируем $ для PowerShell: `$
 $remoteScript = @"
 set -e
-cd ~/1002doors
+cd $RemoteAppPath
 PGPASSWORD=
 for envf in .env ~/domeo-app/.env; do
   if [ -f "`$envf" ]; then

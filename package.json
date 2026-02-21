@@ -43,6 +43,7 @@
     "export:categories-hierarchy": "tsx scripts/export-categories-hierarchy.ts",
     "export:yml-categories-hierarchy": "tsx scripts/export-yml-categories-hierarchy.ts",
     "compare:yml-csv": "tsx scripts/compare-yml-csv.ts",
+    "docs:word": "tsx scripts/build-docx-instructions.ts",
     "seed:catalog-tree": "tsx scripts/seed-catalog-tree.ts",
     "import:final-filled": "tsx scripts/import-final-filled.ts && npm run photos:bind:stable",
     "download:final-filled-photos": "tsx scripts/download-final-filled-photos.ts",
@@ -91,6 +92,7 @@
     "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@fontsource/roboto": "^5.2.8",
     "@heroicons/react": "^2.2.0",
+    "@prisma/client": "^6.19.2",
     "@radix-ui/react-label": "^2.1.7",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
@@ -115,8 +117,7 @@
     "tailwind-merge": "^3.3.1",
     "winston": "^3.11.0",
     "xlsx": "^0.18.5",
-    "zod": "^3.23.8",
-    "@prisma/client": "^6.19.2"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
@@ -130,6 +131,7 @@
     "@types/winston": "^2.4.4",
     "autoprefixer": "10.4.19",
     "better-sqlite3": "^11.10.0",
+    "docx": "^9.5.3",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.5",
     "pg": "^8.18.0",

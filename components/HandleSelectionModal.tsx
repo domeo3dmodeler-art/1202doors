@@ -111,9 +111,8 @@ export default function HandleSelectionModal({
 
   const [descriptionForHandleId, setDescriptionForHandleId] = useState<string | null>(null);
 
-  // Единый слой путей фото: для ручек — с fallback по имени на mockup
   const getNormalizedPhotoUrl = (photoPath: string, handleName?: string) =>
-    handleName ? getHandleImageSrc(photoPath, handleName) : getImageSrc(photoPath);
+    getHandleImageSrc(photoPath, handleName);
   
   const allPhotosInGroup = filteredHandles
     .flatMap(handle => handle.photos || [])
@@ -241,6 +240,7 @@ export default function HandleSelectionModal({
                           <img
                             src={getNormalizedPhotoUrl(handle.photos[0], handle.name)}
                             alt={handle.name}
+                            loading="lazy"
                             className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform duration-200"
                             onClick={(e) => {
                               e.stopPropagation();

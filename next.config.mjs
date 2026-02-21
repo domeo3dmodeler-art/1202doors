@@ -29,6 +29,8 @@ const nextConfig = {
     ],
   },
   
+  // Явно разрешаем webpack при наличии webpack()-конфига (Next 16 по умолчанию Turbopack)
+  turbopack: {},
   // Оптимизация сборки
   experimental: {
     optimizeCss: true,
@@ -45,6 +47,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   
+  // /uploads/* → /api/uploads/* для раздачи с декодированием URL (кириллица в путях)
+  async rewrites() {
+    return [
+      { source: '/uploads/:path*', destination: '/api/uploads/:path*' },
+    ];
+  },
+
   // Кэширование
   // Порядок важен: более специфичные правила должны быть первыми
   async headers() {

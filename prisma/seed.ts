@@ -92,20 +92,23 @@ async function main() {
 
     const categoryId = doorsCategory.id;
     const sampleProducts = [
-      { sku: 'TEST-MODEL-01', name: 'Тестовая модель 01', model: 'Модель 01', style: 'Современный' },
-      { sku: 'TEST-MODEL-02', name: 'Тестовая модель 02', model: 'Модель 02', style: 'Классика' },
-      { sku: 'TEST-MODEL-03', name: 'Тестовая модель 03', model: 'Модель 03', style: 'Современный' }
+      { sku: 'TEST-MODEL-01', name: 'Тестовая модель 01', model: 'Модель 01', style: 'Современный', modelCode: 'TEST-01' },
+      { sku: 'TEST-MODEL-02', name: 'Тестовая модель 02', model: 'Модель 02', style: 'Классика', modelCode: 'TEST-02' },
+      { sku: 'TEST-MODEL-03', name: 'Тестовая модель 03', model: 'Модель 03', style: 'Современный', modelCode: 'TEST-03' }
     ];
+
+    const propsData = (p: typeof sampleProducts[0]) => ({
+      'Код модели Domeo (Web)': p.modelCode,
+      'Название модели': p.model,
+      'Domeo_Стиль Web': p.style
+    });
 
     for (const p of sampleProducts) {
       await prisma.product.upsert({
         where: { sku: p.sku },
         update: {
           name: p.name,
-          properties_data: JSON.stringify({
-            'Название модели': p.model,
-            'Domeo_Стиль Web': p.style
-          })
+          properties_data: JSON.stringify(propsData(p))
         },
         create: {
           catalog_category_id: categoryId,
@@ -114,10 +117,7 @@ async function main() {
           base_price: 15000,
           currency: 'RUB',
           is_active: true,
-          properties_data: JSON.stringify({
-            'Название модели': p.model,
-            'Domeo_Стиль Web': p.style
-          })
+          properties_data: JSON.stringify(propsData(p))
         }
       });
     }

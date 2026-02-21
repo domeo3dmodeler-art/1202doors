@@ -70,6 +70,7 @@ export function getPuppeteerExecutablePath(): string {
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
+    '/snap/bin/chromium', // Ubuntu 24+ chromium-browser (snap)
   ];
   for (const p of linuxPaths) {
     if (fs.existsSync(p)) {

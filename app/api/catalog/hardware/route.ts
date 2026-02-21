@@ -107,8 +107,16 @@ async function getHandler(
 
       const images = handle.images ?? [];
       const [handleUrl, backplateUrl] = pickHandleAndBackplateUrls(images as Array<{ url: string; original_name: string; sort_order: number; is_primary: boolean }>);
-      let photos: string[] = [handleUrl].filter(Boolean);
-      if (backplateUrl) photos.push(backplateUrl);
+      // Локальные пути отдаём как /api/uploads/... — фронт подставляет в src (на ВМ статика /uploads/ даёт 503).
+      const toPhotoUrl = (u: string) => {
+        if (!u || u.startsWith('http://') || u.startsWith('https://')) return u;
+        if (u.startsWith('/api/')) return u;
+        const norm = u.startsWith('/') ? u : `/${u}`;
+        if (norm.startsWith('/uploads/') || norm.includes('final-filled') || norm.includes('handle_')) return `/api${norm}`;
+        return u;
+      };
+      let photos: string[] = [handleUrl].filter(Boolean).map(toPhotoUrl);
+      if (backplateUrl) photos.push(toPhotoUrl(backplateUrl));
       // Фото: при отсутствии в ProductImage — из properties_data
       if (photos.length === 0 && props.photos) {
         if (typeof props.photos === 'object' && props.photos !== null && 'cover' in props.photos) {
@@ -116,19 +124,19 @@ async function getHandler(
           const normalizePhoto = (photo: string | null | undefined): string | null => {
             if (!photo) return null;
             if (photo.startsWith('http://') || photo.startsWith('https://')) return photo;
-            if (photo.startsWith('products/')) return `/uploads/${photo}`;
-            if (photo.startsWith('/uploads/')) return photo;
-            if (!photo.startsWith('/')) return `/uploads/products/${photo}`;
-            return photo;
+            if (photo.startsWith('products/')) return `/api/uploads/${photo}`;
+            if (photo.startsWith('/uploads/')) return `/api${photo}`;
+            if (!photo.startsWith('/')) return `/api/uploads/products/${photo}`;
+            return photo.startsWith('/api/') ? photo : `/api${photo}`;
           };
           photos = [normalizePhoto(photosObj.cover), ...(photosObj.gallery || []).map(normalizePhoto)].filter((p): p is string => p !== null);
         } else if (Array.isArray(props.photos)) {
           photos = (props.photos as string[]).map((p: string) => {
             if (!p) return null;
             if (p.startsWith('http://') || p.startsWith('https://')) return p;
-            if (p.startsWith('products/')) return `/uploads/${p}`;
-            if (p.startsWith('/uploads/')) return p;
-            return p.startsWith('/') ? p : `/uploads/products/${p}`;
+            if (p.startsWith('products/')) return `/api/uploads/${p}`;
+            if (p.startsWith('/uploads/')) return `/api${p}`;
+            return p.startsWith('/api/') ? p : (p.startsWith('/') ? `/api${p}` : `/api/uploads/products/${p}`);
           }).filter((p): p is string => p !== null);
         }
       }
