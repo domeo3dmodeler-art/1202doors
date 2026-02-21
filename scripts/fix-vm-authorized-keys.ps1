@@ -2,12 +2,12 @@
 # Запуск: .\scripts\fix-vm-authorized-keys.ps1
 # Если подключаетесь другим ключом (который уже есть на ВМ), задайте его:
 #   $env:1002DOORS_SSH_KEY = "путь\к\рабочему_приватному_ключу"
-#   $env:1002DOORS_STAGING_HOST = "ubuntu@158.160.13.144"
+#   $env:1002DOORS_STAGING_HOST = "ubuntu@89.169.181.191"
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\1002doors-vm\id_ed25519" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@158.160.13.144" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
 $PubKeyPath = if (Test-Path "$KeyPath.pub") { "$KeyPath.pub" } else { Join-Path (Split-Path $KeyPath -Parent) "id_ed25519.pub" }
 
 if (-not (Test-Path $KeyPath)) { Write-Error "Private key not found: $KeyPath"; exit 1 }

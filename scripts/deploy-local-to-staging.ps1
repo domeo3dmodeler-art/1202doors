@@ -13,7 +13,7 @@ $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 # Путь к ключу: задайте 1002DOORS_SSH_KEY в окружении (см. docs/SSH_KEY_AND_YC_VM.md)
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771392782781\ssh-key-1771392782781" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@84.201.160.50" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
 $StagingHostOnly = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { $StagingHost }
 $RemotePath = "~/1002doors"
 # Keepalive чтобы соединение не обрывалось при долгой загрузке (Windows scp/ssh принимают каждый -o отдельно)

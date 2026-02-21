@@ -5,6 +5,7 @@ import { Settings, Download, Share, Edit, Archive, Trash2, Send, CheckCircle, XC
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface DocumentActionsProps {
   document: {
@@ -22,10 +23,9 @@ export function DocumentActions({ document }: DocumentActionsProps) {
   const handleDownloadExport = async (format: 'pdf' | 'excel') => {
     setDownloadBusy(format);
     try {
-      const response = await fetch(`/api/documents/${document.id}/export?format=${format}`, {
+      const response = await fetchWithAuth(`/api/documents/${document.id}/export?format=${format}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
       });
       if (!response.ok) throw new Error('Ошибка при экспорте документа');
       const blob = await response.blob();

@@ -79,7 +79,7 @@ Host domeo-yc
 
 ```powershell
 $env:1002DOORS_SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"
-$env:1002DOORS_STAGING_HOST = "ubuntu@158.160.74.180"
+$env:1002DOORS_STAGING_HOST = "ubuntu@89.169.181.191"
 ```
 
 (Если на ВМ пользователь не `ubuntu`, а например `petr`, напишите `petr@158.160.74.180`.)
@@ -93,14 +93,14 @@ $env:1002DOORS_STAGING_HOST = "ubuntu@158.160.74.180"
    - Значение: `C:\Users\petr2\.ssh\id_ed25519` (ваш путь к ключу).
 4. Создайте вторую переменную:
    - Имя: `1002DOORS_STAGING_HOST`  
-   - Значение: `ubuntu@158.160.74.180` (или `petr@158.160.74.180`).
+   - Значение: `ubuntu@89.169.181.191` (или `petr@89.169.181.191`).
 5. OK везде. **Новый PowerShell** откройте после этого.
 
 Или одной командой в PowerShell (постоянно):
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable("1002DOORS_SSH_KEY", "$env:USERPROFILE\.ssh\id_ed25519", "User")
-[System.Environment]::SetEnvironmentVariable("1002DOORS_STAGING_HOST", "ubuntu@158.160.74.180", "User")
+[System.Environment]::SetEnvironmentVariable("1002DOORS_STAGING_HOST", "ubuntu@89.169.181.191", "User")
 ```
 
 ---

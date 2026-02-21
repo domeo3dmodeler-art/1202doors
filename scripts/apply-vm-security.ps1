@@ -11,7 +11,7 @@ $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $KeyPath = $env:1002DOORS_SSH_KEY
 if (-not $KeyPath) { $KeyPath = "C:\Users\petr2\.ssh\ssh-key-1771510238528\ssh-key-1771510238528" }
 $StagingHost = $env:1002DOORS_STAGING_HOST
-if (-not $StagingHost) { $StagingHost = "ubuntu@158.160.13.144" }
+if (-not $StagingHost) { $StagingHost = "ubuntu@89.169.181.191" }
 
 $SshOpts = @("-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=15")
 

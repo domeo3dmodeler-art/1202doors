@@ -29,9 +29,15 @@ const nextConfig = {
     ],
   },
   
-  // Явно разрешаем webpack при наличии webpack()-конфига (Next 16 по умолчанию Turbopack)
-  turbopack: {},
+  // Turbopack: root для next dev (next build идёт через --webpack в package.json)
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
+  // Доступ к dev-серверу по публичному IP (Nginx проксирует на localhost) — иначе /_next/* блокируются и UI остаётся скелетоном
+  allowedDevOrigins: ['http://89.169.181.191', 'http://89.169.181.191:80', '89.169.181.191'],
   // Оптимизация сборки
+  // Пакеты не бандлить на сервере — резолв из node_modules в рантайме (избегаем "Can't resolve" при сборке)
+  serverExternalPackages: ['bcryptjs', 'lodash.isboolean', 'lodash.isnil', 'lodash.escaperegexp'],
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ['lucide-react'],
@@ -136,23 +142,17 @@ const nextConfig = {
   
   // Оптимизация webpack
   webpack: (config, { dev, isServer }) => {
-    // Явный alias @ на корень проекта (исправляет "Module not found" для @/lib, @/components на части сборки)
     const root = path.resolve(__dirname);
-    const prismaClientPath = path.resolve(__dirname, 'node_modules/@prisma/client');
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': root,
-      '@prisma/client': prismaClientPath,
+      '@prisma/client': path.resolve(__dirname, 'node_modules/@prisma/client'),
       '.prisma/client': path.resolve(__dirname, 'node_modules/.prisma/client'),
     };
-    
-    // Добавляем node_modules в resolve.modules для правильного разрешения
-    if (!config.resolve.modules) {
-      config.resolve.modules = [];
-    }
-    config.resolve.modules.push(path.resolve(__dirname, 'node_modules'));
-    
-    // Исключаем Prisma из обработки на клиенте (только для сервера)
+    if (!config.resolve.modules) config.resolve.modules = [];
+    if (!Array.isArray(config.resolve.modules)) config.resolve.modules = [config.resolve.modules];
+    config.resolve.modules.unshift(path.resolve(__dirname, 'node_modules'));
+
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -161,7 +161,6 @@ const nextConfig = {
         tls: false,
       };
     }
-    
     if (!dev && !isServer) {
       config.optimization.splitChunks = {
         chunks: 'all',

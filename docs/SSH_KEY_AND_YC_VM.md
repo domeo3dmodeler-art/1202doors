@@ -120,7 +120,7 @@ chmod 600 ~/.ssh/authorized_keys
 
 ```powershell
 $env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\id_ed25519"   # путь к вашему ключу
-$env:1002DOORS_STAGING_HOST = "ubuntu@158.160.74.180"       # или petr@158.160.74.180 — как на ВМ
+$env:1002DOORS_STAGING_HOST = "ubuntu@89.169.181.191"       # или petr@89.169.181.191 — как на ВМ
 ```
 
 Дальше все скрипты (`deploy-local-to-staging.ps1`, `restart-staging-app.ps1`, `reboot-staging-vm.ps1` и т.д.) будут использовать эту ВМ и этот ключ. Путь к ключу и IP не попадают в репозиторий.

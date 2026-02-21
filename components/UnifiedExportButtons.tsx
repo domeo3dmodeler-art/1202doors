@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import type { CartItem, ExportOptions } from '@/lib/services/export.service';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 export interface ExportButtonsProps {
   getCart: () => CartItem[];
@@ -13,6 +14,45 @@ export interface ExportButtonsProps {
 
 type ExportType = 'kp' | 'invoice' | 'factory-csv' | 'factory-xlsx' | 'order-from-kp';
 type BusyState = ExportType | null;
+
+/** Приводит элемент корзины к виду items для POST /api/export/fast (как в ЛК исполнителя). */
+function cartToExportItems(cart: CartItem[]): Record<string, unknown>[] {
+  return cart.map((item: any) => ({
+    id: item.id || item.productId,
+    productId: item.productId || item.id,
+    name: item.name || item.productName || item.model,
+    model: item.model || item.productName || item.name,
+    model_name: item.model_name,
+    qty: item.qty ?? item.quantity ?? 1,
+    quantity: item.qty ?? item.quantity ?? 1,
+    unitPrice: item.unitPrice ?? item.price ?? item.basePrice ?? 0,
+    price: item.unitPrice ?? item.price ?? item.basePrice ?? 0,
+    width: item.width,
+    height: item.height,
+    color: item.color,
+    finish: item.finish,
+    style: item.style,
+    type: item.type ?? item.itemType,
+    itemType: item.itemType ?? item.type,
+    sku_1c: item.sku_1c,
+    handleId: item.handleId,
+    handleName: item.handleName,
+    limiterId: item.limiterId,
+    limiterName: item.limiterName,
+    hardwareKitId: item.hardwareKitId,
+    hardwareKitName: item.hardwareKitName ?? item.hardware,
+    edge: item.edge,
+    edgeId: item.edgeId,
+    edgeColorName: item.edgeColorName ?? item.edge_color_name,
+    glassColor: item.glassColor ?? item.glass_color,
+    reversible: item.reversible,
+    mirror: item.mirror,
+    threshold: item.threshold,
+    optionIds: item.optionIds,
+    architraveNames: item.architraveNames,
+    optionNames: item.optionNames,
+  }));
+}
 
 export default function ExportButtons({ 
   getCart, 
@@ -32,11 +72,27 @@ export default function ExportButtons({
 
     try {
       const cart = getCart();
-      
-      // Определяем тип документа и формат
+      if (!cart?.length) {
+        setError('Корзина пуста');
+        return;
+      }
+
+      const clientId = (cart[0] as any)?.clientId ?? (cart[0] as any)?.client_id ?? null;
+      if (!clientId) {
+        setError('Выберите клиента');
+        return;
+      }
+
+      const items = cartToExportItems(cart);
+      const totalAmount = cart.reduce((sum: number, item: any) => {
+        const qty = item.qty ?? item.quantity ?? 1;
+        const price = item.unitPrice ?? item.price ?? item.basePrice ?? item.total / (qty || 1) ?? 0;
+        return sum + price * qty;
+      }, 0);
+
       let documentType: 'quote' | 'invoice' | 'order' = 'quote';
       let format: 'pdf' | 'excel' | 'csv' = 'pdf';
-      
+
       if (type === 'kp') {
         documentType = 'quote';
         format = options.format === 'pdf' ? 'pdf' : 'excel';
@@ -47,39 +103,33 @@ export default function ExportButtons({
         documentType = 'order';
         format = type === 'factory-csv' ? 'csv' : 'excel';
       }
-      
-      // Вызываем API route
-      const response = await fetch('/api/cart/export/enhanced', {
+
+      // Тот же API, что в окне заказа ЛК исполнителя: POST /api/export/fast с авторизацией
+      const response = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cart: { items: cart },
-          documentType,
+          type: documentType,
           format,
-          clientId: cart[0]?.clientId || null,
-          sourceDocumentId: acceptedKPId || null,
-          sourceDocumentType: acceptedKPId ? 'quote' : null
-        })
+          clientId,
+          items,
+          totalAmount,
+          parentDocumentId: acceptedKPId || null,
+          cartSessionId: null,
+        }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Ошибка экспорта' }));
         setError(errorData.error || 'Ошибка экспорта');
         return;
       }
 
-      // API возвращает JSON с полем file.buffer (base64)
-      const data = await response.json();
-      if (!data?.file?.buffer) {
-        setError('Некорректный ответ сервера');
-        return;
-      }
-      const binary = atob(data.file.buffer);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: data.file.mimeType || 'application/octet-stream' });
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition?.match(/filename="?(.+)"?/)?.[1]?.trim() ||
+        `export.${format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv'}`;
       const url = URL.createObjectURL(blob);
-      const filename = data.file.filename || `export.${format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv'}`;
 
       if (options.openInNewTab) {
         window.open(url, '_blank');

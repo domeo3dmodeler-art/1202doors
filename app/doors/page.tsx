@@ -2417,26 +2417,11 @@ export default function FigmaExactReplicaPage() {
                                         target.dataset.alternativeTried = 'true';
                                         // Пробуем разные варианты нормализации
                                         const currentSrc = target.src.replace(window.location.origin, '');
-                                        const handleObj = selectedHandleIdObj as any;
-                                        const alternatives = [
-                                          selectedHandleIdObj.name?.trim().replace(/\s+/g, '_'),  // С подчеркиваниями (PANTS_BL)
-                                          selectedHandleIdObj.name?.trim().replace(/\s+BL$/, ' _BL'),  // С пробелом перед подчеркиванием для BL (PANTS _BL)
-                                          selectedHandleIdObj.name?.trim().replace(/\s+/g, ''),    // Без пробелов
-                                          handleObj.factoryName?.trim().replace(/\s+/g, '_'),
-                                          handleObj.factoryName?.trim().replace(/\s+BL$/, ' _BL'),
-                                          handleObj.factoryName?.trim(),
-                                          handleObj.article?.trim()
-                                        ].filter(Boolean);
-                                        
-                                        for (const alt of alternatives) {
-                                          if (alt) {
-                                            const mockupUrl = `/data/mockups/ruchki/${alt}.png`;
-                                            if (currentSrc !== mockupUrl) {
-                                              console.log('🔄 Пробуем альтернативный путь:', mockupUrl);
-                                              target.src = mockupUrl;
-                                              return;
-                                            }
-                                          }
+                                        // Единый плейсхолдер при отсутствии фото (избегаем 404 на ВМ из-за /data/mockups/)
+                                        const fallbackSrc = getHandleImageSrc(undefined, selectedHandleIdObj?.name);
+                                        if (fallbackSrc && fallbackSrc !== currentSrc) {
+                                          target.src = fallbackSrc;
+                                          return;
                                         }
                                       }
                                       

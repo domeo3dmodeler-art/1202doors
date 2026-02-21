@@ -16,6 +16,21 @@ const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|svg)$/i;
  * @param requestedFileName имя файла, например base1_ПВХ_Крем_софт_cover.png
  * @returns полный путь к найденному файлу или null
  */
+/** Известные соответствия: короткое имя в БД → возможные имена файлов на диске (только эти две двери). */
+const TWO_DOORS_ALTERNATES: { requested: string; diskNames: string[] }[] = [
+  {
+    requested: 'Дверь_Molis_1_Белый_(RAL_9003)_cover.png',
+    diskNames: ['Дверь_Molis_1_эмаль_ДГ_Исполнение_Эмаль_Белый_(RAL_9003)_cover.png'],
+  },
+  {
+    requested: 'Дверь_Enigma_1_ДГ-Эмаль_Синий_(NCS_S_6010-B10G)_cover.png',
+    diskNames: [
+      'Дверь_Enigma_1_ДГ_Эмаль_Синий_(NCS_S_6010-B10G)_cover.png',
+      'Дверь_Enigma_1_ДГ-Эмаль_Синий_(NCS_S_6010-B10G)_cover.png',
+    ],
+  },
+];
+
 export function findDoorPhotoFile(doorsDir: string, requestedFileName: string): string | null {
   if (!existsSync(doorsDir)) return null;
 
@@ -30,6 +45,17 @@ export function findDoorPhotoFile(doorsDir: string, requestedFileName: string): 
     }
     return null;
   };
+
+  // Точечно: две двери (Molis 1 Белый, Enigma 1 Синий) — в БД короткое имя, на диске может быть длинное
+  const normalizedRequested = requestedFileName.normalize('NFC');
+  for (const { requested, diskNames } of TWO_DOORS_ALTERNATES) {
+    if (requested.normalize('NFC') !== normalizedRequested) continue;
+    for (const diskName of diskNames) {
+      const p = join(doorsDir, diskName);
+      if (existsSync(p)) return p;
+    }
+    break;
+  }
 
   let found = tryFile(baseName);
   if (found) return found;

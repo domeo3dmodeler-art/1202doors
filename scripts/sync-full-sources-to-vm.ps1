@@ -29,7 +29,7 @@ $tarPath = Join-Path $ProjectRoot $tarName
 
 Push-Location $ProjectRoot
 try {
-    $items = @("app", "lib", "components", "hooks", "prisma", "public", "next.config.mjs", "tsconfig.json", "middleware.ts", "package.json", "package-lock.json")
+    $items = @("app", "lib", "components", "hooks", "prisma", "public", "styles", "globals.css", "next.config.mjs", "tsconfig.json", "postcss.config.js", "tailwind.config.js", "middleware.ts", "package.json", "package-lock.json")
     $existing = $items | Where-Object { Test-Path $_ }
     if ($existing.Count -eq 0) {
         Write-Host "No source dirs found." -ForegroundColor Red

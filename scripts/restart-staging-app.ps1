@@ -2,7 +2,7 @@
 # Запуск: .\scripts\restart-staging-app.ps1
 
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771392782781\ssh-key-1771392782781" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@84.201.160.50" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
 
 if (-not (Test-Path $KeyPath)) {
     Write-Host "SSH key not found: $KeyPath" -ForegroundColor Red

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Download, FileText, User, MapPin, Clock, X } from 'lucide-react';
 import { clientLogger } from '@/lib/logging/client-logger';
 import { getItemDisplayNameForExport } from '@/lib/export/display-names';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface DocumentQuickViewModalProps {
   isOpen: boolean;
@@ -68,17 +69,16 @@ export function DocumentQuickViewModal({ isOpen, onClose, documentId }: Document
         return;
       }
 
-      // Используем общую логику экспорта с поддержкой связанных документов
-      const response = await fetch('/api/export/fast', {
+      // Тот же API, что в окне заказа ЛК исполнителя
+      const response = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: documentType, // Используем переданный тип документа
+          type: documentType,
           format: format,
           clientId: document.client.id,
           items: cartData,
           totalAmount: document.totalAmount,
-          // Передаем информацию о родительском документе для связывания
           parentDocumentId: document.parent_document_id,
           cartSessionId: document.cart_session_id
         })

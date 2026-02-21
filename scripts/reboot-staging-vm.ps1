@@ -1,10 +1,10 @@
-# Перезагрузка staging ВМ (158.160.72.3).
+# Перезагрузка staging ВМ (89.169.181.191).
 # Запуск: .\scripts\reboot-staging-vm.ps1
 # Если по SSH не получается — перезагрузите ВМ через консоль Yandex Cloud (см. ниже).
 
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771392782781\ssh-key-1771392782781" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@84.201.160.50" }
-$Host = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { "158.160.72.3" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$Host = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { "89.169.181.191" }
 $User = if ($StagingHost -match '@') { $StagingHost.Split('@')[0] } else { "petr" }
 
 if (-not (Test-Path $KeyPath)) {

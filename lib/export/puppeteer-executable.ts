@@ -64,13 +64,12 @@ export function getPuppeteerExecutablePath(): string {
     );
   }
 
-  // Linux (сервер): только env или стандартные пути, без загрузки через npm
+  // Linux (сервер): только пути из apt. Snap Chromium не запускается из systemd (cgroup).
   const linuxPaths = [
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
-    '/snap/bin/chromium', // Ubuntu 24+ chromium-browser (snap)
   ];
   for (const p of linuxPaths) {
     if (fs.existsSync(p)) {
@@ -79,6 +78,6 @@ export function getPuppeteerExecutablePath(): string {
     }
   }
   throw new Error(
-    'На сервере нужен системный Chrome. Установите google-chrome-stable (.deb) и задайте PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable в .env'
+    'На сервере нужен Chrome/Chromium для PDF/Excel. Установите: sudo apt install chromium-browser (или google-chrome-stable) и в .env на ВМ задайте: PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser'
   );
 }

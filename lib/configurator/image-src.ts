@@ -98,44 +98,45 @@ export function getImageSrcWithPlaceholder(
   return src || placeholder;
 }
 
-/** Базовый путь к mockup-фото ручек (если в каталоге нет фото) */
-const HANDLE_MOCKUP_BASE = '/data/mockups/ruchki';
+/** Единый плейсхолдер для ручек без фото (избегаем 404 на ВМ из-за отсутствия /data/mockups/) */
+const HANDLE_PLACEHOLDER = '/placeholder-handle.svg';
 
-/** Путь считается фото ручки (папка 04_Ручки или имя handle_*_main) — тогда отдаём через /api/uploads/. */
+/** Путь считается фото ручки (папка 04_Ручки или имя handle_*_main). */
 function isHandlePhotoPath(path: string): boolean {
-  if (path.startsWith('/api/')) return false; // уже готовый URL из API
+  if (path.startsWith('/api/')) return false;
   return (path.includes('04_') && (path.includes('Ручки') || path.includes('handle_'))) || (path.includes('handle_') && path.includes('_main'));
 }
 
-/** Базовый путь к фото ручек в API (fallback для «голых» имён файлов из БД). */
-const HANDLES_API_PREFIX = '/api/uploads/final-filled/04_Ручки_Завертки';
+/** Базовый путь к фото ручек (Nginx отдаёт с диска; при отсутствии файла — fallback в Node по /api/uploads/). */
+const HANDLES_UPLOADS_PREFIX = '/uploads/final-filled/04_Ручки_Завертки';
 
 /**
- * URL фото ручки: приоритет — путь из API (уже может быть /api/uploads/...), иначе mockup по имени.
- * Пути /uploads/... переводим в /api/uploads/...; голые имена (PRIZMA_BL.png, handle_XXX.png) — в /api/uploads/.../handle_*_main.*
+ * URL фото ручки: приоритет — путь из API (/uploads/... или /api/uploads/...), иначе mockup по имени.
+ * Используем /uploads/... чтобы Nginx отдавал с диска (A); при 404 Nginx проксирует в Node для fallback.
  */
 export function getHandleImageSrc(photoPath: string | undefined, handleName?: string): string {
   const fromApi = getImageSrc(photoPath);
   if (fromApi) {
+    if (fromApi.startsWith('/api/uploads/')) return fromApi.replace(/^\/api/, '');
     if (fromApi.startsWith('/api/')) return fromApi;
-    if (isHandlePhotoPath(fromApi)) return '/api' + fromApi;
-    // Голое имя файла (только имя, без каталога) — отдаём через API (fallback на ВМ найдёт handle_*_main.*)
+    if (isHandlePhotoPath(fromApi)) return fromApi;
+    // Голое имя файла — путь под ручки (Nginx → при отсутствии Node fallback)
     const bareName = fromApi.replace(/^\//, '');
     if (bareName && !bareName.includes('/') && IMAGE_EXT.test(bareName)) {
       const base = bareName.replace(/\.[^/.]+$/, '');
       const ext = bareName.split('.').pop()?.toLowerCase() || 'png';
       const handleBase = base.toLowerCase().startsWith('handle_') ? base : `handle_${base}_main`;
-      return `${HANDLES_API_PREFIX}/${handleBase}.${ext}`;
+      return `${HANDLES_UPLOADS_PREFIX}/${handleBase}.${ext}`;
     }
     return fromApi;
   }
   if (handleName) {
     const name = handleName.trim().replace(/\s+/g, '_');
-    if (name) return `${HANDLE_MOCKUP_BASE}/${name}.png`;
+    if (name) return HANDLE_PLACEHOLDER;
   }
   if (photoPath) {
     const fileName = photoPath.split('/').pop()?.replace(/\.[^/.]+$/, '');
-    if (fileName) return `${HANDLE_MOCKUP_BASE}/${fileName.trim().replace(/\s+/g, '_')}.png`;
+    if (fileName) return HANDLE_PLACEHOLDER;
   }
   return '';
 }

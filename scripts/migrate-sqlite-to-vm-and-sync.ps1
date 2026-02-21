@@ -10,7 +10,7 @@ if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = R
 Set-Location $ProjectRoot
 
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771510238528\ssh-key-1771510238528" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@158.160.13.144" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
 $PgPassword = if ($env:1002DOORS_VM_PG_PASSWORD) { $env:1002DOORS_VM_PG_PASSWORD } else { "ChangeMe123" }
 
 if (-not (Test-Path $KeyPath)) { Write-Error "SSH key not found: $KeyPath"; exit 1 }

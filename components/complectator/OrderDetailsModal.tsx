@@ -923,7 +923,7 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
         sampleItem: formattedItems[0] // Логируем первый товар для отладки
       });
 
-      const response = await fetch('/api/export/fast', {
+      const response = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

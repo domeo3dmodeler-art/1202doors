@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Progress } from '@/components/ui/Progress';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface FastExportProps {
   cartItems: any[];
@@ -45,7 +46,7 @@ export function FastExport({
         });
       }, 200);
 
-      const response = await fetch('/api/export/fast', {
+      const response = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

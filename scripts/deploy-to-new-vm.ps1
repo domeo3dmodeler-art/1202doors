@@ -1,6 +1,6 @@
-# Безопасный деплой на новую ВМ 158.160.93.154: настройка (один раз) + артефакт + Nginx/Fail2ban.
+# Безопасный деплой на ВМ 89.169.181.191: настройка (один раз) + артефакт + Nginx/Fail2ban.
 # Запуск: .\scripts\deploy-to-new-vm.ps1
-# По умолчанию: ключ ssh-key-1771526730154, хост ubuntu@158.160.93.154
+# По умолчанию: ключ ssh-key-1771526730154, хост ubuntu@89.169.181.191
 #
 # Параметры:
 #   -SkipSetup    ВМ уже настроена (Node, PostgreSQL, .env, systemd), только деплой и безопасность
@@ -12,9 +12,9 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
-# ВМ 158.160.93.154 и ключ из папки ssh-key-1771526730154
+# ВМ 89.169.181.191 и ключ из папки ssh-key-1771526730154
 $DefaultKey = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
-$DefaultHost = "ubuntu@158.160.93.154"
+$DefaultHost = "ubuntu@89.169.181.191"
 
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { $DefaultKey }
 $StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { $DefaultHost }

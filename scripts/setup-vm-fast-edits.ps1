@@ -47,9 +47,11 @@ if (-not $SkipInstall) {
     Write-Host "3. SkipInstall: skipping npm install." -ForegroundColor Gray
 }
 
-# 4) Start next dev
+# 4) Start next dev (сначала останавливаем production, чтобы порт 3000 был свободен)
 if (-not $SkipStart) {
-    Write-Host "4. Starting next dev on VM..." -ForegroundColor Cyan
+    Write-Host "4. Stopping production, then starting next dev on VM..." -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "stop-vm-production.ps1") 2>&1 | Out-Null
+    Start-Sleep -Seconds 2
     & ssh -i $KeyPath @SshOpts $StagingHost "cd $RemotePath && mkdir -p logs && (pgrep -f 'next dev' >/dev/null || nohup npx next dev -p 3000 -H 0.0.0.0 >> logs/next-dev.log 2>&1 &)"
     Start-Sleep -Seconds 2
     Write-Host "   next dev should be starting. Check: ssh ... 'tail -f $RemotePath/logs/next-dev.log'" -ForegroundColor Green

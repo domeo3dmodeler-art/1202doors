@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Eye, Download, FileText, ExternalLink } from 'lucide-react';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface DocumentContentProps {
   document: any;
@@ -14,7 +15,7 @@ export function DocumentContent({ document }: DocumentContentProps) {
   const handleDownload = async (format: 'pdf' | 'excel' | 'csv') => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/documents/${document.id}/export?format=${format}`, {
+      const response = await fetchWithAuth(`/api/documents/${document.id}/export?format=${format}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

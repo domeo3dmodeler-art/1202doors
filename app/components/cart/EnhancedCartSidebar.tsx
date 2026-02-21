@@ -8,6 +8,7 @@ import { CartService } from '@/lib/cart/cart-service';
 import { Cart, CartItem, CartCalculation } from '@/lib/cart/types';
 import DocumentTree from '../documents/DocumentTree';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface EnhancedCartSidebarProps {
   isOpen: boolean;
@@ -209,9 +210,9 @@ export default function EnhancedCartSidebar({
           toast.success(`Заказ ${order?.number || ''} создан успешно!`);
           setCreatedDocuments(prev => [...prev, { type: 'order', ...order }]);
           
-          // Экспортируем PDF для скачивания
+          // Экспортируем PDF для скачивания (тот же API, что в ЛК исполнителя)
           try {
-            const exportResponse = await fetch('/api/export/fast', {
+            const exportResponse = await fetchWithAuth('/api/export/fast', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -363,8 +364,8 @@ export default function EnhancedCartSidebar({
         number: documentResult.documentNumber
       }]);
 
-      // Шаг 3: Экспортируем PDF для скачивания
-      const exportResponse = await fetch('/api/export/fast', {
+      // Шаг 3: Экспортируем PDF для скачивания (тот же API, что в ЛК исполнителя)
+      const exportResponse = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

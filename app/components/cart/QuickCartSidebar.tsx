@@ -8,6 +8,7 @@ import { Cart, CartItem, CartCalculation } from '../../lib/cart/types';
 import SimpleDocumentList from '../documents/SimpleDocumentList';
 import { toast } from 'sonner';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 
 interface QuickCartSidebarProps {
   isOpen: boolean;
@@ -305,8 +306,8 @@ export default function QuickCartSidebar({
       const documentResult = await documentResponse.json();
       clientLogger.debug('✅ Document created:', documentResult);
 
-      // Шаг 3: Экспортируем PDF для скачивания
-      const exportResponse = await fetch('/api/export/fast', {
+      // Шаг 3: Экспортируем PDF для скачивания (тот же API, что в ЛК исполнителя)
+      const exportResponse = await fetchWithAuth('/api/export/fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

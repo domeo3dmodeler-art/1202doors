@@ -107,12 +107,12 @@ async function getHandler(
 
       const images = handle.images ?? [];
       const [handleUrl, backplateUrl] = pickHandleAndBackplateUrls(images as Array<{ url: string; original_name: string; sort_order: number; is_primary: boolean }>);
-      // Локальные пути отдаём как /api/uploads/... — фронт подставляет в src (на ВМ статика /uploads/ даёт 503).
+      // Локальные пути отдаём как /uploads/... — Nginx отдаёт с диска (A); при отсутствии файла fallback в Node по @backend_uploads.
       const toPhotoUrl = (u: string) => {
         if (!u || u.startsWith('http://') || u.startsWith('https://')) return u;
-        if (u.startsWith('/api/')) return u;
+        if (u.startsWith('/api/')) return u.replace(/^\/api/, '');
         const norm = u.startsWith('/') ? u : `/${u}`;
-        if (norm.startsWith('/uploads/') || norm.includes('final-filled') || norm.includes('handle_')) return `/api${norm}`;
+        if (norm.startsWith('/uploads/') || norm.includes('final-filled') || norm.includes('handle_')) return norm;
         return u;
       };
       let photos: string[] = [handleUrl].filter(Boolean).map(toPhotoUrl);
@@ -124,19 +124,21 @@ async function getHandler(
           const normalizePhoto = (photo: string | null | undefined): string | null => {
             if (!photo) return null;
             if (photo.startsWith('http://') || photo.startsWith('https://')) return photo;
-            if (photo.startsWith('products/')) return `/api/uploads/${photo}`;
-            if (photo.startsWith('/uploads/')) return `/api${photo}`;
-            if (!photo.startsWith('/')) return `/api/uploads/products/${photo}`;
-            return photo.startsWith('/api/') ? photo : `/api${photo}`;
+            if (photo.startsWith('products/')) return `/uploads/${photo}`;
+            if (photo.startsWith('/uploads/')) return photo;
+            if (photo.startsWith('/api/uploads/')) return photo.replace(/^\/api/, '');
+            if (!photo.startsWith('/')) return `/uploads/products/${photo}`;
+            return photo.startsWith('/api/') ? photo.replace(/^\/api/, '') : photo;
           };
           photos = [normalizePhoto(photosObj.cover), ...(photosObj.gallery || []).map(normalizePhoto)].filter((p): p is string => p !== null);
         } else if (Array.isArray(props.photos)) {
           photos = (props.photos as string[]).map((p: string) => {
             if (!p) return null;
             if (p.startsWith('http://') || p.startsWith('https://')) return p;
-            if (p.startsWith('products/')) return `/api/uploads/${p}`;
-            if (p.startsWith('/uploads/')) return `/api${p}`;
-            return p.startsWith('/api/') ? p : (p.startsWith('/') ? `/api${p}` : `/api/uploads/products/${p}`);
+            if (p.startsWith('products/')) return `/uploads/${p}`;
+            if (p.startsWith('/uploads/')) return p;
+            if (p.startsWith('/api/uploads/')) return p.replace(/^\/api/, '');
+            return p.startsWith('/api/') ? p.replace(/^\/api/, '') : (p.startsWith('/') ? p : `/uploads/products/${p}`);
           }).filter((p): p is string => p !== null);
         }
       }
@@ -234,13 +236,19 @@ async function getHandler(
         images: { select: { url: true }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }] },
       },
     });
+    // Локальные пути наличников: под /uploads/. Фото наличников — в final-filled/Наличники (не в папке ручек).
+    const ARCHITRAVES_UPLOADS_PREFIX = '/uploads/final-filled/Наличники/';
     const normalizePhoto = (url: string | null | undefined): string | null => {
       if (!url || typeof url !== 'string') return null;
       const t = url.trim();
       if (t.startsWith('http://') || t.startsWith('https://')) return t;
       if (t.startsWith('/uploads/')) return t;
       if (t.startsWith('uploads/')) return `/${t}`;
-      return `/${t.replace(/^\//, '')}`;
+      // Относительный путь (final-filled/... или с /) — под /uploads/
+      if (t.includes('final-filled') || (t.includes('/') && !t.startsWith('/'))) return `/uploads/${t.replace(/^\//, '')}`;
+      if (t.startsWith('/')) return t;
+      // Голое имя файла — путь под папкой наличников
+      return ARCHITRAVES_UPLOADS_PREFIX + t;
     };
     const formatted = products.map((p) => {
       let props: Record<string, unknown> = {};
