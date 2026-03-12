@@ -1,4 +1,4 @@
-# Безопасный деплой на ВМ 89.169.181.191: настройка (один раз) + артефакт + Nginx/Fail2ban.
+# Безопасный деплой на ВМ. По умолчанию — рабочая машина 89.169.181.191.
 # Запуск: .\scripts\deploy-to-new-vm.ps1
 # По умолчанию: ключ ssh-key-1771526730154, хост ubuntu@89.169.181.191
 #
@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
-# ВМ 89.169.181.191 и ключ из папки ssh-key-1771526730154
+# Рабочая машина 89.169.181.191, ключ ssh-key-1771526730154. Тестовая ВМ: .\scripts\set-test-vm-env.ps1
 $DefaultKey = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
 $DefaultHost = "ubuntu@89.169.181.191"
 
