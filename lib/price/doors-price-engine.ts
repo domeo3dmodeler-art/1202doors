@@ -293,15 +293,26 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
     }
   }
 
+  // Зеркало/порог: данные могут быть у другого поставщика той же модели — ищем по всем matching
+  const optionPropsSource = [product, ...matching.filter((p) => p !== product)];
+
   const mirror = selection.mirror;
   if (mirror === 'one' || mirror === 'mirror_one') {
-    const mirrorOne = Number(properties['Domeo_Опции_Зеркало_одна_сторона_руб']) || 0;
+    let mirrorOne = 0;
+    for (const op of optionPropsSource) {
+      mirrorOne = Number(parseProductProperties(op.properties_data)['Domeo_Опции_Зеркало_одна_сторона_руб']) || 0;
+      if (mirrorOne > 0) break;
+    }
     if (mirrorOne > 0) {
       total += mirrorOne;
       breakdown.push({ label: 'Зеркало (одна сторона)', amount: mirrorOne });
     }
   } else if (mirror === 'both' || mirror === 'mirror_both') {
-    const mirrorBoth = Number(properties['Domeo_Опции_Зеркало_две_стороны_руб']) || 0;
+    let mirrorBoth = 0;
+    for (const op of optionPropsSource) {
+      mirrorBoth = Number(parseProductProperties(op.properties_data)['Domeo_Опции_Зеркало_две_стороны_руб']) || 0;
+      if (mirrorBoth > 0) break;
+    }
     if (mirrorBoth > 0) {
       total += mirrorBoth;
       breakdown.push({ label: 'Зеркало (две стороны)', amount: mirrorBoth });
@@ -309,7 +320,11 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
   }
 
   if (selection.threshold) {
-    const thresholdPrice = Number(properties['Domeo_Опции_Цена_порога_руб']) || 0;
+    let thresholdPrice = 0;
+    for (const op of optionPropsSource) {
+      thresholdPrice = Number(parseProductProperties(op.properties_data)['Domeo_Опции_Цена_порога_руб']) || 0;
+      if (thresholdPrice > 0) break;
+    }
     if (thresholdPrice > 0) {
       total += thresholdPrice;
       breakdown.push({ label: 'Порог', amount: thresholdPrice });
