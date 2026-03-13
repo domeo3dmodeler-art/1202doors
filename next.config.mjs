@@ -84,16 +84,6 @@ const nextConfig = {
           },
         ],
       },
-      // Загруженные файлы - не кэшируем
-      {
-        source: '/uploads/(.*)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
-        ],
-      },
       // Все остальные страницы - не кэшируем
       {
         source: '/(.*)',
@@ -109,6 +99,26 @@ const nextConfig = {
           {
             key: 'Expires',
             value: '0',
+          },
+        ],
+      },
+      // Фото: кэшируем 7 дней, stale-while-revalidate ещё 30 дней.
+      // Правило ПОСЛЕДНЕЕ — перезаписывает no-cache из /api/(.*) и /(.*).
+      {
+        source: '/uploads/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=604800, stale-while-revalidate=2592000',
+          },
+        ],
+      },
+      {
+        source: '/api/uploads/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=604800, stale-while-revalidate=2592000',
           },
         ],
       },

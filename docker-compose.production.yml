@@ -84,6 +84,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/ssl:/etc/nginx/ssl
       - ./logs/nginx:/var/log/nginx
+      - ./uploads:/usr/share/nginx/uploads:ro
     depends_on:
       - app
     healthcheck:

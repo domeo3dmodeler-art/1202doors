@@ -65,10 +65,11 @@ class RateLimiter {
 export const apiRateLimiter = new RateLimiter(15 * 60 * 1000, 100); // 100 запросов за 15 минут
 export const authRateLimiter = new RateLimiter(15 * 60 * 1000, 30); // 30 попыток входа за 15 минут (защита от брутфорса, но без блокировки обычного входа)
 export const uploadRateLimiter = new RateLimiter(60 * 1000, 10); // 10 загрузок за минуту
-/** Жёсткий лимит для публичных эндпоинтов (health, тяжёлые API) — защита от сканеров */
-export const publicApiRateLimiter = new RateLimiter(60 * 1000, 60); // 60 запросов в минуту с одного IP
-/** Глобальный лимит на все API с одного IP — защита от сканеров и флуда */
-export const globalApiRateLimiter = new RateLimiter(15 * 60 * 1000, 400); // 400 запросов за 15 минут с одного IP
+/** Лимит для публичных эндпоинтов (health, complete-data). Защита от сканеров, но без 429 при 20+ пользователях с одного IP (NAT). */
+const publicApiRateLimitPerMinute = Math.min(3000, Math.max(60, parseInt(process.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE || '1000', 10) || 1000));
+export const publicApiRateLimiter = new RateLimiter(60 * 1000, publicApiRateLimitPerMinute);
+/** Глобальный лимит на все API с одного IP (кроме /api/uploads — раздача фото не учитывается). Защита от сканеров, но без 429 при активном каталоге (20+ пользователей за NAT). */
+export const globalApiRateLimiter = new RateLimiter(15 * 60 * 1000, 5000);
 
 // Очистка каждые 5 минут
 setInterval(() => {
