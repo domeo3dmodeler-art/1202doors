@@ -121,10 +121,15 @@ export function heightForMatching(selectionHeight: number | undefined): number |
   return selectionHeight;
 }
 
-/** Округление итоговой цены вверх до 100 руб. */
-export function roundUpTo100(n: number): number {
+/** Округление итоговой цены вверх до 10 руб. */
+export function roundUpTo10(n: number): number {
   if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.ceil(n / 100) * 100;
+  return Math.ceil(n / 10) * 10;
+}
+
+/** @deprecated Используйте roundUpTo10. Оставлено для совместимости. */
+export function roundUpTo100(n: number): number {
+  return roundUpTo10(n);
 }
 
 /** Нормализация строки для сравнения (trim); пустая строка после trim → null. */
@@ -134,9 +139,16 @@ function normStr(v: unknown): string | null {
   return s === '' ? null : s;
 }
 
+/** Проверка, что цвет задан по RAL или NCS (кастомный цвет) — к стоимости двери применяется наценка 20%. */
+function isRalNcsCustomColor(color: string | null | undefined): boolean {
+  if (!color || typeof color !== 'string') return false;
+  const s = color.trim().toUpperCase();
+  return s === 'RAL' || s === 'NCS' || s.startsWith('RAL ') || s.startsWith('NCS ');
+}
+
 /**
  * Подбор товаров дверей по выбору пользователя.
- * Совпадение по: Код модели Domeo (Web), Стиль, Тип покрытия, размеры, наполнение, поставщик.
+ * Совпадение по: Код модели Domeo (Web), Стиль, Тип покрытия, размеры, наполнение, поставщик, реверс.
  * Цвет в подборе товара для цены не используется: цена одна на покрытие. При этом цвет в конфигураторе
  * и каталоге по-прежнему участвует (привязка к Названию модели, список цветов по покрытию, фото).
  * @param _allowEmptyColor — не используется; оставлен для совместимости.
@@ -186,8 +198,11 @@ export function filterProducts(
       (normStr(properties['Domeo_Опции_Название_наполнения']) ?? '') === selFilling;
     const supplierMatch =
       !selSupplier || (normStr(properties['Поставщик']) ?? '') === selSupplier;
+    const reversibleMatch =
+      !selection.reversible ||
+      String(properties['Domeo_Опции_Реверс_доступен'] ?? '').toLowerCase().includes('да');
 
-    return finishMatch && widthMatch && heightMatch && fillingMatch && supplierMatch;
+    return finishMatch && widthMatch && heightMatch && fillingMatch && supplierMatch && reversibleMatch;
   });
 }
 
@@ -214,7 +229,6 @@ export interface EngineInput {
   hardwareKits: ProductWithProps[];
   handles: ProductWithProps[];
   getLimiter: (id: string) => ProductWithProps | null;
-  getOptionProducts: (ids: string[]) => ProductWithProps[];
 }
 
 /**
@@ -222,7 +236,7 @@ export interface EngineInput {
  * @throws если не найден ни один подходящий товар двери
  */
 export function calculateDoorPrice(input: EngineInput): PriceResult {
-  const { products, selection, hardwareKits, handles, getLimiter, getOptionProducts } = input;
+  const { products, selection, hardwareKits, handles, getLimiter } = input;
 
   let matching = filterProducts(products, selection, true, true, true);
   if (matching.length === 0) matching = filterProducts(products, selection, true, false, true);
@@ -244,6 +258,15 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
 
   let total = doorPrice;
   const breakdown: BreakdownItem[] = [{ label: 'Дверь', amount: doorPrice }];
+
+  // Цвет по RAL/NCS: наценка 20% к стоимости двери (модель, размер, покрытие Эмаль)
+  if (isRalNcsCustomColor(selection.color)) {
+    const ralNcsSurcharge = Math.round(doorPrice * 0.2);
+    if (ralNcsSurcharge > 0) {
+      total += ralNcsSurcharge;
+      breakdown.push({ label: 'Цвет по RAL/NCS (+20%)', amount: ralNcsSurcharge });
+    }
+  }
 
   const selHeight = selection.height;
   if (selHeight === HEIGHT_BAND_2301_2500) {
@@ -295,24 +318,32 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
 
   const edgeId = typeof selection.edge_id === 'string' ? selection.edge_id.trim() : '';
   if (edgeId && edgeId !== 'none') {
-    const baseColor =
-      properties['Domeo_Кромка_базовая_цвет'] != null
-        ? String(properties['Domeo_Кромка_базовая_цвет']).trim()
-        : '';
-    let edgeSurcharge = 0;
-    if (baseColor && edgeId === baseColor) {
-      edgeSurcharge = 0;
-    } else {
+    // Данные по кромке (Domeo_Кромка_*) могут быть в любом варианте модели,
+    // а не только в выбранном продукте — ищем по всем matching.
+    const edgePropsSource = [product, ...matching.filter((p) => p !== product)];
+    let edgeSurcharge = -1; // -1 = не найдено
+    for (const ep of edgePropsSource) {
+      const ep_props = parseProductProperties(ep.properties_data);
+      const baseColor =
+        ep_props['Domeo_Кромка_базовая_цвет'] != null
+          ? String(ep_props['Domeo_Кромка_базовая_цвет']).trim()
+          : '';
+      if (!baseColor) continue; // продукт без данных кромки — пропускаем
+      if (baseColor && edgeId === baseColor) {
+        edgeSurcharge = 0; // базовый цвет — в стоимость включён
+        break;
+      }
       for (const i of [2, 3, 4] as const) {
         const colorVal =
-          properties[`Domeo_Кромка_Цвет_${i}`] != null
-            ? String(properties[`Domeo_Кромка_Цвет_${i}`]).trim()
+          ep_props[`Domeo_Кромка_Цвет_${i}`] != null
+            ? String(ep_props[`Domeo_Кромка_Цвет_${i}`]).trim()
             : '';
         if (colorVal && edgeId === colorVal) {
-          edgeSurcharge = Number(properties[`Domeo_Кромка_Наценка_Цвет_${i}`]) || 0;
+          edgeSurcharge = Number(ep_props[`Domeo_Кромка_Наценка_Цвет_${i}`]) || 0;
           break;
         }
       }
+      if (edgeSurcharge >= 0) break;
     }
     if (edgeSurcharge > 0) {
       total += edgeSurcharge;
@@ -371,23 +402,15 @@ export function calculateDoorPrice(input: EngineInput): PriceResult {
     }
   }
 
-  const optionIds = selection.option_ids ?? [];
-  if (optionIds.length > 0) {
-    const optionProducts = getOptionProducts(optionIds);
-    for (const opt of optionProducts) {
-      const props = parseProductProperties(opt.properties_data);
-      const price = Number(props['Цена РРЦ']) || Number(opt.base_price) || 0;
-      total += price;
-      breakdown.push({ label: opt.name ?? 'Опция', amount: price });
-    }
-  }
+  // option_ids — наличники: не влияют на стоимость двери, но записываются
+  // в корзину (architraveNames, optionIds) для спецификации и экспорта.
 
   const modelName = String(properties['Название модели'] ?? '').trim() || null;
   return {
     currency: 'RUB',
     base: doorPrice,
     breakdown,
-    total: roundUpTo100(total),
+    total: roundUpTo10(total),
     sku: product.sku ?? null,
     model_name: modelName,
     matchingProducts: matching

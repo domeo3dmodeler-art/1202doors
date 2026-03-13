@@ -243,14 +243,6 @@ async function postHandler(
       limiterProduct = row as ProductWithProps | null;
     }
 
-    let optionProducts: ProductWithProps[] = [];
-    if (selection.option_ids?.length) {
-      optionProducts = (await prisma.product.findMany({
-        where: { id: { in: selection.option_ids } },
-        select: { id: true, name: true, base_price: true, properties_data: true }
-      })) as ProductWithProps[];
-    }
-
     let result;
     try {
       result = calculateDoorPrice({
@@ -259,7 +251,6 @@ async function postHandler(
         hardwareKits,
         handles,
         getLimiter: (id) => (limiterProduct?.id === id ? limiterProduct : null),
-        getOptionProducts: (ids) => optionProducts.filter((o) => ids.includes(o.id))
       });
     } catch (calcError) {
       const msg = calcError instanceof Error ? calcError.message : String(calcError);

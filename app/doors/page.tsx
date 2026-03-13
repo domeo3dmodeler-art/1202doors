@@ -17,6 +17,7 @@ import {
   createPlaceholderSvgDataUrl,
   getHandleImageSrc,
 } from '@/lib/configurator/image-src';
+import { ThrottledImage } from '@/components/configurator/ThrottledImage';
 import GlobalHeader from '@/components/layout/GlobalHeader';
 import NotificationBell from '@/components/ui/NotificationBell';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -102,6 +103,15 @@ const HARDWARE_KIT_DESCRIPTIONS: Record<string, { specs: string[]; note: string 
   },
 };
 
+/** Пользовательские названия комплектов: Стандарт / Комфорт / Бизнес */
+function getKitDisplayName(kitName: string): string {
+  const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim().toLowerCase();
+  if (/сильвер|silver|базовый/.test(normalized)) return 'Стандарт';
+  if (/голд|gold/.test(normalized)) return 'Комфорт';
+  if (/платинум|platinum/.test(normalized)) return 'Бизнес';
+  return kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
+}
+
 function getKitDescription(kitName: string): { specs: string[]; note: string } | null {
   const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
   if (HARDWARE_KIT_DESCRIPTIONS[normalized]) return HARDWARE_KIT_DESCRIPTIONS[normalized];
@@ -160,6 +170,10 @@ export default function FigmaExactReplicaPage() {
   const [selectedCoatingId, setSelectedCoatingId] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedWood, setSelectedWood] = useState<string | null>(null);
+  /** При покрытии Эмаль: выбор цвета по RAL/NCS (ручной ввод кода). Плашка в сетке цветов. */
+  const [useRalNcs, setUseRalNcs] = useState<boolean>(false);
+  const [ralNcsSystem, setRalNcsSystem] = useState<'RAL' | 'NCS'>('RAL');
+  const [ralNcsCode, setRalNcsCode] = useState<string>('');
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   /** Цвет стекла (лист Стекло_доступность); на цену не влияет, только в спецификацию */
   const [selectedGlassColor, setSelectedGlassColor] = useState<string | null>(null);
@@ -203,7 +217,12 @@ export default function FigmaExactReplicaPage() {
       setSelectedWood(null);
     }
   }, [selectedFinish, selectedCoatingId, coatings]);
-  
+
+  // При смене типа покрытия с Эмаль на другой — сбрасываем режим «Цвет по RAL/NCS»
+  useEffect(() => {
+    if (selectedFinish !== 'Эмаль') setUseRalNcs(false);
+  }, [selectedFinish]);
+
   // Состояние для фурнитуры
   const [selectedHardwareKit, setSelectedHardwareKit] = useState<string | null>(null);
   const [selectedHandleId, setSelectedHandleId] = useState<string | null>(null);
@@ -451,6 +470,14 @@ export default function FigmaExactReplicaPage() {
     }
   }, [availableStyles, selectedStyle]);
 
+  // Скрытая: сбрасываем наличник и переключаем вкладку, если выбрана «наличники»
+  useEffect(() => {
+    if (selectedStyle === 'Скрытая') {
+      setSelectedArchitraveId(null);
+      if (activeTab === 'наличники') setActiveTab('доп-опции');
+    }
+  }, [selectedStyle, activeTab]);
+
   // Устанавливаем первую модель при загрузке данных
   useEffect(() => {
     if (filteredModels.length > 0 && !selectedModelId) {
@@ -645,9 +672,9 @@ export default function FigmaExactReplicaPage() {
 
   // Три фиксированных блока наполнения: Сильвер, Голд, Платинум — в таком порядке
   const FILLING_BLOCKS = [
-    { id: 'silver' as const, title: '1. Сильвер', descKey: 'сильвер' as const },
-    { id: 'gold' as const, title: '2. Голд', descKey: 'голд' as const },
-    { id: 'platinum' as const, title: '3. Платинум', descKey: 'платинум' as const },
+    { id: 'silver' as const, title: '1. Стандарт', descKey: 'сильвер' as const },
+    { id: 'gold' as const, title: '2. Комфорт', descKey: 'голд' as const },
+    { id: 'platinum' as const, title: '3. Бизнес', descKey: 'платинум' as const },
   ];
   const fillingBlockMatches = useMemo(() => {
     const match = (pattern: RegExp) => availableFillings.find((name) => pattern.test((name || '').toLowerCase())) ?? null;
@@ -687,7 +714,7 @@ export default function FigmaExactReplicaPage() {
     return coatings.filter((c) => c.coating_type === selectedFinish);
   }, [coatings, selectedFinish]);
 
-  // При смене модели: если выбранное покрытие/цвет не входят в список для новой модели — выставляем первый допустимый
+  // При смене модели: если выбранное покрытие/цвет не входят в список для новой модели — выставляем первый допустимый (кроме режима RAL/NCS для Эмаль)
   useEffect(() => {
     if (filteredCoatings.length === 0) {
       if (selectedCoatingId || selectedColor || selectedWood) {
@@ -697,6 +724,7 @@ export default function FigmaExactReplicaPage() {
       }
       return;
     }
+    if (selectedFinish === 'Эмаль' && useRalNcs) return; // не переключать на первый цвет из списка
     const ids = new Set(filteredCoatings.map((c) => c.id));
     if (selectedCoatingId && !ids.has(selectedCoatingId)) {
       const first = filteredCoatings[0];
@@ -704,18 +732,22 @@ export default function FigmaExactReplicaPage() {
       setSelectedColor(first.color_name);
       setSelectedWood(selectedFinish === 'Шпон' ? first.color_name : null);
     }
-  }, [selectedModelId, selectedFinish, filteredCoatings, selectedCoatingId, selectedColor, selectedWood]);
+  }, [selectedModelId, selectedFinish, filteredCoatings, selectedCoatingId, selectedColor, selectedWood, useRalNcs]);
 
-  // Монохромная палитра: цвета выбранного типа ПЭТ/ПВХ/Эмаль
+  // Для модели Invisible у всех вариантов цвета полотна одно общее фото (визуально одинаковы).
+  const invisibleDoorColorPhotoPath = '/uploads/final-filled/doors/Invisible_black.png';
+  const isInvisibleModel = selectedModelId?.toLowerCase().includes('invisible') ?? false;
+
+  // Монохромная палитра: цвета выбранного типа ПЭТ/ПВХ/Эмаль и «Под отделку» (у Invisible только он)
   const monochromeColors = useMemo(() => {
-    if (!selectedFinish || !['ПЭТ', 'ПВХ', 'Эмаль'].includes(selectedFinish)) return [];
+    if (!selectedFinish || !['ПЭТ', 'ПВХ', 'Эмаль', 'Под отделку'].includes(selectedFinish)) return [];
     return filteredCoatings.map((c) => ({
       id: c.id,
       name: c.color_name,
       color: '#FFFFFF',
-      photo_path: c.photo_path ?? null,
+      photo_path: isInvisibleModel ? invisibleDoorColorPhotoPath : (c.photo_path ?? null),
     }));
-  }, [filteredCoatings, selectedFinish]);
+  }, [filteredCoatings, selectedFinish, selectedModelId, isInvisibleModel]);
 
   // Древесная палитра: цвета выбранного типа Шпон
   const woodOptions = useMemo(() => {
@@ -723,9 +755,9 @@ export default function FigmaExactReplicaPage() {
     return filteredCoatings.map((c) => ({
       id: c.id,
       name: c.color_name,
-      photo_path: c.photo_path ?? null,
+      photo_path: isInvisibleModel ? invisibleDoorColorPhotoPath : (c.photo_path ?? null),
     }));
-  }, [filteredCoatings, selectedFinish]);
+  }, [filteredCoatings, selectedFinish, selectedModelId, isInvisibleModel]);
 
   // Опции кромки: по отфильтрованному набору (model-options). Base 1 = 4 подмодели; при ПЭТ только ДПГ Флекс Эмаль Порта ПТА-50 B — кромки в базе нет.
   const edgeOptions = useMemo(() => {
@@ -739,18 +771,23 @@ export default function FigmaExactReplicaPage() {
         : selectedModelId && modelOptionsData.edges.length > 0
           ? new Set(modelOptionsData.edges)
           : null;
+    const hasMatteGold = edges.some((e) => String(e.edge_color_name ?? '').trim() === 'матовое золото');
     edges.forEach((edge) => {
       if (allowed !== null && !allowed.has(edge.edge_color_name)) return;
+      const rawName = String(edge.edge_color_name ?? '');
+      // Для Invisible: вариант "0" в БД показываем как «матовое золото», но не дублируем — если уже есть кромка «матовое золото», вариант "0" не добавляем
+      if (isInvisibleModel && rawName === '0' && hasMatteGold) return;
+      const name = isInvisibleModel && rawName === '0' ? 'матовое золото' : rawName;
       edgeList.push({
-        id: edge.id,
-        name: edge.edge_color_name,
+        id: String(edge.id),
+        name,
         icon: 'none',
         photo_path: edge.photo_path ?? null,
         surcharge: edge.surcharge ?? 0,
       });
     });
     return edgeList;
-  }, [edges, selectedModelId, modelOptionsData.edges, modelOptionsData.edge_in_base, edgeInBaseForFilter, selectedModelData?.edge_in_base]);
+  }, [edges, selectedModelId, modelOptionsData.edges, modelOptionsData.edge_in_base, edgeInBaseForFilter, selectedModelData?.edge_in_base, isInvisibleModel]);
 
   // Синхронизация выбора кромки со списком для текущего покрытия (при ПЭТ только «Без кромки»)
   useEffect(() => {
@@ -891,6 +928,13 @@ export default function FigmaExactReplicaPage() {
     return Array.from(groups.values());
   }, [allLimiters]);
 
+  // При выборе ограничителя «Скрытый магнитный SECRET DS» порог всегда «Нет», выбор «Да» недоступен
+  const isSecretDsLimiterSelected = Boolean(
+    selectedStopperId && selectedStopperId !== 'none' && allLimiters.some(
+      (l) => l.id === selectedStopperId && (l.name || '').toLowerCase().includes('secret ds')
+    )
+  );
+
   // Зеркало из API (опции типа "зеркало")
   const mirrorOptions = useMemo(() => {
     const mirrorList: Array<{id: string, name: string, price?: number}> = [{ id: 'none', name: 'Без зеркала' }];
@@ -920,8 +964,16 @@ export default function FigmaExactReplicaPage() {
     if (selectedThresholdId && !ids.has(selectedThresholdId)) setSelectedThresholdId(null);
   }, [selectedModelId, thresholdOptions, selectedThresholdId]);
 
+  // При выборе SECRET DS порог принудительно «Нет»
+  useEffect(() => {
+    if (isSecretDsLimiterSelected && selectedThresholdId) setSelectedThresholdId(null);
+  }, [isSecretDsLimiterSelected, selectedThresholdId]);
+
   // Спецификация (динамические, обновляются при выборе). Для отображения в UI.
   const getCoatingText = () => {
+    if (selectedFinish === 'Эмаль' && useRalNcs) {
+      return ralNcsCode.trim() ? `Эмаль; Цвет по ${ralNcsSystem}: ${ralNcsCode.trim()}` : 'Эмаль; Цвет по RAL/NCS (введите код)';
+    }
     if (!selectedCoatingId) return 'Не выбрано';
     const coating = coatings.find(c => c.id === selectedCoatingId);
     if (!coating) return 'Не выбрано';
@@ -929,6 +981,9 @@ export default function FigmaExactReplicaPage() {
   };
   // Значения из БД для сохранения в корзине (совпадают с properties_data: Тип покрытия, Цвет/Отделка)
   const getCoatingForCart = () => {
+    if (selectedFinish === 'Эмаль' && useRalNcs && ralNcsCode.trim()) {
+      return { finish: 'Эмаль', color: `${ralNcsSystem} ${ralNcsCode.trim()}` };
+    }
     if (!selectedCoatingId) return { finish: selectedFinish || undefined, color: '' };
     const coating = coatings.find(c => c.id === selectedCoatingId);
     if (!coating) return { finish: selectedFinish || undefined, color: '' };
@@ -955,8 +1010,8 @@ export default function FigmaExactReplicaPage() {
   const getEdgeText = () => {
     if (!edgeAvailableForModel) return 'Кромка не доступна';
     if (!selectedEdgeId) return 'Без кромки';
-    const edge = edges.find(e => e.id === selectedEdgeId);
-    return edge ? edge.edge_color_name : 'Без кромки';
+    const opt = edgeOptions.find(e => e.id === selectedEdgeId);
+    return opt ? opt.name : 'Без кромки';
   };
 
   const getHandleText = () => {
@@ -1067,7 +1122,7 @@ export default function FigmaExactReplicaPage() {
       qty: 1,
       handleId: selectedHandleId || undefined,
       handleName: handleName || undefined,
-      coatingId: selectedCoatingId || undefined,
+      coatingId: useRalNcs ? undefined : (selectedCoatingId || undefined),
       edgeId: hasEdgeSelected ? selectedEdgeId : (edgeFromBase ? edgeColorFromBase : undefined),
       optionIds: optionIds.length > 0 ? optionIds : undefined,
       architraveNames: architraveNames.length > 0 ? architraveNames : undefined,
@@ -1151,6 +1206,7 @@ export default function FigmaExactReplicaPage() {
     height,
     selectedFinish,
     selectedCoatingId,
+    useRalNcs,
     selectedEdgeId,
     selectedHandleId,
     selectedHandleIdObj,
@@ -1252,14 +1308,19 @@ export default function FigmaExactReplicaPage() {
     }
   };
 
-  // Расчёт цены только после выбора: Стиль, Модель, Размеры, Реверс, Наполнение, Покрытие и Цвет
+  // Расчёт цены только после выбора: Стиль, Модель, Размеры, Наполнение, Покрытие и Цвет (для Эмаль — либо цвет из списка, либо плашка RAL/NCS; код можно ввести потом)
+  const hasColorSelected = Boolean(
+    selectedCoatingId ||
+    (selectedFinish === 'Эмаль' && useRalNcs)
+  );
   const canCalculatePrice = Boolean(
     selectedStyle &&
     selectedModelId &&
     width &&
     height &&
+    selectedFilling &&
     selectedFinish &&
-    selectedCoatingId
+    hasColorSelected
   );
 
   // Сброс цены при смене модели (другая модель — сразу очищаем, чтобы не показывать старую цену)
@@ -1273,10 +1334,13 @@ export default function FigmaExactReplicaPage() {
 
   // Ключ покрытия для сброса цены и зависимостей расчёта (finish + color)
   const coatingKey = useMemo(() => {
+    if (selectedFinish === 'Эмаль' && useRalNcs) {
+      return `ral-ncs-${ralNcsSystem}-${ralNcsCode.trim()}`;
+    }
     if (!selectedCoatingId) return null;
     const c = coatings.find((x) => x.id === selectedCoatingId);
     return c ? `${selectedCoatingId}-${c.coating_type}-${c.color_name}` : selectedCoatingId;
-  }, [selectedCoatingId, coatings]);
+  }, [selectedFinish, useRalNcs, ralNcsSystem, ralNcsCode, selectedCoatingId, coatings]);
 
   // Сброс цены при смене покрытия/цвета, чтобы не показывать старую цену до прихода нового расчёта
   const prevCoatingKeyRef = useRef<string | null>(null);
@@ -1295,9 +1359,10 @@ export default function FigmaExactReplicaPage() {
     // Не вызывать расчёт, пока детали модели не синхронизированы с выбранной моделью (избегаем запроса со старым style)
     if (selectedModelData?.id !== selectedModelId) return;
 
-    const coating = coatings.find(c => c.id === selectedCoatingId);
-    const finish = coating?.coating_type;
-    const colorName = coating?.color_name;
+    const useRalNcsColor = selectedFinish === 'Эмаль' && useRalNcs;
+    const coating = useRalNcsColor ? null : coatings.find(c => c.id === selectedCoatingId);
+    const finish = useRalNcsColor ? 'Эмаль' : (coating?.coating_type);
+    const colorName = useRalNcsColor ? (ralNcsCode.trim() ? `${ralNcsSystem} ${ralNcsCode.trim()}` : `${ralNcsSystem} `) : (coating?.color_name);
     const optionIds: string[] = [];
     if (selectedArchitraveId) optionIds.push(selectedArchitraveId);
 
@@ -1325,13 +1390,13 @@ export default function FigmaExactReplicaPage() {
     }).catch(err => {
       console.error('Ошибка расчета цены:', err);
     });
-  }, [canCalculatePrice, selectedModelId, selectedModelData?.id, selectedModelData?.style, selectedCoatingId, coatingKey, selectedEdgeId, selectedHandleId, selectedStopperId, selectedArchitraveId, selectedHardwareKit, reversible, selectedMirrorId, selectedThresholdId, width, height, selectedFilling, hasLock, calculatePrice, clearPrice, selectedModelData, coatings, allArchitraves]);
+  }, [canCalculatePrice, selectedModelId, selectedModelData?.id, selectedModelData?.style, selectedCoatingId, coatingKey, selectedEdgeId, selectedHandleId, selectedStopperId, selectedArchitraveId, selectedHardwareKit, reversible, selectedMirrorId, selectedThresholdId, width, height, selectedFilling, hasLock, calculatePrice, clearPrice, selectedModelData, coatings, allArchitraves, selectedFinish, useRalNcs, ralNcsSystem, ralNcsCode]);
 
   // Форматируем цену (показываем подсказку, если не выбраны все обязательные параметры)
   const price = useMemo(() => {
     if (priceCalculating) return 'Рассчитывается...';
     if (priceData) return `${priceData.total.toLocaleString('ru-RU')} Р`;
-    if (!canCalculatePrice) return 'Для расчета цены выберите\nСтиль, Модель\nРазмеры, Наполнение\nПокрытие и Цвет';
+    if (!canCalculatePrice) return 'Для расчёта цены выберите\nСтиль, Модель\nРазмеры, Наполнение\nПокрытие и Цвет';
     return '—';
   }, [priceData, priceCalculating, canCalculatePrice]);
 
@@ -1437,320 +1502,138 @@ export default function FigmaExactReplicaPage() {
             {/* Левая колонка - выбор моделей */}
             <div style={{ flex: '0 0 795px', maxWidth: '795px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: designTokens.spacing[8] }}>
-                {/* Заголовок "Стили" и кнопки выбора в одну строку */}
-                <div className="flex items-center gap-4">
-                  <h2 
-                    style={{
-                      fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                      fontSize: designTokens.typography.fontSize['3xl'],
-                      fontWeight: designTokens.typography.fontWeight.medium,
-                      lineHeight: designTokens.typography.lineHeight.tight,
-                      color: designTokens.colors.gray[800],
-                      letterSpacing: '-0.02em',
-                      margin: 0,
-                      textAlign: 'left',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Стили
-                  </h2>
-                  {/* Кнопки выбора стилей */}
-                  <div className="flex gap-2">
-                    {styles.map((style) => (
-                      <button
-                        key={style.id}
-                        onClick={() => {
-                          if (style.name === selectedStyle) return;
-                          if (!priceData) {
-                            setSelectedStyle(style.name);
-                            return;
-                          }
-                          setPendingStyleOrModel({ type: 'style', value: style.name });
-                        }}
-                        className="group relative transition-all duration-200"
-                        style={{
-                          borderRadius: 0,
-                          border: 'none',
-                          backgroundColor: selectedStyle === style.name 
-                            ? designTokens.colors.black[950] 
-                            : designTokens.colors.gray[100],
-                          color: selectedStyle === style.name 
-                            ? '#FFFFFF' 
-                            : designTokens.colors.gray[900],
-                          padding: `${designTokens.spacing[2]} ${designTokens.spacing[4]}`,
-                          fontSize: designTokens.typography.fontSize.sm,
-                          fontWeight: designTokens.typography.fontWeight.medium,
-                          cursor: 'pointer',
-                          boxShadow: selectedStyle === style.name 
-                            ? designTokens.boxShadow.md 
-                            : 'none',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (selectedStyle !== style.name) {
-                            e.currentTarget.style.backgroundColor = designTokens.colors.gray[200];
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedStyle !== style.name) {
-                            e.currentTarget.style.backgroundColor = designTokens.colors.gray[100];
-                          }
-                            }}
-                          >
-                            {style.name}
-                      </button>
-                    ))}
-                  </div>
+                {/* Строка «Стили» — навигационная полоса */}
+                <div className="nav-bar flex items-center gap-1">
+                  <span className="nav-bar-label">Стиль</span>
+                  {styles.map((style) => (
+                    <button
+                      key={style.id}
+                      onClick={() => {
+                        if (style.name === selectedStyle) return;
+                        if (!priceData) {
+                          setSelectedStyle(style.name);
+                          return;
+                        }
+                        setPendingStyleOrModel({ type: 'style', value: style.name });
+                      }}
+                      className="nav-bar-tab"
+                      data-active={selectedStyle === style.name || undefined}
+                    >
+                      {style.name}
+                    </button>
+                  ))}
                 </div>
                 {pendingStyleOrModel && (
                   <div
-                    className="flex items-center justify-between gap-3 flex-wrap"
-                    style={{
-                      fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                      fontSize: designTokens.typography.fontSize.sm,
-                      color: designTokens.colors.gray[700],
-                      marginTop: designTokens.spacing[2],
-                      padding: `${designTokens.spacing[2]} ${designTokens.spacing[3]}`,
-                      backgroundColor: designTokens.colors.gray[100],
-                      border: `1px solid ${designTokens.colors.gray[300]}`,
-                      borderRadius: designTokens.borderRadius.md,
-                    }}
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    onClick={() => setPendingStyleOrModel(null)}
                   >
-                    <span style={{ flex: '1 1 auto' }}>
-                      При выборе другого стиля или модели текущий расчёт сбросится и будет выполнен новый расчёт.
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (pendingStyleOrModel.type === 'style') {
-                            setSelectedStyle(pendingStyleOrModel.value);
-                          } else {
-                            setSelectedModelId(pendingStyleOrModel.modelId);
-                            setSelectedModel(pendingStyleOrModel.modelName);
-                          }
-                          clearPrice();
-                          setPendingStyleOrModel(null);
-                          setSelectedFinish(null);
-                          setSelectedCoatingId(null);
-                          setSelectedColor(null);
-                          setSelectedWood(null);
-                          setSelectedEdgeId(null);
-                          setSelectedGlassColor(null);
-                          setSelectedHardwareKit(null);
-                          setSelectedHandleId(null);
-                          setSelectedArchitraveId(null);
-                          setSelectedStopperId(null);
-                          setSelectedStopperIdColor(null);
-                          setSelectedMirrorId(null);
-                          setSelectedThresholdId(null);
-                          setReversible(false);
-                          setSelectedFilling(null);
-                          setHasLock(null);
-                          setActiveTab('полотно');
-                        }}
-                        style={{
-                          padding: `${designTokens.spacing[1]} ${designTokens.spacing[3]}`,
-                          fontSize: designTokens.typography.fontSize.xs,
-                          fontWeight: designTokens.typography.fontWeight.medium,
-                          backgroundColor: designTokens.colors.black[950],
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: designTokens.borderRadius.md,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Новый расчёт
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingStyleOrModel(null)}
-                        title="Закрыть — текущий расчёт остаётся"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: 0,
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          borderRadius: designTokens.borderRadius.md,
-                          cursor: 'pointer',
-                          color: designTokens.colors.gray[600],
-                          fontSize: '18px',
-                          lineHeight: 1,
-                        }}
-                        aria-label="Закрыть"
-                      >
-                        ×
-                      </button>
+                    <div
+                      className="bg-white rounded-lg shadow-xl"
+                      style={{
+                        maxWidth: '420px',
+                        width: '90%',
+                        padding: '24px',
+                        fontFamily: 'Roboto, sans-serif',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.6, margin: '0 0 20px' }}>
+                        При выборе другого стиля или модели текущий расчёт сбросится и будет выполнен новый расчёт.
+                      </p>
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setPendingStyleOrModel(null)}
+                          style={{
+                            padding: '8px 20px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            backgroundColor: 'transparent',
+                            color: '#4b5563',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pendingStyleOrModel.type === 'style') {
+                              setSelectedStyle(pendingStyleOrModel.value);
+                            } else {
+                              setSelectedModelId(pendingStyleOrModel.modelId);
+                              setSelectedModel(pendingStyleOrModel.modelName);
+                            }
+                            clearPrice();
+                            setPendingStyleOrModel(null);
+                            setSelectedFinish(null);
+                            setSelectedCoatingId(null);
+                            setSelectedColor(null);
+                            setSelectedWood(null);
+                            setSelectedEdgeId(null);
+                            setSelectedGlassColor(null);
+                            setSelectedHardwareKit(null);
+                            setSelectedHandleId(null);
+                            setSelectedArchitraveId(null);
+                            setSelectedStopperId(null);
+                            setSelectedStopperIdColor(null);
+                            setSelectedMirrorId(null);
+                            setSelectedThresholdId(null);
+                            setReversible(false);
+                            setSelectedFilling(null);
+                            setHasLock(null);
+                            setActiveTab('полотно');
+                          }}
+                          style={{
+                            padding: '8px 20px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            backgroundColor: '#1f2937',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Новый расчёт
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Заголовок "Модели" */}
                 <div>
-                  <h2 
-                    style={{
-                      fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                      fontSize: designTokens.typography.fontSize['3xl'],
-                      fontWeight: designTokens.typography.fontWeight.medium,
-                      lineHeight: designTokens.typography.lineHeight.tight,
-                      color: designTokens.colors.gray[800],
-                      letterSpacing: '-0.02em',
-                      margin: `0 0 ${designTokens.spacing[5]} 0`,
-                      textAlign: 'left'
-                    }}
-                  >
-                    Модели
-                  </h2>
-
-                  {/* Табы — липкий блок при скролле (как превью справа) */}
+                  {/* Табы — навигационная полоса */}
                   <div 
-                    className="sticky flex gap-6 mb-5 overflow-x-auto pb-1 z-10"
-                    style={{
-                      top: 0,
-                      borderBottom: `2px solid ${designTokens.colors.gray[200]}`,
-                      backgroundColor: designTokens.colors.gray[50],
-                      paddingTop: designTokens.spacing[2],
-                    }}
+                    className="nav-bar sticky flex items-center gap-1 mb-5 overflow-x-auto z-10"
+                    style={{ top: 0 }}
                   >
-                    <button
-                      onClick={() => setActiveTab('полотно')}
-                      className="pb-3 px-2 font-semibold transition-all duration-200 whitespace-nowrap relative"
-                      style={{ 
-                        fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                        fontSize: designTokens.typography.fontSize.xs,
-                        fontWeight: designTokens.typography.fontWeight.semibold,
-                        letterSpacing: '0.02em',
-                        color: activeTab === 'полотно' 
-                          ? designTokens.colors.gray[900] 
-                          : designTokens.colors.gray[500]
-                      }}
-                      onMouseEnter={(e) => {
-                        if (activeTab !== 'полотно') {
-                          e.currentTarget.style.color = designTokens.colors.gray[700];
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (activeTab !== 'полотно') {
-                          e.currentTarget.style.color = designTokens.colors.gray[500];
-                        }
-                      }}
-                    >
-                      ПОЛОТНО
-                      {activeTab === 'полотно' && (
-                        <div 
-                          className="absolute bottom-0 left-0 right-0 rounded-full"
-                          style={{
-                            height: '2px',
-                            backgroundColor: designTokens.colors.black[950],
-                            animation: 'slideInFromLeft 0.2s ease-out'
-                          }}
-                        />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('размеры')}
-                      className={`pb-3 px-2 font-semibold transition-all duration-300 whitespace-nowrap relative ${
-                        activeTab === 'размеры'
-                          ? 'text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px'
-                      }}
-                    >
-                      РАЗМЕРЫ
-                      {activeTab === 'размеры' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full animate-in slide-in-from-left duration-300" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('покрытие')}
-                      className={`pb-3 px-2 font-semibold transition-all duration-300 whitespace-nowrap relative ${
-                        activeTab === 'покрытие'
-                          ? 'text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px'
-                      }}
-                    >
-                      ПОКРЫТИЕ И ЦВЕТ
-                      {activeTab === 'покрытие' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full animate-in slide-in-from-left duration-300" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('фурнитура')}
-                      className={`pb-3 px-2 font-semibold transition-all duration-300 whitespace-nowrap relative ${
-                        activeTab === 'фурнитура'
-                          ? 'text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px'
-                      }}
-                    >
-                      ФУРНИТУРА
-                      {activeTab === 'фурнитура' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full animate-in slide-in-from-left duration-300" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('наличники')}
-                      className={`pb-3 px-2 font-semibold transition-all duration-300 whitespace-nowrap relative ${
-                        activeTab === 'наличники'
-                          ? 'text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px'
-                      }}
-                    >
-                      НАЛИЧНИКИ
-                      {activeTab === 'наличники' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full animate-in slide-in-from-left duration-300" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('доп-опции')}
-                      className={`pb-3 px-2 font-semibold transition-all duration-300 whitespace-nowrap relative ${
-                        activeTab === 'доп-опции'
-                          ? 'text-gray-900'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px'
-                      }}
-                    >
-                      ДОП ОПЦИИ
-                      {activeTab === 'доп-опции' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full animate-in slide-in-from-left duration-300" />
-                      )}
-                    </button>
+                    {[
+                      { key: 'полотно', label: 'МОДЕЛИ' },
+                      { key: 'размеры', label: 'РАЗМЕРЫ' },
+                      { key: 'покрытие', label: 'ПОКРЫТИЕ И ЦВЕТ' },
+                      { key: 'фурнитура', label: 'ФУРНИТУРА' },
+                      ...(selectedStyle !== 'Скрытая' ? [{ key: 'наличники', label: 'НАЛИЧНИКИ' }] : []),
+                      { key: 'доп-опции', label: 'ДОП ОПЦИИ' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className="nav-bar-tab"
+                        data-active={activeTab === tab.key || undefined}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Сетка моделей */}
                   {activeTab === 'полотно' && (
                     <div className="space-y-5">
-                      {/* Модели */}
                       <div className="grid grid-cols-4 gap-2">
                         {dataLoading ? (
                           <div className="col-span-5 text-center py-8 text-gray-500">Загрузка моделей...</div>
@@ -1777,8 +1660,7 @@ export default function FigmaExactReplicaPage() {
                             >
                               {/* Миниатюра модели — бокс по контуру фото */}
                               <div className="bg-gray-100 relative overflow-hidden min-h-[60px]">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
+                                <ThrottledImage
                                   loading="lazy"
                                   src={getImageSrcWithPlaceholder(model.photo, createPlaceholderSvgDataUrl(400, 800, '#E2E8F0', '#4A5568', formatModelNameForCard(model.model_name || model.id)))}
                                   alt={formatModelNameForCard(model.model_name || model.id)}
@@ -1821,17 +1703,7 @@ export default function FigmaExactReplicaPage() {
                     <div className="space-y-5">
                       {/* Размеры */}
                       <div>
-                        <h3 
-                          className="mb-3 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
-                          РАЗМЕРЫ
-                        </h3>
+                        <h3 className="section-heading">РАЗМЕРЫ</h3>
                         <div className="grid grid-cols-2 gap-3">
                           {/* Ширина */}
                           <div>
@@ -1878,17 +1750,7 @@ export default function FigmaExactReplicaPage() {
 
                       {/* Реверсные двери */}
                       <div>
-                        <h3 
-                          className="mb-3 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
-                          РЕВЕРСНЫЕ ДВЕРИ
-                        </h3>
+                        <h3 className="section-heading">РЕВЕРСНЫЕ ДВЕРИ</h3>
                         <div className="flex gap-3">
                           <button
                             onClick={() => setReversible(false)}
@@ -1923,9 +1785,7 @@ export default function FigmaExactReplicaPage() {
 
                       {/* Наполнение: 3 столбца в рамке, выбор — галочкой как у других блоков; Rw: на второй строке */}
                       <div>
-                        <h3 className="mb-3 font-semibold" style={{ fontFamily: 'Roboto, sans-serif', fontSize: '14px', fontWeight: 600, color: '#3D3A3A' }}>
-                          НАПОЛНЕНИЕ
-                        </h3>
+                        <h3 className="section-heading">НАПОЛНЕНИЕ</h3>
                         <div className="grid grid-cols-3 gap-4">
                           {FILLING_BLOCKS.map((block) => {
                             const desc = FILLING_DESCRIPTIONS[block.descKey];
@@ -1980,18 +1840,7 @@ export default function FigmaExactReplicaPage() {
                     <div className="space-y-5">
                       {/* Выбор типа покрытия */}
                       <div>
-                        <h3 
-                          className="mb-3 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#3D3A3A',
-                            letterSpacing: '0.3px'
-                          }}
-                        >
-                          ПОКРЫТИЕ
-                        </h3>
+                        <h3 className="section-heading">ПОКРЫТИЕ</h3>
                         <div className="space-y-3">
                           <div className="flex gap-2 flex-wrap">
                             {(cascadeFinishes.length ? cascadeFinishes : ['ПЭТ', 'ПВХ', 'Шпон', 'Эмаль']).map((finishType) => (
@@ -2041,19 +1890,9 @@ export default function FigmaExactReplicaPage() {
                       </div>
 
                       {/* Цвет (для ПЭТ, ПВХ и Эмаль) */}
-                      {selectedFinish && ['ПЭТ', 'ПВХ', 'Эмаль'].includes(selectedFinish) && (
+                      {selectedFinish && ['ПЭТ', 'ПВХ', 'Эмаль', 'Под отделку'].includes(selectedFinish) && (
                         <div>
-                          <h3 
-                            className="mb-4 font-semibold"
-                            style={{
-                              fontFamily: 'Roboto, sans-serif',
-                              fontSize: '16px',
-                              fontWeight: 600,
-                              color: '#3D3A3A'
-                            }}
-                          >
-                            Цвет
-                          </h3>
+                          <h3 className="section-heading">ЦВЕТ</h3>
                           <div className="grid grid-cols-4 gap-2">
                             {monochromeColors.map((color) => (
                               <button
@@ -2062,18 +1901,18 @@ export default function FigmaExactReplicaPage() {
                                   setSelectedCoatingId(color.id);
                                   setSelectedColor(color.name);
                                   setSelectedWood(null);
+                                  setUseRalNcs(false);
                                 }}
                                 className={`group relative overflow-hidden rounded border transition-all duration-300 ${
-                                  selectedCoatingId === color.id
+                                  !useRalNcs && selectedCoatingId === color.id
                                     ? 'border-gray-900 ring-1 ring-gray-100 shadow-md scale-105'
                                     : 'border-gray-200 shadow-sm hover:shadow-sm hover:border-gray-400 hover:scale-102'
                                 }`}
                               >
-                                {/* Миниатюра — бокс по контуру фото */}
+                                {/* Миниатюра */}
                                 <div className="relative w-full min-h-[60px]">
                                   {getImageSrc(color.photo_path) ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    <ThrottledImage
                                       loading="lazy"
                                       src={getImageSrc(color.photo_path)}
                                       alt={color.name}
@@ -2095,7 +1934,7 @@ export default function FigmaExactReplicaPage() {
                                     }}
                                   />
                                   {/* Галочка при выборе */}
-                                  {selectedCoatingId === color.id && (
+                                  {!useRalNcs && selectedCoatingId === color.id && (
                                     <div className="absolute top-2 right-2 z-10 animate-in zoom-in duration-300">
                                       <div className="w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center shadow-md">
                                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2117,6 +1956,59 @@ export default function FigmaExactReplicaPage() {
                                 </div>
                               </button>
                             ))}
+                            {/* Плашка «Цвет по RAL/NCS» — структура как у других: верх на всю высоту (палитра), подпись строго снизу */}
+                            {selectedFinish === 'Эмаль' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUseRalNcs(true);
+                                  setSelectedCoatingId(null);
+                                  setSelectedColor(null);
+                                  setSelectedWood(null);
+                                }}
+                                className={`group relative flex flex-col min-h-0 overflow-hidden rounded border transition-all duration-300 ${
+                                  useRalNcs
+                                    ? 'border-gray-900 ring-1 ring-gray-100 shadow-md scale-105'
+                                    : 'border-gray-200 shadow-sm hover:shadow-sm hover:border-gray-400 hover:scale-102'
+                                }`}
+                              >
+                                {/* Область палитры: растягивается на всю доступную высоту карточки */}
+                                <div className="relative flex-1 min-h-[60px] w-full overflow-hidden border-b border-gray-200">
+                                  <div className="absolute inset-0 flex flex-col">
+                                    {[
+                                      '#fafafa',
+                                      '#e8e4e0',
+                                      '#d4cfc9',
+                                      '#b5b0a8',
+                                      '#9ca39a',
+                                      '#8b9aa8',
+                                      '#7d8a8e',
+                                      '#6b7a75',
+                                      '#5c6464',
+                                      '#4a4f4e'
+                                    ].map((fill, i) => (
+                                      <div key={i} className="flex-1 min-h-[6px]" style={{ backgroundColor: fill }} />
+                                    ))}
+                                  </div>
+                                  <span className="absolute top-1 left-1 text-gray-600 text-[10px] font-medium leading-tight shadow-sm bg-white/90 px-1 rounded">RAL / NCS</span>
+                                  {useRalNcs && (
+                                    <div className="absolute top-2 right-2 z-10 animate-in zoom-in duration-300">
+                                      <div className="w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center shadow-md">
+                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Название цвета строго снизу, как у остальных плашек */}
+                                <div className="flex-shrink-0 w-full" style={{ padding: '8px', background: 'white', textAlign: 'center' }}>
+                                  <div className="font-medium text-gray-900" style={{ fontSize: '12px' }} title={ralNcsCode.trim() ? `${ralNcsSystem} ${ralNcsCode.trim()}` : undefined}>
+                                    {ralNcsCode.trim() ? `${ralNcsSystem} ${ralNcsCode.trim()}` : 'Цвет по RAL/NCS'}
+                                  </div>
+                                </div>
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2124,17 +2016,7 @@ export default function FigmaExactReplicaPage() {
                       {/* Древесная палитра (для Шпон) */}
                       {selectedFinish === 'Шпон' && (
                         <div>
-                          <h3 
-                            className="mb-4 font-semibold"
-                            style={{
-                              fontFamily: 'Roboto, sans-serif',
-                              fontSize: '16px',
-                              fontWeight: 600,
-                              color: '#3D3A3A'
-                            }}
-                          >
-                            ДРЕВЕСНАЯ ПАЛИТРА
-                          </h3>
+                          <h3 className="section-heading">ДРЕВЕСНАЯ ПАЛИТРА</h3>
                           <div className="grid grid-cols-4 gap-2">
                             {woodOptions.map((wood) => (
                               <button
@@ -2152,7 +2034,7 @@ export default function FigmaExactReplicaPage() {
                               >
                                 {/* Миниатюра дерева — бокс по контуру фото */}
                                 <div className="relative w-full min-h-[60px]">
-                                  <img
+                                  <ThrottledImage
                                     loading="lazy"
                                     src={getImageSrcWithPlaceholder(wood.photo_path, createPlaceholderSvgDataUrl(400, 400, '#8B7355', '#FFFFFF', wood.name))}
                                     alt={wood.name}
@@ -2187,17 +2069,7 @@ export default function FigmaExactReplicaPage() {
 
                       {/* Алюминиевая кромка */}
                       <div>
-                        <h3 
-                          className="mb-4 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
-                          АЛЮМИНИЕВАЯ КРОМКА
-                        </h3>
+                        <h3 className="section-heading">АЛЮМИНИЕВАЯ КРОМКА</h3>
                         {!edgeAvailableForModel ? (
                           <div className="py-3 px-4 rounded border border-gray-200 bg-gray-50 text-gray-600" style={{ fontSize: '14px' }}>
                             Кромка не доступна
@@ -2217,7 +2089,7 @@ export default function FigmaExactReplicaPage() {
                               {/* Изображение кромки — бокс по контуру фото */}
                               <div className="bg-gray-100 relative overflow-hidden min-h-[48px]">
                                 {getImageSrc(edge.photo_path) ? (
-                                  <img
+                                  <ThrottledImage
                                     loading="lazy"
                                     src={getImageSrc(edge.photo_path)}
                                     alt={edge.name}
@@ -2233,28 +2105,32 @@ export default function FigmaExactReplicaPage() {
                                   />
                                 ) : (
                                   <div className="w-full min-h-[48px] flex items-center justify-center bg-gray-100">
-                                    {edge.id === 'none' && (
-                                      <div className="text-gray-400 text-xs">—</div>
-                                    )}
+                                    <div className="text-gray-500 text-xs text-center px-1">
+                                      {edge.id === 'none' ? '—' : (edge.name && edge.name !== '0' ? edge.name : '—')}
+                                    </div>
                                   </div>
                                 )}
                               </div>
-                              {/* Название кромки и наценка */}
-                              <div style={{ padding: '4px', background: 'white', textAlign: 'center' }}>
-                                <div 
+                              {/* Название кромки; наценка только при surcharge > 0 (при 0 не рендерим второй блок) */}
+                              <div style={{ padding: '4px', background: 'white', textAlign: 'center' }} data-edge-block>
+                                <div
                                   className="font-medium text-gray-900"
                                   style={{ fontSize: '12px', lineHeight: '1.3' }}
                                 >
-                                  {edge.name}
+                                  {edge.name && edge.name !== '0' ? edge.name : '—'}
                                 </div>
-                                {(edge.surcharge != null && edge.surcharge > 0) && (
-                                  <div className="text-green-600 font-medium" style={{ fontSize: '11px' }}>
-                                    +{(edge.surcharge as number).toLocaleString('ru-RU')} Р
-                                  </div>
-                                )}
+                                {((): React.ReactNode => {
+                                  const sur = Number(edge.surcharge);
+                                  if (!(sur > 0)) return null;
+                                  return (
+                                    <div className="text-green-600 font-medium" style={{ fontSize: '11px' }}>
+                                      +{sur.toLocaleString('ru-RU')} Р
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                              {/* Галочка при выборе */}
-                              {(selectedEdgeId === edge.id || (edge.id === 'none' && !selectedEdgeId)) && (
+                              {/* Галочка при выборе (тернарник, чтобы не отрисовать 0 при falsy condition) */}
+                              {(selectedEdgeId === edge.id || (edge.id === 'none' && !selectedEdgeId)) ? (
                                 <div className="absolute top-0.5 right-0.5 z-10 animate-in zoom-in duration-300">
                                   <div className="w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm">
                                     <svg className="w-2 h-2 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2262,7 +2138,7 @@ export default function FigmaExactReplicaPage() {
                                     </svg>
                                   </div>
                                 </div>
-                              )}
+                              ) : null}
                             </button>
                           ))}
                         </div>
@@ -2272,9 +2148,7 @@ export default function FigmaExactReplicaPage() {
                       {/* Цвет стекла (данные из Стекло_доступность; на цену не влияет) */}
                       {(selectedModelData?.glassColors?.length ?? 0) > 0 && (
                         <div>
-                          <h3 className="mb-4 font-semibold" style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', fontWeight: 600, color: '#3D3A3A' }}>
-                            ЦВЕТ СТЕКЛА
-                          </h3>
+                          <h3 className="section-heading">ЦВЕТ СТЕКЛА</h3>
                           <div className="flex flex-wrap gap-2">
                             {(selectedModelData.glassColors || []).map((colorName) => (
                               <button
@@ -2298,25 +2172,13 @@ export default function FigmaExactReplicaPage() {
                     <div className="space-y-5">
                       {/* Комплект фурнитуры */}
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                        <h3 
-                            className="font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#3D3A3A',
-                            letterSpacing: '0.3px'
-                          }}
-                        >
+                        <h3 className="section-heading flex items-center gap-2">
                           КОМПЛЕКТ ФУРНИТУРЫ
-                        </h3>
                           <div className="relative group">
                             <Info 
                               className="w-4 h-4 text-gray-500 cursor-help" 
                               style={{ strokeWidth: 2 }}
                             />
-                            {/* Tooltip с информацией */}
                             <div className="absolute left-0 top-6 w-64 p-3 bg-white border border-gray-200 shadow-lg rounded z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                               <div className="space-y-2" style={{ fontSize: '18px', lineHeight: '1.7', color: '#666666' }}>
                                 <div>Цвет: в тон кромки полотна или выбранной ручки.</div>
@@ -2326,7 +2188,7 @@ export default function FigmaExactReplicaPage() {
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </h3>
                         <div className="grid grid-cols-3 gap-4">
                           {(configKits || []).map((kit) => {
                             const selected = selectedHardwareKit === kit.id;
@@ -2347,7 +2209,7 @@ export default function FigmaExactReplicaPage() {
                                     <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                                   </div>
                                 )}
-                                <div className="font-medium text-gray-900">{kit.name}</div>
+                                <div className="font-medium text-gray-900">{getKitDisplayName(kit.name)}</div>
                                 {kit.price != null && Number(kit.price) > 0 && (
                                   <div className="text-green-600 font-medium mt-0.5" style={{ fontSize: '12px' }}>
                                     +{Number(kit.price).toLocaleString('ru-RU')} Р
@@ -2381,18 +2243,7 @@ export default function FigmaExactReplicaPage() {
                         <div className="flex gap-6 items-start">
                           {/* Ручка */}
                           <div className="flex-1">
-                            <h3 
-                              className="mb-4 font-semibold"
-                              style={{
-                                fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                                fontSize: designTokens.typography.fontSize.base,
-                                fontWeight: designTokens.typography.fontWeight.semibold,
-                                color: designTokens.colors.gray[900],
-                                letterSpacing: '0.01em'
-                              }}
-                            >
-                              РУЧКА
-                            </h3>
+                            <h3 className="section-heading">РУЧКА</h3>
                             <div className="flex flex-col gap-3">
                                 <button
                                 onClick={() => setShowHandleModal(true)}
@@ -2498,17 +2349,7 @@ export default function FigmaExactReplicaPage() {
                           
                           {/* Завертка — фото в привязке к выбранной ручке */}
                           <div className="flex-1">
-                            <h3 
-                              className="mb-4 font-semibold"
-                              style={{
-                                fontFamily: 'Roboto, sans-serif',
-                                fontSize: '16px',
-                                fontWeight: 600,
-                                color: '#3D3A3A'
-                              }}
-                            >
-                              ЗАВЕРТКА
-                            </h3>
+                            <h3 className="section-heading">ЗАВЕРТКА</h3>
                             <div className="flex flex-col gap-3">
                               {selectedHandleIdObj?.photos?.[1] ? (
                                 <div
@@ -2595,20 +2436,10 @@ export default function FigmaExactReplicaPage() {
                     </div>
                   )}
 
-                  {/* Вкладка "НАЛИЧНИКИ" */}
-                  {activeTab === 'наличники' && (
+                  {/* Вкладка "НАЛИЧНИКИ" (не для стиля Скрытая) */}
+                  {activeTab === 'наличники' && selectedStyle !== 'Скрытая' && (
                     <div>
-                      <h3 
-                        className="mb-4 font-semibold"
-                        style={{
-                          fontFamily: 'Roboto, sans-serif',
-                          fontSize: '16px',
-                          fontWeight: 600,
-                          color: '#3D3A3A'
-                        }}
-                      >
-                        НАЛИЧНИК
-                      </h3>
+                      <h3 className="section-heading">НАЛИЧНИК</h3>
                       <div className="grid grid-cols-3 gap-3">
                         {architraveOptions.map((architrave) => (
                           <button
@@ -2622,7 +2453,7 @@ export default function FigmaExactReplicaPage() {
                           >
                             {/* Миниатюра наличника — бокс по контуру фото */}
                             <div className="bg-gray-100 relative overflow-hidden min-h-[48px]">
-                              <img
+                              <ThrottledImage
                                 loading="lazy"
                                 src={getImageSrcWithPlaceholder((architrave as { photo_path?: string | null }).photo_path, createPlaceholderSvgDataUrl(300, 300, '#E2E8F0', '#1A202C', (architrave as { name: string }).name))}
                                 alt={architrave.name}
@@ -2673,17 +2504,7 @@ export default function FigmaExactReplicaPage() {
                     <div className="space-y-5">
                       {/* Ограничители */}
                       <div>
-                        <h3 
-                          className="mb-4 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
-                          ОГРАНИЧИТЕЛИ
-                        </h3>
+                        <h3 className="section-heading">ОГРАНИЧИТЕЛИ</h3>
                         <div className="grid grid-cols-4 gap-2">
                           {/* Без ограничителя */}
                           <button
@@ -2716,7 +2537,7 @@ export default function FigmaExactReplicaPage() {
                                 <div className="flex flex-col items-center gap-1.5 w-full text-center">
                                   {/* Фиксированная высота блока фото — все карточки выровнены */}
                                   <div className="bg-gray-100 relative overflow-hidden rounded w-full flex-shrink-0 flex items-center justify-center aspect-square max-h-[128px] min-h-[96px]">
-                                    <img
+                                    <ThrottledImage
                                       loading="lazy"
                                       src={getImageSrcWithPlaceholder(selectedVariant.photo_path, createPlaceholderSvgDataUrl(200, 200, '#1A202C', '#FFFFFF', group.typeName))}
                                       alt={group.typeName}
@@ -2771,15 +2592,7 @@ export default function FigmaExactReplicaPage() {
 
                       {/* Зеркало */}
                       <div>
-                        <h3 
-                          className="mb-4 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
+                        <h3 className="section-heading">
                           ЗЕРКАЛО
                         </h3>
                         <div className="grid grid-cols-3 gap-2">
@@ -2822,15 +2635,7 @@ export default function FigmaExactReplicaPage() {
 
                       {/* Порог */}
                       <div>
-                        <h3 
-                          className="mb-4 font-semibold"
-                          style={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#3D3A3A'
-                          }}
-                        >
+                        <h3 className="section-heading">
                           ПОРОГ
                         </h3>
                         <div className="flex gap-3">
@@ -2857,14 +2662,18 @@ export default function FigmaExactReplicaPage() {
                           </button>
                           <button
                             onClick={() => {
-                              // Находим первую опцию порога
+                              if (isSecretDsLimiterSelected) return;
                               const thresholdOpt = thresholdOptions.find(o => o.option_type === 'порог');
                               setSelectedThresholdId(thresholdOpt?.id || null);
                             }}
+                            disabled={isSecretDsLimiterSelected}
+                            title={isSecretDsLimiterSelected ? 'При ограничителе Скрытый магнитный SECRET DS порог недоступен' : undefined}
                             className={`group relative overflow-hidden rounded border transition-all duration-300 px-6 py-3 ${
-                              selectedThresholdId
-                                ? 'border-gray-900 ring-1 ring-gray-100 shadow-md bg-gray-900 text-white'
-                                : 'border-gray-200 shadow-sm hover:shadow-sm hover:border-gray-400 bg-white text-gray-900'
+                              isSecretDsLimiterSelected
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : selectedThresholdId
+                                  ? 'border-gray-900 ring-1 ring-gray-100 shadow-md bg-gray-900 text-white'
+                                  : 'border-gray-200 shadow-sm hover:shadow-sm hover:border-gray-400 bg-white text-gray-900'
                             }`}
                           >
                             <div className="font-medium" style={{ fontSize: '14px' }}>
@@ -2899,37 +2708,73 @@ export default function FigmaExactReplicaPage() {
 
             {/* Правая колонка - превью и параметры */}
             <div style={{ flex: '1', display: 'flex', gap: '24px' }}>
-              {/* Большое превью — бокс по контуру фото */}
+              {/* Большое превью + под ним поля RAL/NCS в одном sticky-блоке (двигается за страницей); высота палитры как у фото дверей (676px) */}
               <div style={{ flex: '0 0 338px' }}>
                 <div className="sticky" style={{ top: '32px' }}>
                   <div 
                     className="overflow-hidden border-2 border-gray-200 shadow-2xl bg-white transition-all duration-300 hover:shadow-3xl relative min-h-[200px]"
                     style={{ width: '338px' }}
                   >
-                    {(() => {
-                      const coatingPhoto = selectedCoatingId ? coatings.find(c => c.id === selectedCoatingId)?.photo_path : null;
-                      const modelPhoto = selectedModelData?.photo ?? (selectedModelId && selectedStyle ? allModels.find((m: { id?: string; style?: string }) => m.id === selectedModelId && (m.style || '') === selectedStyle)?.photo : null);
-                      const previewSrc = getImageSrc(coatingPhoto) || getImageSrc(modelPhoto);
-                      const previewPlaceholder = createPlaceholderSvgDataUrl(338, 676, '#E2E8F0', '#4A5568', selectedModel || 'Выберите модель');
-                      return (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={previewSrc || previewPlaceholder}
-                          alt={selectedModel || 'Модель двери'}
-                          className="w-full h-auto block bg-white cursor-zoom-in"
-                          onClick={() => {
-                            if (previewSrc) {
-                              setZoomPreviewSrc(previewSrc);
-                              setZoomPreviewAlt(selectedModel || 'Модель двери');
-                            }
-                          }}
-                          onError={(e) => {
-                            if (e.currentTarget.src !== previewPlaceholder) e.currentTarget.src = previewPlaceholder;
-                          }}
-                        />
-                      );
-                    })()}
+                    {selectedFinish === 'Эмаль' && useRalNcs ? (
+                      /* Палитра по высоте как фото дверей (338×676) */
+                      <div className="w-full flex flex-col" style={{ height: '676px' }}>
+                        {['#fafafa', '#e8e4e0', '#d4cfc9', '#b5b0a8', '#9ca39a', '#8b9aa8', '#7d8a8e', '#6b7a75', '#5c6464', '#4a4f4e'].map((fill, i) => (
+                          <div key={i} className="flex-1 min-h-[20px]" style={{ backgroundColor: fill }} />
+                        ))}
+                      </div>
+                    ) : (
+                      (() => {
+                        const coatingPhoto = selectedCoatingId ? coatings.find(c => c.id === selectedCoatingId)?.photo_path : null;
+                        const modelPhoto = selectedModelData?.photo ?? (selectedModelId && selectedStyle ? allModels.find((m: { id?: string; style?: string }) => m.id === selectedModelId && (m.style || '') === selectedStyle)?.photo : null);
+                        const effectiveCoatingPhoto = isInvisibleModel ? invisibleDoorColorPhotoPath : coatingPhoto;
+                        const previewSrc = getImageSrc(effectiveCoatingPhoto) || getImageSrc(modelPhoto);
+                        const previewPlaceholder = createPlaceholderSvgDataUrl(338, 676, '#E2E8F0', '#4A5568', selectedModel || 'Выберите модель');
+                        return (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={previewSrc || previewPlaceholder}
+                            alt={selectedModel || 'Модель двери'}
+                            className="w-full h-auto block bg-white cursor-zoom-in"
+                            onClick={() => {
+                              if (previewSrc) {
+                                setZoomPreviewSrc(previewSrc);
+                                setZoomPreviewAlt(selectedModel || 'Модель двери');
+                              }
+                            }}
+                            onError={(e) => {
+                              if (e.currentTarget.src !== previewPlaceholder) e.currentTarget.src = previewPlaceholder;
+                            }}
+                          />
+                        );
+                      })()
+                    )}
                   </div>
+                  {/* Поля Система и Код — под центральным изображением, внутри sticky (остаются под превью при прокрутке) */}
+                  {selectedFinish === 'Эмаль' && useRalNcs && (
+                    <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-gray-50/80 space-y-3" style={{ width: '338px' }}>
+                      <div className="flex items-center gap-3">
+                        <label className="font-medium text-gray-700 shrink-0" style={{ fontSize: '13px' }}>Система:</label>
+                        <select
+                          value={ralNcsSystem}
+                          onChange={(e) => setRalNcsSystem(e.target.value as 'RAL' | 'NCS')}
+                          className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-400 min-w-[100px]"
+                        >
+                          <option value="RAL">RAL</option>
+                          <option value="NCS">NCS</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="font-medium text-gray-700 shrink-0" style={{ fontSize: '13px' }}>Код:</label>
+                        <input
+                          type="text"
+                          value={ralNcsCode}
+                          onChange={(e) => setRalNcsCode(e.target.value)}
+                          placeholder={ralNcsSystem === 'RAL' ? 'например 9010' : 'например S 6010-B10G'}
+                          className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:ring-1 focus:ring-gray-400 flex-1 min-w-0"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3118,16 +2963,16 @@ onMouseEnter={(e) => {
                         }
                       }}
                     >
-                      В корзину {cart.length > 0 && `(${cart.length})`}
+                      В корзину {cart.length > 0 ? `(${cart.length})` : null}
                     </button>
-                    {cart.length > 0 && (
-                      <button
+                    {cart.length > 0 ? (
+                        <button
                         onClick={() => setShowCartManager(true)}
                         className="w-full mt-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                       >
                         Открыть корзину
                       </button>
-                    )}
+                    ) : null}
                   </div>
 
                 </div>
@@ -3195,7 +3040,7 @@ onMouseEnter={(e) => {
               <div className="flex-1 overflow-auto p-4">
                 <div className="relative flex items-center justify-center min-h-[240px] bg-gray-100 rounded-lg">
                   {current?.photo_path && (
-                    <img src={getImageSrc(current.photo_path)} alt={current.colorName} className="w-auto object-contain" style={{ maxHeight: '336px' }} />
+                    <ThrottledImage src={getImageSrc(current.photo_path)} alt={current.colorName} className="w-auto object-contain" style={{ maxHeight: '336px' }} />
                   )}
                   {group.variants.length > 1 && (
                     <>
