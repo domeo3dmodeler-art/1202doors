@@ -87,6 +87,8 @@ export type CartItem = {
   /** Названия наличников для экспорта в Excel */
   architraveNames?: string[];
   optionNames?: string[];
+  /** Направление открывания: 'left' | 'right' (справочное, не влияет на цену) */
+  openingDirection?: 'left' | 'right';
   /** Реверс двери — учтён в цене */
   reversible?: boolean;
   /** Зеркало: 'one' | 'both' и т.д. — учтено в цене, не отдельная строка */

@@ -27,6 +27,7 @@ export interface ExportItemShape {
   /** Цвет стекла (для экспорта на фабрику) */
   glassColor?: string;
   glass_color?: string;
+  openingDirection?: 'left' | 'right';
   reversible?: boolean;
   mirror?: string;
   threshold?: boolean;

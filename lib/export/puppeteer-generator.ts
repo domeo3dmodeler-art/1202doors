@@ -897,6 +897,7 @@ export async function exportDocumentWithPDF(
         edgeColorName: item.edgeColorName ?? item.edge_color_name,
         edge_color_name: item.edge_color_name ?? item.edgeColorName,
         glassColor: item.glassColor ?? item.glass_color,
+        openingDirection: item.openingDirection ?? item.opening_direction,
         reversible: item.reversible,
         mirror: item.mirror,
         threshold: normalizeThreshold(item.threshold),

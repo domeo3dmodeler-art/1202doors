@@ -7,11 +7,11 @@ import { z } from 'zod';
 export const createClientSchema = z.object({
   firstName: z.string().min(1, 'Имя обязательно').max(100, 'Имя слишком длинное'),
   lastName: z.string().min(1, 'Фамилия обязательна').max(100, 'Фамилия слишком длинная'),
-  middleName: z.string().max(100, 'Отчество слишком длинное').nullable().optional(),
+  middleName: z.string().min(1, 'Отчество обязательно').max(100, 'Отчество слишком длинное'),
   phone: z.string().min(1, 'Телефон обязателен').max(20, 'Телефон слишком длинный'),
   address: z.string().min(1, 'Адрес обязателен').max(500, 'Адрес слишком длинный'),
   objectId: z.string().max(100, 'ID объекта слишком длинный').nullable().optional(),
-  compilationLeadNumber: z.string().nullable().optional(),
+  compilationLeadNumber: z.string().min(1, 'Номер лида обязателен'),
   customFields: z.string().optional().default('{}'),
   isActive: z.boolean().optional().default(true)
 });

@@ -103,6 +103,16 @@ const HARDWARE_KIT_DESCRIPTIONS: Record<string, { specs: string[]; note: string 
   },
 };
 
+/** Пользовательские названия наполнений: Стандарт / Комфорт / Бизнес */
+function getFillingDisplayName(filling: string | null | undefined): string {
+  if (!filling) return '—';
+  const lower = filling.toLowerCase();
+  if (/сильвер|silver/.test(lower)) return 'Стандарт';
+  if (/голд|gold/.test(lower)) return 'Комфорт';
+  if (/платинум|platinum/.test(lower)) return 'Бизнес';
+  return filling;
+}
+
 /** Пользовательские названия комплектов: Стандарт / Комфорт / Бизнес */
 function getKitDisplayName(kitName: string): string {
   const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim().toLowerCase();
@@ -181,6 +191,7 @@ export default function FigmaExactReplicaPage() {
   // Состояние для размеров, реверса и наполнения (вкладка Полотно)
   const [width, setWidth] = useState<number>(800);
   const [height, setHeight] = useState<number>(2000);
+  const [openingDirection, setOpeningDirection] = useState<'left' | 'right'>('left');
   const [reversible, setReversible] = useState<boolean>(false);
 
   // Каскадные опции: доступность и списки по текущим фильтрам (реверс, наполнение, размер, покрытие, цвет)
@@ -1118,12 +1129,13 @@ export default function FigmaExactReplicaPage() {
       { label: 'Стиль', value: selectedStyle || '—' },
       { label: 'Полотно', value: selectedModel || '—' },
       { label: 'Размеры', value: `${width} × ${height} мм` },
+      { label: 'Направление открывания', value: openingDirection === 'right' ? 'Правая' : 'Левая' },
       { label: 'Реверсные двери', value: reversible ? 'Да' : 'Нет' },
-      { label: 'Наполнение', value: selectedFilling || '—' },
+      { label: 'Наполнение', value: getFillingDisplayName(selectedFilling) },
       { label: 'Покрытие и цвет', value: getCoatingText() },
       { label: 'Алюминиевая кромка', value: getEdgeText() },
       { label: 'Цвет стекла', value: selectedGlassColor ?? ((selectedModelData?.glassColors?.length ?? 0) > 0 ? 'Не выбран' : '—') },
-      { label: 'Комплект фурнитуры', value: getHardwareKitText() },
+      { label: 'Комплект фурнитуры', value: getKitDisplayName(getHardwareKitText()) },
       { label: 'Ручка', value: getHandleText() },
       { label: 'Наличник', value: architraveName || 'Не выбран' },
       { label: 'Ограничитель', value: getStopperText() },
@@ -1161,6 +1173,7 @@ export default function FigmaExactReplicaPage() {
       architraveNames: architraveNames.length > 0 ? architraveNames : undefined,
       optionNames: doorOptionLabels.length > 0 ? doorOptionLabels : (architraveNames.length > 0 ? architraveNames : undefined),
       sku_1c: priceData.sku || undefined,
+      openingDirection,
       reversible,
       mirror: selectedMirrorId && selectedMirrorId !== 'none' ? selectedMirrorId : undefined,
       threshold: selectedThresholdId != null,
@@ -1299,6 +1312,7 @@ export default function FigmaExactReplicaPage() {
             optionIds: item.optionIds,
             hardwareKitId: item.hardwareKitId,
             hardwareKitName: item.hardwareKitName,
+            openingDirection: item.openingDirection,
             reversible: item.reversible,
             mirror: item.mirror,
             threshold: item.threshold,
@@ -1616,6 +1630,7 @@ export default function FigmaExactReplicaPage() {
                             setSelectedStopperIdColor(null);
                             setSelectedMirrorId(null);
                             setSelectedThresholdId(null);
+                            setOpeningDirection('left');
                             setReversible(false);
                             setSelectedFilling(null);
                             setHasLock(null);
@@ -1783,6 +1798,35 @@ export default function FigmaExactReplicaPage() {
                               ))}
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Направление открывания */}
+                      <div>
+                        <h3 className="section-heading">НАПРАВЛЕНИЕ ОТКРЫВАНИЯ</h3>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setOpeningDirection('left')}
+                            className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-300 ${
+                              openingDirection === 'left'
+                                ? 'bg-gray-900 text-white shadow-md scale-105'
+                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-500 hover:shadow-sm'
+                            }`}
+                            style={{ fontSize: '13px' }}
+                          >
+                            Левая
+                          </button>
+                          <button
+                            onClick={() => setOpeningDirection('right')}
+                            className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-300 ${
+                              openingDirection === 'right'
+                                ? 'bg-gray-900 text-white shadow-md scale-105'
+                                : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-500 hover:shadow-sm'
+                            }`}
+                            style={{ fontSize: '13px' }}
+                          >
+                            Правая
+                          </button>
                         </div>
                       </div>
 
@@ -2010,20 +2054,26 @@ export default function FigmaExactReplicaPage() {
                                     : 'border-gray-200 shadow-sm hover:shadow-sm hover:border-gray-400 hover:scale-102'
                                 }`}
                               >
-                                {/* Область палитры: растягивается на всю доступную высоту карточки */}
+                                {/* Фото двери с наложенной палитрой RAL/NCS */}
                                 <div className="relative flex-1 min-h-[60px] w-full overflow-hidden border-b border-gray-200">
-                                  <div className="absolute inset-0 flex flex-col">
+                                  <img
+                                    src="/door-ral-ncs-base.png"
+                                    alt="RAL / NCS"
+                                    className="w-full h-full object-cover object-center"
+                                    style={{ display: 'block' }}
+                                  />
+                                  <div className="absolute inset-0 flex flex-col" style={{ mixBlendMode: 'multiply', opacity: 0.55 }}>
                                     {[
-                                      '#fafafa',
-                                      '#e8e4e0',
-                                      '#d4cfc9',
-                                      '#b5b0a8',
-                                      '#9ca39a',
-                                      '#8b9aa8',
-                                      '#7d8a8e',
-                                      '#6b7a75',
-                                      '#5c6464',
-                                      '#4a4f4e'
+                                      '#e8c8b0',
+                                      '#c9b8a0',
+                                      '#a8b0a0',
+                                      '#8ba898',
+                                      '#7d9aac',
+                                      '#8090b0',
+                                      '#9080a0',
+                                      '#786880',
+                                      '#605860',
+                                      '#484848'
                                     ].map((fill, i) => (
                                       <div key={i} className="flex-1 min-h-[6px]" style={{ backgroundColor: fill }} />
                                     ))}
@@ -2754,11 +2804,17 @@ export default function FigmaExactReplicaPage() {
                     style={{ width: '338px' }}
                   >
                     {selectedFinish === 'Эмаль' && useRalNcs ? (
-                      /* Палитра по высоте как фото дверей (338×676) */
-                      <div className="w-full flex flex-col" style={{ height: '676px' }}>
-                        {['#fafafa', '#e8e4e0', '#d4cfc9', '#b5b0a8', '#9ca39a', '#8b9aa8', '#7d8a8e', '#6b7a75', '#5c6464', '#4a4f4e'].map((fill, i) => (
-                          <div key={i} className="flex-1 min-h-[20px]" style={{ backgroundColor: fill }} />
-                        ))}
+                      <div className="w-full relative" style={{ height: '676px' }}>
+                        <img
+                          src="/door-ral-ncs-base.png"
+                          alt="RAL / NCS"
+                          className="w-full h-full object-cover object-center"
+                        />
+                        <div className="absolute inset-0 flex flex-col" style={{ mixBlendMode: 'multiply', opacity: 0.45 }}>
+                          {['#e8c8b0','#c9b8a0','#a8b0a0','#8ba898','#7d9aac','#8090b0','#9080a0','#786880','#605860','#484848'].map((fill, i) => (
+                            <div key={i} className="flex-1" style={{ backgroundColor: fill }} />
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       (() => {
@@ -2885,12 +2941,13 @@ export default function FigmaExactReplicaPage() {
                     {[
                       { label: 'Полотно', value: selectedModel },
                       { label: 'Размеры', value: `${width} × ${height} мм` },
+                      { label: 'Направление открывания', value: openingDirection === 'right' ? 'Правая' : 'Левая' },
                       { label: 'Реверсные двери', value: reversible ? 'Да' : 'Нет' },
-                      { label: 'Наполнение', value: selectedFilling || '—' },
+                      { label: 'Наполнение', value: getFillingDisplayName(selectedFilling) },
                       { label: 'Покрытие и цвет', value: getCoatingText() },
                       { label: 'Алюминиевая кромка', value: getEdgeText() },
                       { label: 'Цвет стекла', value: selectedGlassColor ?? ((selectedModelData?.glassColors?.length ?? 0) > 0 ? 'Не выбран' : '—') },
-                      { label: 'Комплект фурнитуры', value: getHardwareKitText() },
+                      { label: 'Комплект фурнитуры', value: getKitDisplayName(getHardwareKitText()) },
                       { label: 'Ручка', value: getHandleText() },
                       { label: 'Наличник', value: (selectedArchitraveId ? architraveOptions.find(a => a.id === selectedArchitraveId)?.name : null) || 'Не выбран' },
                       { label: 'Ограничитель', value: getStopperText() },

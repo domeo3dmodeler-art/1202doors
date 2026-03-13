@@ -227,15 +227,15 @@ export default function HandleSelectionModal({
                 {filteredHandles.map((handle) => (
                     <div
                       key={handle.id}
-                      onClick={() => onSelect(handle.id)}
-                      className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                      className={`group/card border rounded-lg p-3 cursor-pointer transition-all ${
                         selectedHandleId === handle.id
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
+                      onClick={() => onSelect(handle.id)}
                     >
                       {/* Фото ручки - прямоугольное поле отображения */}
-                      <div className="aspect-[4/2.8] mb-3 bg-gray-100 overflow-hidden px-2 py-1">
+                      <div className="aspect-[4/2.8] mb-3 bg-gray-100 overflow-hidden px-2 py-1 relative">
                         {handle.photos && handle.photos.length > 0 ? (
                           <img
                             src={getNormalizedPhotoUrl(handle.photos[0], handle.name)}
@@ -270,6 +270,14 @@ export default function HandleSelectionModal({
                             <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                           </svg>
                         </div>
+                        {/* Кнопка «Выбрать» при наведении */}
+                        <button
+                          type="button"
+                          className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs font-semibold px-4 py-1.5 rounded shadow-md hover:bg-black"
+                          onClick={(e) => { e.stopPropagation(); onSelect(handle.id); }}
+                        >
+                          Выбрать
+                        </button>
                       </div>
                       
                       {/* Информация о ручке: название, иконка i (описание) */}
@@ -359,29 +367,8 @@ export default function HandleSelectionModal({
             ×
           </button>
           
-          {/* Контейнер для фотографии с навигацией */}
+          {/* Контейнер для фотографии */}
           <div className="relative max-w-5xl max-h-[90vh] flex items-center justify-center">
-            {/* Кнопка предыдущего фото */}
-            {allPhotosInGroup.length > 1 && (
-              <button
-                onClick={handlePrevPhoto}
-                className="absolute -left-16 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-2xl z-10 bg-black bg-opacity-80 rounded-full w-12 h-12 flex items-center justify-center hover:bg-opacity-90 transition-all"
-              >
-                ←
-              </button>
-            )}
-            
-            {/* Кнопка следующего фото */}
-            {allPhotosInGroup.length > 1 && (
-              <button
-                onClick={handleNextPhoto}
-                className="absolute -right-16 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-2xl z-10 bg-black bg-opacity-80 rounded-full w-12 h-12 flex items-center justify-center hover:bg-opacity-90 transition-all"
-              >
-                →
-              </button>
-            )}
-            
-            {/* Фотография */}
             <img
               src={getNormalizedPhotoUrl(zoomPhoto || '')}
               alt="Увеличенное фото ручки"
@@ -389,13 +376,6 @@ export default function HandleSelectionModal({
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          
-          {/* Счетчик фотографий */}
-          {allPhotosInGroup.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black bg-opacity-70 px-4 py-2 rounded-lg">
-              {currentPhotoIndex + 1} / {allPhotosInGroup.length}
-            </div>
-          )}
           
           {/* Название ручки */}
           {getCurrentHandleName() && (

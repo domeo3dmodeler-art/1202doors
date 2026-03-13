@@ -16,6 +16,7 @@ export const EXCEL_DOOR_FIELDS = [
   'Кромка',
   'Кромка, цена',
   'Цвет кромки',
+  'Направление открывания',
   'Реверс',
   'Реверс, цена',
   'Зеркало',
@@ -104,6 +105,7 @@ export interface DoorExcelRowSource {
     edge_color_name?: string;
     glassColor?: string;
     glass_color?: string;
+    openingDirection?: 'left' | 'right';
     reversible?: boolean;
     mirror?: string;
     threshold?: boolean;
@@ -169,6 +171,11 @@ export function getDoorFieldValue(
       const edgeInBaseYesColor = /^(да|yes|1)$/i.test(edgeInBaseForColor);
       if (edgeFromItem) return (item.edgeColorName ?? item.edge_color_name ?? item.edgeId ?? '—').toString();
       if (isDoor && edgeInBaseYesColor) return (props['Domeo_Кромка_базовая_цвет'] ?? props['Кромка'] ?? '—').toString().trim() || '—';
+      return '';
+    case 'Направление открывания':
+      if (!isDoor) return '';
+      if (item.openingDirection === 'right') return 'Правая';
+      if (item.openingDirection === 'left') return 'Левая';
       return '';
     case 'Реверс':
       return isDoor && item.reversible ? 'да' : '';

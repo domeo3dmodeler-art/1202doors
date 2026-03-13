@@ -74,21 +74,30 @@ export function CreateClientModal({ isOpen, onClose, onClientCreated }: CreateCl
     }
   };
 
+  const allFieldsFilled = !!(
+    newClientData.firstName.trim() &&
+    newClientData.lastName.trim() &&
+    newClientData.middleName.trim() &&
+    newClientData.phone.trim() &&
+    newClientData.address.trim() &&
+    newClientData.compilationLeadNumber.trim()
+  );
+
   const handleCreate = async () => {
-    if (!newClientData.firstName || !newClientData.lastName || !newClientData.phone) {
-      toast.error('Заполните ФИО и телефон');
+    if (!allFieldsFilled) {
+      toast.error('Заполните все поля');
       return;
     }
 
     setIsCreating(true);
     try {
       const clientData: CreateClientInput = {
-        firstName: newClientData.firstName,
-        lastName: newClientData.lastName,
-        middleName: newClientData.middleName || null,
-        phone: newClientData.phone,
-        address: newClientData.address || '',
-        compilationLeadNumber: newClientData.compilationLeadNumber || null,
+        firstName: newClientData.firstName.trim(),
+        lastName: newClientData.lastName.trim(),
+        middleName: newClientData.middleName.trim(),
+        phone: newClientData.phone.trim(),
+        address: newClientData.address.trim(),
+        compilationLeadNumber: newClientData.compilationLeadNumber.trim(),
         customFields: '{}',
         isActive: true
       };
@@ -145,24 +154,27 @@ export function CreateClientModal({ isOpen, onClose, onClientCreated }: CreateCl
         <div className="grid grid-cols-12 gap-3">
           <input
             type="text"
-            placeholder="Фамилия"
+            placeholder="Фамилия *"
             value={newClientData.lastName}
             onChange={(e) => setNewClientData(prev => ({ ...prev, lastName: e.target.value }))}
             className="col-span-3 px-3 py-2 border border-gray-300 rounded"
+            required
           />
           <input
             type="text"
-            placeholder="Имя"
+            placeholder="Имя *"
             value={newClientData.firstName}
             onChange={(e) => setNewClientData(prev => ({ ...prev, firstName: e.target.value }))}
             className="col-span-2 px-3 py-2 border border-gray-300 rounded"
+            required
           />
           <input
             type="text"
-            placeholder="Отчество"
+            placeholder="Отчество *"
             value={newClientData.middleName}
             onChange={(e) => setNewClientData(prev => ({ ...prev, middleName: e.target.value }))}
             className="col-span-2 px-3 py-2 border border-gray-300 rounded"
+            required
           />
           <div className="col-span-2">
             <PhoneInput
@@ -174,17 +186,19 @@ export function CreateClientModal({ isOpen, onClose, onClientCreated }: CreateCl
           </div>
           <input
             type="text"
-            placeholder="Номер лида комплектации"
+            placeholder="Номер лида комплектации *"
             value={newClientData.compilationLeadNumber}
             onChange={(e) => setNewClientData(prev => ({ ...prev, compilationLeadNumber: e.target.value }))}
             className="col-span-3 px-3 py-2 border border-gray-300 rounded"
+            required
           />
           <input
             type="text"
-            placeholder="Адрес"
+            placeholder="Адрес *"
             value={newClientData.address}
             onChange={(e) => setNewClientData(prev => ({ ...prev, address: e.target.value }))}
             className="col-span-12 px-3 py-2 border border-gray-300 rounded"
+            required
           />
         </div>
 
@@ -199,7 +213,7 @@ export function CreateClientModal({ isOpen, onClose, onClientCreated }: CreateCl
           <button
             onClick={handleCreate}
             className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isCreating || !newClientData.firstName || !newClientData.lastName || !newClientData.phone}
+            disabled={isCreating || !allFieldsFilled}
           >
             {isCreating ? 'Создание...' : 'Создать клиента'}
           </button>

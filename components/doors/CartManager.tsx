@@ -885,11 +885,11 @@ export function CartManager({
                         optionIds: item.optionIds,
                         architraveNames: item.architraveNames,
                         optionNames: item.optionNames,
+                        openingDirection: item.openingDirection,
                         reversible: item.reversible,
                         mirror: item.mirror,
                         glassColor: item.glassColor,
                         specRows: item.specRows,
-                        // Разбивка цены по опциям из конфигуратора — передаём в заказ и далее в экспорт (все колонки Excel)
                         breakdown: item.breakdown
                       };
                     });
@@ -1698,6 +1698,7 @@ export function CartManager({
                 { label: 'Стиль', value: specItem.style || '—' },
                 { label: 'Полотно', value: specItem.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || '—' },
                 { label: 'Размеры', value: specItem.width != null && specItem.height != null ? `${specItem.width} × ${specItem.height} мм` : '—' },
+                { label: 'Направление открывания', value: specItem.openingDirection === 'right' ? 'Правая' : specItem.openingDirection === 'left' ? 'Левая' : '—' },
                 { label: 'Реверсные двери', value: specItem.reversible ? 'Да' : 'Нет' },
                 { label: 'Покрытие и цвет', value: coatingText },
                 { label: 'Алюминиевая кромка', value: specItem.edge === 'да' ? 'Да' : 'Нет' },
