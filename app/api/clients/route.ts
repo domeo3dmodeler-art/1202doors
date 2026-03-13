@@ -70,9 +70,30 @@ async function getHandler(
     let clients: any[] = [];
     let total = 0;
     try {
+      // Комплектатор видит только клиентов, у которых есть его заказы
+      const findParams: { page?: number; limit?: number; search?: string; isActive?: boolean; clientIds?: string[] } = { ...validation.data };
+      if (user.role === 'complectator') {
+        const orders = await prisma.order.findMany({
+          where: { complectator_id: user.userId },
+          select: { client_id: true },
+          distinct: ['client_id']
+        });
+        findParams.clientIds = orders.map((o: { client_id: string }) => o.client_id);
+        if (findParams.clientIds.length === 0) {
+          return apiSuccess({
+            clients: [],
+            pagination: {
+              page: findParams.page || 1,
+              limit: findParams.limit || 20,
+              total: 0,
+              totalPages: 0
+            }
+          });
+        }
+      }
       // Попытка выполнить простой запрос, чтобы проверить существование таблицы
       total = await prisma.client.count();
-      const result = await clientRepository.findMany(validation.data);
+      const result = await clientRepository.findMany(findParams);
       clients = result.clients;
       total = result.total;
     } catch (queryError) {

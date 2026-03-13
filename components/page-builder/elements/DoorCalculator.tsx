@@ -184,8 +184,8 @@ export function DoorCalculator({
         const data = await response.json();
         if (data.photos && data.photos.length > 0) {
           const photoPath = data.photos[0];
-          const imageUrl = getImageSrc(photoPath) || '';
-          setCurrentPhoto(imageUrl);
+          const imageUrl = getImageSrc(photoPath);
+          setCurrentPhoto(imageUrl ?? null);
           clientLogger.debug('✅ Фото загружено:', imageUrl);
         } else {
           setCurrentPhoto(null);

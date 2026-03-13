@@ -6,6 +6,8 @@ import { Button } from './Button';
 import { toast } from 'sonner';
 import { useConfirmDialog } from './ConfirmDialog';
 import { clientLogger } from '@/lib/logging/client-logger';
+import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
+import { parseApiResponse } from '@/lib/utils/parse-api-response';
 
 interface Comment {
   id: string;
@@ -62,40 +64,14 @@ export default function CommentsModal({
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      // Получаем токен из cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1];
-
-      if (!token) {
-        clientLogger.warn('No auth token found');
-        return;
-      }
-
-      const response = await fetch('/api/users/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
+      const response = await fetchWithAuth('/api/users/me', undefined, true);
       if (response.ok) {
         const data = await response.json();
-        clientLogger.debug('🔍 User data from API:', data);
-        setCurrentUser({ id: data.user.id, role: data.user.role });
-      } else {
-        const body = await response.text();
-        let parsed: unknown = null;
-        try {
-          parsed = body ? JSON.parse(body) : null;
-        } catch {
-          parsed = body || null;
+        const parsed = parseApiResponse<{ user?: { id: string; role: string } }>(data);
+        const userData = parsed?.user ?? (parsed as any)?.user ?? (data as any)?.data?.user ?? (data as any)?.user;
+        if (userData?.id) {
+          setCurrentUser({ id: userData.id, role: userData.role });
         }
-        clientLogger.warn('Failed to fetch current user', {
-          status: response.status,
-          statusText: response.statusText,
-          body: parsed
-        });
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -315,7 +291,7 @@ export default function CommentsModal({
           <div className="flex items-center space-x-3">
             <StickyNote className="h-6 w-6 text-blue-600" />
             <h3 className="text-lg font-semibold text-gray-900">
-              Комментарии - {documentType === 'quote' ? 'КП' : documentType === 'invoice' ? 'Счет' : 'Заказ у поставщика'} {documentNumber}
+              Комментарии - {documentType === 'quote' ? `КП ${documentNumber}` : documentType === 'invoice' ? `Счет ${documentNumber}` : documentNumber}
             </h3>
           </div>
           <button

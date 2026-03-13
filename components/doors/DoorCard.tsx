@@ -36,7 +36,7 @@ function DoorCardComponent({ item, selected, onSelect }: DoorCardProps) {
             const data = await response.json();
             const parsedData = parseApiResponse<{ photos?: string[] }>(data);
             if (parsedData.photos && parsedData.photos.length > 0) {
-              setImageSrc(getImageSrc(parsedData.photos[0]));
+              setImageSrc(getImageSrc(parsedData.photos[0]) ?? null);
             } else {
               setImageSrc(null);
             }

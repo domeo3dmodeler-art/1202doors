@@ -37,6 +37,14 @@ function toRows<T extends Record<string, any>>(rows: T[]): any[][] {
   return [headers, ...rows.map((r) => headers.map((h) => r[h] ?? ''))];
 }
 
+function formatShowroom(value: unknown): string {
+  if (value === undefined || value === null || value === '') return 'Нет';
+  if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
+  const s = String(value).trim().toLowerCase();
+  if (s === 'да' || s === 'yes' || s === '1' || s === 'true') return 'Да';
+  return 'Нет';
+}
+
 async function getHandler(req: NextRequest) {
   const user = await getAuthenticatedUser(req);
   logger.info('Export doors package from DB', 'admin/import/doors-package/GET', { userId: user.userId });
@@ -253,10 +261,12 @@ async function getHandler(req: NextRequest) {
       'Тип (Ручка/Завертка)': props['Тип (Ручка/Завертка)'] ?? '',
       'Название (Domeo_наименование для Web)': p.name ?? '',
       Описание: p.description ?? '',
+      Цвет: props['Цвет'] ?? '',
       Группа: props['Группа'] ?? '',
       'Цена продажи (руб)': props['Цена продажи (руб)'] ?? '',
       'Цена закупки (руб)': props['Цена закупки (руб)'] ?? '',
       'Цена РРЦ (руб)': p.base_price ?? 0,
+      'Есть в шоуруме, да/нет': formatShowroom(props['Есть в шоуруме']),
       'Фото (ссылка)': cover,
       'Порядок сортировки': props['Порядок сортировки'] ?? '',
       'Активна (Да/Нет)': p.is_active ? 'Да' : 'Нет',

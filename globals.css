@@ -70,6 +70,17 @@
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   }
+
+  .nav-bar-tab[data-disabled] {
+    color: #c0c4cb;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .nav-bar-tab[data-disabled]:hover {
+    background: transparent;
+    color: #c0c4cb;
+  }
 }
 
 /* Скрытие скроллбара */

@@ -9,9 +9,6 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getClientIP, publicApiRateLimiter, createNextRateLimitResponse } from '@/lib/security/rate-limiter';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { getCompleteDataCache, clearCompleteDataCache } from '../../../../../lib/catalog/complete-data-cache';
-import { join, basename } from 'path';
-import { existsSync } from 'fs';
-import { findDoorPhotoFile } from '../../../../../lib/configurator/door-photo-fallback';
 
 const CACHE_TTL = 30 * 60 * 1000;
 
@@ -185,18 +182,9 @@ async function getHandler(
     return IMAGE_EXT.test(normalized) ? normalized : null;
   };
 
-  // Подстановка реального имени файла, если в БД короткое (Дверь_Molis_1_Белый_...), а на диске длинное (Дверь_Molis_1_эмаль_ДГ_Исполнение_Эмаль_Белый_...)
+  // Пути в NFC, чтобы Nginx try_files находил файлы на диске. Резолв «короткое имя → файл» не в рантайме — см. docs/AUDIT_UPLOADS_AND_PERFORMANCE.md.
   const resolveDoorPhotoToExistingFile = (normalizedPath: string | null): string | null => {
-    if (!normalizedPath || !normalizedPath.includes('/final-filled/doors/')) return normalizedPath;
-    const prefix = '/uploads/final-filled/doors/';
-    if (!normalizedPath.startsWith(prefix)) return normalizedPath;
-    const fileName = normalizedPath.slice(prefix.length);
-    const doorsDir = join(process.cwd(), 'public', 'uploads', 'final-filled', 'doors');
-    const fullPath = join(doorsDir, fileName);
-    if (existsSync(fullPath)) return normalizedPath;
-    const found = findDoorPhotoFile(doorsDir, fileName);
-    if (!found) return normalizedPath;
-    return `${prefix}${basename(found)}`;
+    return normalizedPath ? normalizedPath.normalize('NFC') : null;
   };
 
   // Одна запись на (modelKey, style) только если есть хотя бы один товар. Правила: docs/DOOR_CONFIGURATOR_DATA_RULES.md

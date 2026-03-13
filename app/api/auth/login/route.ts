@@ -169,9 +169,14 @@ export async function POST(req: NextRequest) {
 
     // Устанавливаем cookie на сервере
     const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+    // Secure только при реальном HTTPS. На ВМ по http:// без Secure, иначе middleware не видит cookie и редиректит на логин.
+    // FORCE_INSECURE_AUTH_COOKIE=1 на ВМ при доступе по HTTP принудительно отключает Secure.
+    const forceInsecure = /^1|true|yes$/i.test(String(process.env.FORCE_INSECURE_AUTH_COOKIE ?? '').trim());
+    const isHttps = !forceInsecure && (req.url.startsWith('https:') || req.headers.get('x-forwarded-proto') === 'https');
+    const useSecureCookie = isProduction && isHttps;
     response.cookies.set('auth-token', token, {
-      httpOnly: isProduction, // В production недоступен из JS (защита от XSS)
-      secure: isProduction,   // В production только по HTTPS
+      httpOnly: isProduction,
+      secure: useSecureCookie,
       sameSite: isProduction ? 'strict' : 'lax',
       maxAge: 86400,   // 24 часа
       path: '/',

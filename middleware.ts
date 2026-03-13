@@ -36,11 +36,15 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Глобальный rate limit на все /api/* — защита от сканеров и флуда
+  // Исключаем раздачу фото /api/uploads/* — иначе массовая загрузка картинок каталога даёт 429
   if (pathname.startsWith('/api')) {
-    const clientIP = getClientIP(request);
-    const isLocalDev = process.env.NODE_ENV === 'development' && (clientIP === 'unknown' || clientIP === '127.0.0.1' || clientIP === '::1');
-    if (!isLocalDev && !globalApiRateLimiter.isAllowed(clientIP)) {
-      return createNextRateLimitResponse(globalApiRateLimiter, clientIP);
+    const isUploads = pathname.startsWith('/api/uploads/');
+    if (!isUploads) {
+      const clientIP = getClientIP(request);
+      const isLocalDev = process.env.NODE_ENV === 'development' && (clientIP === 'unknown' || clientIP === '127.0.0.1' || clientIP === '::1');
+      if (!isLocalDev && !globalApiRateLimiter.isAllowed(clientIP)) {
+        return createNextRateLimitResponse(globalApiRateLimiter, clientIP);
+      }
     }
     return NextResponse.next();
   }
@@ -57,12 +61,16 @@ export async function middleware(request: NextRequest) {
   const domeoToken = request.cookies.get('domeo-auth-token')?.value;
   const headerAuthToken = request.headers.get('cookie')?.split(';')
     .find(c => c.trim().startsWith('auth-token='))
-    ?.split('=')[1];
+    ?.split('=')[1]
+    ?.trim();
   const headerDomeoToken = request.headers.get('cookie')?.split(';')
     .find(c => c.trim().startsWith('domeo-auth-token='))
-    ?.split('=')[1];
-    
-  const token = authToken || domeoToken || headerAuthToken || headerDomeoToken;
+    ?.split('=')[1]
+    ?.trim();
+  const authHeader = request.headers.get('authorization');
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  const token = authToken || domeoToken || headerAuthToken || headerDomeoToken || bearerToken;
   
   // Отладочная информация только в development
   if (process.env.NODE_ENV === 'development') {

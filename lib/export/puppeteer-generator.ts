@@ -3,7 +3,7 @@ import fs from 'fs';
 import { prisma } from '@/lib/prisma';
 import ExcelJS from 'exceljs';
 import puppeteer, { Browser } from 'puppeteer-core';
-import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
+import { getPuppeteerExecutablePath, DEFAULT_PUPPETEER_ARGS, MEMORY_SAVING_PUPPETEER_ARGS } from '@/lib/export/puppeteer-executable';
 import { 
   findExistingDocument as findExistingDocumentDedup, 
   findExistingOrder,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/documents/deduplication';
 import { logger } from '@/lib/logging/logger';
 import { getItemDisplayName, getItemType, normalizeItemForExport } from '@/lib/export/export-items';
+import { runInPdfQueue } from '@/lib/export/pdf-export-queue';
 import { getMatchingProducts, getModelNameByCode, getFirstProductPropsByModelCode } from '@/lib/catalog/product-match';
 import { EXCEL_DOOR_FIELDS, getDoorFieldValue, type ExcelDoorFieldName } from '@/lib/export/excel-door-fields';
 
@@ -211,26 +212,29 @@ export async function generatePDFWithPuppeteer(data: any): Promise<Buffer> {
     logger.debug('Создаем браузер с executablePath', 'puppeteer-generator', { executablePath });
 
     const browser = await puppeteer.launch({
-      args: [...DEFAULT_PUPPETEER_ARGS, '--single-process', '--use-gl=swiftshader', '--ignore-certificate-errors', '--ignore-ssl-errors'],
+      args: [
+        ...DEFAULT_PUPPETEER_ARGS,
+        ...MEMORY_SAVING_PUPPETEER_ARGS,
+        '--single-process',
+        '--ignore-certificate-errors',
+        '--ignore-ssl-errors',
+      ],
       executablePath,
       headless: true,
       timeout: 60000,
-      ignoreHTTPSErrors: true
+      ignoreHTTPSErrors: true,
     });
 
     let page: any = null;
     try {
       logger.debug('Создаем новую страницу', 'puppeteer-generator');
       page = await browser.newPage();
-      
-      // Устанавливаем размер viewport
-      await page.setViewport({ width: 1920, height: 1080 });
-      
-      logger.debug('Устанавливаем HTML контент', 'puppeteer-generator');
-      // Устанавливаем контент страницы с надежным ожиданием
-      await page.setContent(htmlContent, { 
-        waitUntil: 'networkidle0',
-        timeout: 60000 
+      // Viewport под A4 — меньше памяти на растеризацию (794×1123 ≈ A4 @ 96dpi)
+      await page.setViewport({ width: 794, height: 1123 });
+      // Контент задаётся строкой, сетевых запросов нет — достаточно load
+      await page.setContent(htmlContent, {
+        waitUntil: 'load',
+        timeout: 60000,
       });
 
       logger.debug('Генерируем PDF', 'puppeteer-generator');
@@ -930,7 +934,7 @@ export async function exportDocumentWithPDF(
   // Генерируем файл в зависимости от формата
   switch (format) {
     case 'pdf':
-      buffer = await generatePDFWithPuppeteer(exportData);
+      buffer = await runInPdfQueue(() => generatePDFWithPuppeteer(exportData));
       filename = `${safeDocumentNumber}.pdf`;
       mimeType = 'application/pdf';
       break;

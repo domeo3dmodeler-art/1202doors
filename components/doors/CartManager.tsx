@@ -8,6 +8,15 @@ import HandleSelectionModal from "../../components/HandleSelectionModal";
 import { OrderDetailsModal } from "@/components/complectator/OrderDetailsModal";
 import { getImageSrc } from '@/lib/configurator/image-src';
 import { fmtInt, findHandleById, findHardwareKitById } from './utils';
+
+function getKitDisplayName(kitName: string | undefined | null): string {
+  if (!kitName) return 'Базовый';
+  const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim().toLowerCase();
+  if (/сильвер|silver|базовый/.test(normalized)) return 'Стандарт';
+  if (/голд|gold/.test(normalized)) return 'Комфорт';
+  if (/платинум|platinum/.test(normalized)) return 'Бизнес';
+  return kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
+}
 import type { CartItem, HardwareKit, Handle } from './types';
 
 interface CartManagerProps {
@@ -109,8 +118,8 @@ export function CartManager({
 
         const totalAmount = cart.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.qty || 1), 0);
 
-        // Проверяем существующий заказ через API с фильтром по клиенту
-        const response = await fetch(`/api/orders?client_id=${selectedClient}`, {
+        // Проверяем существующий заказ через API с фильтром по клиенту (с авторизацией)
+        const response = await fetchWithAuth(`/api/orders?client_id=${selectedClient}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -834,9 +843,11 @@ export function CartManager({
                         if (item.mirror) doorSpecParts.push('Зеркало: да');
                         if (item.threshold) doorSpecParts.push('Порог: да');
                         if (item.optionIds?.length) doorSpecParts.push('Наличники: да');
-                        const kitName = (Array.isArray(hardwareKits) && hardwareKits.length > 0 && item.hardwareKitId)
-                          ? (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? item.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый')
-                          : (item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый');
+                        const kitName = getKitDisplayName(
+                          (Array.isArray(hardwareKits) && hardwareKits.length > 0 && item.hardwareKitId)
+                            ? (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name ?? item.hardwareKitName)
+                            : item.hardwareKitName
+                        );
                         doorSpecParts.push(`Фурнитура: ${kitName}`);
                         const specStr = doorSpecParts.filter((x) => x !== '—').join('; ');
                         fullName = specStr ? `Дверь DomeoDoors ${modelName}; ${specStr}` : `Дверь DomeoDoors ${modelName}`;
@@ -1026,7 +1037,7 @@ export function CartManager({
                             {handle.photos.slice(0, 3).map((photo, idx) => (
                               <img
                                 key={idx}
-                                src={photo ? getImageSrc(photo) : ''}
+                                src={getImageSrc(photo) ?? undefined}
                                 alt={`${currentHandleName} фото ${idx + 1}`}
                                 className="w-12 h-12 object-cover rounded border border-gray-200"
                                 onError={(e) => {
@@ -1068,15 +1079,6 @@ export function CartManager({
                         </div>
                       </div>
                       <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                          {!isEditing && (
-                            <button
-                              onClick={() => startEditingItem(item.id)}
-                              className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs shrink-0"
-                              title="Редактировать"
-                            >
-                              ✏️
-                            </button>
-                          )}
                           <button
                             onClick={() => removeItem(item.id)}
                             className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
@@ -1263,9 +1265,11 @@ export function CartManager({
                 if (item.mirror) doorSpecParts.push('Зеркало: да');
                 if (item.threshold) doorSpecParts.push('Порог: да');
                 if (item.optionIds?.length) doorSpecParts.push('Наличники: да');
-                const doorKitName = (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId)
-                  ? (item.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый')
-                  : (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? item.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый');
+                const doorKitName = getKitDisplayName(
+                  (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId)
+                    ? item.hardwareKitName
+                    : (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name ?? item.hardwareKitName)
+                );
                 doorSpecParts.push(`Фурнитура: ${doorKitName}`);
                 return (
                   <div key={item.id} className="border border-gray-200 rounded-lg p-3">
@@ -1312,15 +1316,6 @@ export function CartManager({
                         </div>
                       </div>
                       <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                        {!isEditing && (
-                          <button
-                            onClick={() => startEditingItem(item.id)}
-                            className="w-5 h-5 bg-black text-white rounded hover:bg-gray-800 flex items-center justify-center text-xs shrink-0"
-                            title="Редактировать"
-                          >
-                            ✏️
-                          </button>
-                        )}
                         <button
                           onClick={() => removeItem(item.id)}
                           className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
@@ -1668,9 +1663,11 @@ export function CartManager({
       {doorSpecModalId && (() => {
         const specItem = cart.find((i) => i.itemType === 'door' && i.id === doorSpecModalId) as CartItem | undefined;
         if (!specItem) return null;
-        const kitName = (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !specItem.hardwareKitId)
-          ? (specItem.hardwareKitName?.replace('Комплект фурнитуры — ', '') || 'Базовый')
-          : (findHardwareKitById(hardwareKits, specItem.hardwareKitId)?.name?.replace('Комплект фурнитуры — ', '') ?? specItem.hardwareKitName?.replace('Комплект фурнитуры — ', '') ?? 'Базовый');
+        const kitName = getKitDisplayName(
+          (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !specItem.hardwareKitId)
+            ? specItem.hardwareKitName
+            : (findHardwareKitById(hardwareKits, specItem.hardwareKitId)?.name ?? specItem.hardwareKitName)
+        );
         const finishVal = String(specItem.finish ?? '').trim();
         const colorVal = String(specItem.color ?? '').trim();
         let coatingText = '—';

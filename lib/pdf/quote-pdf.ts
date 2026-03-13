@@ -17,10 +17,10 @@ type Quote = {
 
 export async function generateQuotePDF(quote: Quote): Promise<Buffer> {
   const html = generateQuoteHTML(quote);
-  
-  // Используем существующий сервис HTML to PDF
+
   const { htmlToPdfBuffer } = await import('@/lib/pdf/htmlToPdf');
-  return await htmlToPdfBuffer(html);
+  const { runInPdfQueue } = await import('@/lib/export/pdf-export-queue');
+  return await runInPdfQueue(() => htmlToPdfBuffer(html));
 }
 
 function generateQuoteHTML(quote: Quote): string {

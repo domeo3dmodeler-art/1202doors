@@ -293,6 +293,11 @@ async function getHandler(
     where.client_id = client_id;
   }
 
+  // Комплектатор видит только свои заказы (где он указан как complectator_id)
+  if (user.role === 'complectator') {
+    where.complectator_id = user.userId;
+  }
+
   // Фильтр по complectator_id (для Руководителя)
   if (complectator_id) {
     where.complectator_id = complectator_id;

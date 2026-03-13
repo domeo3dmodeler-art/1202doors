@@ -82,6 +82,7 @@ async function handler(
     select: {
       project_file_url: true,
       door_dimensions: true,
+      cart_data: true,
       measurement_done: true,
       project_complexity: true
     }
@@ -101,6 +102,7 @@ async function handler(
     const docForValidation = {
       project_file_url: order.project_file_url,
       door_dimensions: doorDimensions,
+      cart_data: orderForValidation.cart_data,
       measurement_done: order.measurement_done,
       project_complexity: order.project_complexity
     };

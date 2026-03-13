@@ -164,7 +164,7 @@ export default function HistoryModal({
           <div className="flex items-center space-x-3">
             <History className="h-6 w-6 text-green-600" />
             <h3 className="text-lg font-semibold text-gray-900">
-              История изменений - {documentType === 'quote' ? 'КП' : documentType === 'invoice' ? 'Счет' : 'Заказ у поставщика'} {documentNumber}
+              История изменений - {documentType === 'quote' ? `КП ${documentNumber}` : documentType === 'invoice' ? `Счет ${documentNumber}` : documentNumber}
             </h3>
           </div>
           <button

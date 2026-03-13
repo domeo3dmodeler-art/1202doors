@@ -93,6 +93,17 @@ async function handler(req: NextRequest, user: AuthenticatedUser, { params }: { 
     where: { id },
     data: updateData
   });
+
+  await prisma.documentHistory.create({
+    data: {
+      document_id: id,
+      user_id: user.userId,
+      action: 'status_change',
+      old_value: existingSupplierOrder.status,
+      new_value: status,
+      details: JSON.stringify({ document_type: 'supplier_order' })
+    }
+  }).catch((err) => logger.warn('Failed to create document_history for supplier_order status', 'supplier-orders/[id]/status', { error: err?.message }, loggingContext));
   
   logger.info('Supplier order updated successfully', 'supplier-orders/[id]/status', { supplierOrder: updatedSupplierOrder, userId: user.userId }, loggingContext);
 

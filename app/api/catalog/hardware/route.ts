@@ -241,14 +241,15 @@ async function getHandler(
     const normalizePhoto = (url: string | null | undefined): string | null => {
       if (!url || typeof url !== 'string') return null;
       const t = url.trim();
-      if (t.startsWith('http://') || t.startsWith('https://')) return t;
-      if (t.startsWith('/uploads/')) return t;
-      if (t.startsWith('uploads/')) return `/${t}`;
-      // Относительный путь (final-filled/... или с /) — под /uploads/
-      if (t.includes('final-filled') || (t.includes('/') && !t.startsWith('/'))) return `/uploads/${t.replace(/^\//, '')}`;
-      if (t.startsWith('/')) return t;
-      // Голое имя файла — путь под папкой наличников
-      return ARCHITRAVES_UPLOADS_PREFIX + t;
+      let out: string;
+      if (t.startsWith('http://') || t.startsWith('https://')) out = t;
+      else if (t.startsWith('/uploads/')) out = t;
+      else if (t.startsWith('uploads/')) out = `/${t}`;
+      else if (t.includes('final-filled') || (t.includes('/') && !t.startsWith('/'))) out = `/uploads/${t.replace(/^\//, '')}`;
+      else if (t.startsWith('/')) out = t;
+      else out = ARCHITRAVES_UPLOADS_PREFIX + t;
+      // Нормализация Unicode (NFC): в БД/Excel часто NFD — «Прямой» (и+combining), на диске — NFC «Прямой», иначе 404
+      return out.normalize('NFC');
     };
     const formatted = products.map((p) => {
       let props: Record<string, unknown> = {};
@@ -262,15 +263,43 @@ async function getHandler(
       const photo = photoFromImage ?? (photoFromProps ? normalizePhoto(photoFromProps) : null);
       const price = parseFloat((props['Цена РРЦ'] as string) || '') || Number(p.base_price) || 0;
       const supplier = String(props['Поставщик'] ?? props['Наличник: Поставщик'] ?? '').trim();
+      const optionName = (props['Наличник: Название'] as string) || p.name;
       return {
         id: p.id,
         option_type: 'наличники',
-        option_name: (props['Наличник: Название'] as string) || p.name,
+        option_name: optionName,
         price_surcharge: price,
         photo_path: photo,
         supplier: supplier || undefined,
       };
     });
+
+    // Fallback: у товаров без своего фото подставляем путь по option_name из любого товара с тем же названием
+    const normKey = (s: string) => String(s ?? '').trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase();
+    const photoByOptionName = new Map<string, string>();
+    for (const item of formatted) {
+      if (item.photo_path) {
+        const key = normKey(item.option_name);
+        if (!photoByOptionName.has(key)) photoByOptionName.set(key, item.photo_path);
+      }
+    }
+    for (const item of formatted) {
+      if (!item.photo_path && item.option_name) {
+        const fallback = photoByOptionName.get(normKey(item.option_name));
+        if (fallback) item.photo_path = fallback;
+      }
+    }
+
+    // Все фото наличников — по одному принципу: через API, который находит файл на диске (в т.ч. при NFD папках)
+    const architravesPhotoPrefix = '/uploads/final-filled/Наличники/';
+    for (const item of formatted) {
+      const p = item.photo_path;
+      if (p && p.startsWith(architravesPhotoPrefix)) {
+        const pathForQuery = p.startsWith('/') ? p : `/${p}`;
+        item.photo_path = `/api/uploads/architrave?path=${encodeURIComponent(pathForQuery)}`;
+      }
+    }
+
     return apiSuccess(formatted);
   }
 

@@ -5,6 +5,7 @@
  */
 export async function register() {
   if (process.env.NODE_ENV !== 'development') return
+  if (typeof process.on !== 'function') return
 
   const connectionErrorCodes = new Set(['ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])
 

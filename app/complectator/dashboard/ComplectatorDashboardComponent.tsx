@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button, Card } from '../../../components/ui';
@@ -17,8 +17,7 @@ import {
   BadgeCheck,
   Package,
   Plus,
-  MoreVertical,
-  Trash2
+  MoreVertical
 } from 'lucide-react';
 // Убрали useAuth чтобы избежать бесконечных циклов рендера - user теперь передается как пропс
 import CommentsModal from '@/components/ui/CommentsModal';
@@ -95,8 +94,6 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
   const [ordersFilter, setOrdersFilter] = useState<typeof COMPLECTATOR_FILTER_STATUSES[number]>('all');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
-  const [deletingOrder, setDeletingOrder] = useState(false);
   const [showInWorkOnly, setShowInWorkOnly] = useState(false);
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [statusDropdown, setStatusDropdown] = useState<{type: 'quote'|'invoice', id: string, x: number, y: number} | null>(null);
@@ -382,47 +379,6 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
     }
   }, [loadBlockedStatuses, fetchAllCommentsCount]);
 
-  // Удаление заказа
-  const handleDeleteOrder = useCallback(async (orderId: string) => {
-    if (!orderId) {
-      return;
-    }
-
-    try {
-      setDeletingOrder(true);
-      clientLogger.debug('Deleting order:', { orderId });
-
-      const response = await fetchWithAuth(`/api/orders/${orderId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        toast.success('Заказ успешно удален');
-        setOrderToDelete(null);
-        
-        // Обновляем список заказов
-        if (selectedClient) {
-          await fetchClientOrders(selectedClient);
-        }
-      } else {
-        const errorData = await response.json();
-        const parsedError = parseApiResponse(errorData);
-        const errorMessage = parsedError && typeof parsedError === 'object' && 'error' in parsedError
-          ? (parsedError.error && typeof parsedError.error === 'object' && 'message' in parsedError.error
-            ? String(parsedError.error.message)
-            : String(parsedError.error))
-          : 'Ошибка удаления заказа';
-        
-        clientLogger.error('Error deleting order:', { status: response.status, error: errorData });
-        toast.error(`Ошибка удаления заказа: ${errorMessage}`);
-      }
-    } catch (error) {
-      clientLogger.error('Error deleting order:', error);
-      toast.error('Ошибка удаления заказа');
-    } finally {
-      setDeletingOrder(false);
-    }
-  }, [selectedClient, fetchClientOrders]);
 
 
   // Теперь используем функции в useEffect (после их определения)
@@ -829,8 +785,10 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
         
         toast.success('КП перегенерировано и скачано успешно');
       } else {
-        const regenerateQuoteErrorResponse = await response.json();
-        toast.error(`Ошибка: ${regenerateQuoteErrorResponse.error}`);
+        const data = await response.json().catch(() => ({}));
+        const err = data?.error;
+        const msg = typeof err === 'object' && err?.message ? err.message : (typeof err === 'string' ? err : 'Ошибка экспорта КП');
+        toast.error(`Ошибка: ${msg}`);
       }
     } catch (regenerateQuoteError) {
       clientLogger.error('Error regenerating quote', regenerateQuoteError);
@@ -895,8 +853,10 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
         
         toast.success('Счет перегенерирован и скачан успешно');
       } else {
-        const regenerateInvoiceErrorResponse = await response.json();
-        toast.error(`Ошибка: ${regenerateInvoiceErrorResponse.error}`);
+        const data = await response.json().catch(() => ({}));
+        const err = data?.error;
+        const msg = typeof err === 'object' && err?.message ? err.message : (typeof err === 'string' ? err : 'Ошибка экспорта счета');
+        toast.error(`Ошибка: ${msg}`);
       }
     } catch (regenerateInvoiceError) {
       clientLogger.error('Error regenerating invoice', regenerateInvoiceError);
@@ -1138,17 +1098,6 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
                                 )}
                               </div>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setOrderToDelete(o.id);
-                              }}
-                              className="ml-2 p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                              title="Удалить заказ"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
                           </div>
                         </div>
                       ))}
@@ -1305,22 +1254,6 @@ export function ComplectatorDashboardComponent({ user }: ComplectatorDashboardCo
           : 'Вы уверены, что хотите удалить этот счет? Все связанные данные будут потеряны.'
         }
         itemName={deleteModal.name || undefined}
-      />
-
-      {/* Модальное окно подтверждения удаления заказа */}
-      <DeleteConfirmModal
-        isOpen={!!orderToDelete}
-        onClose={() => {
-          setOrderToDelete(null);
-        }}
-        onConfirm={async () => {
-          if (orderToDelete) {
-            await handleDeleteOrder(orderToDelete);
-          }
-        }}
-        title="Удаление заказа"
-        message="Вы уверены, что хотите удалить этот заказ? Все связанные данные будут потеряны."
-        itemName={orderToDelete ? orders.find(o => o.id === orderToDelete)?.number : undefined}
       />
 
       {/* Модальное окно деталей заказа */}

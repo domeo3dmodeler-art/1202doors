@@ -243,6 +243,39 @@ export default function FigmaExactReplicaPage() {
   const [zoomPreviewAlt, setZoomPreviewAlt] = useState<string>('');
   const [showHandleDescription, setShowHandleDescription] = useState(false);
 
+  const tabComplete = useMemo(() => ({
+    'полотно': !!selectedModelId,
+    'размеры': !!(width && height && selectedFilling),
+    'покрытие': !!(selectedFinish && (selectedColor || selectedWood || useRalNcs)),
+    'фурнитура': !!selectedHardwareKit,
+    'наличники': true,
+    'доп-опции': true,
+  }), [selectedModelId, width, height, selectedFilling, selectedFinish, selectedColor, selectedWood, useRalNcs, selectedHardwareKit]);
+
+  const tabOrder = ['полотно', 'размеры', 'покрытие', 'фурнитура', 'наличники', 'доп-опции'] as const;
+
+  const isTabEnabled = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    let allPrevComplete = true;
+    for (let i = 0; i < tabOrder.length; i++) {
+      result[tabOrder[i]] = allPrevComplete;
+      if (!tabComplete[tabOrder[i]]) allPrevComplete = false;
+    }
+    return result;
+  }, [tabComplete]);
+
+  useEffect(() => {
+    if (!isTabEnabled[activeTab]) {
+      for (let i = tabOrder.length - 1; i >= 0; i--) {
+        if (isTabEnabled[tabOrder[i]]) {
+          setActiveTab(tabOrder[i]);
+          return;
+        }
+      }
+      setActiveTab('полотно');
+    }
+  }, [isTabEnabled, activeTab]);
+
   // Корзина (сохраняем в localStorage для перезагрузки и повторного захода на сайт)
   const CART_STORAGE_KEY = '1002doors-cart';
   const CART_PRICES_STORAGE_KEY = '1002doors-cart-prices';
@@ -1619,16 +1652,21 @@ export default function FigmaExactReplicaPage() {
                       { key: 'фурнитура', label: 'ФУРНИТУРА' },
                       ...(selectedStyle !== 'Скрытая' ? [{ key: 'наличники', label: 'НАЛИЧНИКИ' }] : []),
                       { key: 'доп-опции', label: 'ДОП ОПЦИИ' },
-                    ].map((tab) => (
-                      <button
-                        key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
-                        className="nav-bar-tab"
-                        data-active={activeTab === tab.key || undefined}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
+                    ].map((tab) => {
+                      const enabled = isTabEnabled[tab.key];
+                      return (
+                        <button
+                          key={tab.key}
+                          onClick={() => enabled && setActiveTab(tab.key)}
+                          className="nav-bar-tab"
+                          data-active={activeTab === tab.key || undefined}
+                          data-disabled={!enabled || undefined}
+                          disabled={!enabled}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Сетка моделей */}
@@ -2782,18 +2820,30 @@ export default function FigmaExactReplicaPage() {
               <div style={{ flex: '1', maxWidth: '400px' }}>
                 <div className="sticky" style={{ top: '32px' }}>
                   {/* Заголовок "Спецификация" */}
-                  <h3 
-                    className="mb-4 font-semibold"
-                    style={{
-                      fontFamily: designTokens.typography.fontFamily.sans.join(', '),
-                      fontSize: designTokens.typography.fontSize.xl,
-                      fontWeight: designTokens.typography.fontWeight.semibold,
-                      color: designTokens.colors.gray[800],
-                      letterSpacing: '-0.01em'
-                    }}
-                  >
-                    Спецификация
-                  </h3>
+                  <div className="mb-4 flex items-baseline justify-between gap-3">
+                    <h3
+                      className="font-semibold"
+                      style={{
+                        fontFamily: designTokens.typography.fontFamily.sans.join(', '),
+                        fontSize: designTokens.typography.fontSize.xl,
+                        fontWeight: designTokens.typography.fontWeight.semibold,
+                        color: designTokens.colors.gray[800],
+                        letterSpacing: '-0.01em'
+                      }}
+                    >
+                      Спецификация
+                    </h3>
+                    <a
+                      href="/Passport.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                      onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      Информация по Фабрикам
+                    </a>
+                  </div>
 
                   {/* Список спецификации */}
                   <div 
@@ -2924,7 +2974,7 @@ export default function FigmaExactReplicaPage() {
                         className="text-xs text-gray-500 mt-1"
                         style={{ fontFamily: designTokens.typography.fontFamily.sans.join(', ') }}
                       >
-                        Дверь + ручка + завертка + ограничитель и опции
+                        Дверное полотно, коробка, наличники, доборы + выбранные опции
                       </div>
                     )}
                   </div>

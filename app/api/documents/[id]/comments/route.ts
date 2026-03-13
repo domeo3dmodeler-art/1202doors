@@ -78,17 +78,25 @@ export async function POST(
       });
 
       if (!invoice) {
-        // Проверяем в таблице supplier_orders
-        const supplierOrder = await prisma.supplierOrder.findUnique({
+        // Проверяем в таблице orders
+        const order = await prisma.order.findUnique({
           where: { id },
           select: { id: true }
         });
 
-        if (!supplierOrder) {
-          return NextResponse.json(
-            { error: 'Document not found' },
-            { status: 404 }
-          );
+        if (!order) {
+          // Проверяем в таблице supplier_orders
+          const supplierOrder = await prisma.supplierOrder.findUnique({
+            where: { id },
+            select: { id: true }
+          });
+
+          if (!supplierOrder) {
+            return NextResponse.json(
+              { error: 'Document not found' },
+              { status: 404 }
+            );
+          }
         }
       }
     }

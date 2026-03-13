@@ -109,9 +109,11 @@ interface OrdersBoardProps {
   /** Поиск в шапке (если передан — свой блок поиска не показывается) */
   searchQuery?: string;
   onSearchQueryChange?: (value: string) => void;
+  /** Фильтр по клиенту (id) */
+  clientId?: string | null;
 }
 
-export function OrdersBoard({ executorId, searchQuery: searchQueryProp, onSearchQueryChange }: OrdersBoardProps) {
+export function OrdersBoard({ executorId, searchQuery: searchQueryProp, onSearchQueryChange, clientId }: OrdersBoardProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<keyof typeof ORDER_STATUSES | 'all'>('all');
@@ -147,14 +149,18 @@ export function OrdersBoard({ executorId, searchQuery: searchQueryProp, onSearch
     fetchOrders();
   }, [fetchOrders]);
 
-  // Фильтрация заказов по статусу и поиску
+  // Фильтрация заказов по статусу, поиску и клиенту
   const filteredOrders = useMemo(() => {
     let filtered = orders;
+
+    // Фильтр по клиенту
+    if (clientId) {
+      filtered = filtered.filter(order => order.client_id === clientId);
+    }
 
     // Фильтр по статусу
     if (activeStatus !== 'all') {
       filtered = filtered.filter(order => {
-        // Маппим PAID в NEW_PLANNED для Исполнителя
         const executorStatus = getExecutorOrderStatus(order.status);
         return executorStatus === activeStatus;
       });
@@ -173,7 +179,7 @@ export function OrdersBoard({ executorId, searchQuery: searchQueryProp, onSearch
     }
 
     return filtered;
-  }, [orders, activeStatus, searchQuery]);
+  }, [orders, activeStatus, searchQuery, clientId]);
 
   // Подсчет заказов по статусам (с учетом маппинга PAID → NEW_PLANNED)
   const statusCounts = useMemo(() => {
@@ -1652,7 +1658,6 @@ function OrderDetailModal({
             <div 
               className="bg-white rounded-lg p-6 max-w-md w-full mx-4" 
               onClick={(e) => {
-                e.preventDefault();
                 e.stopPropagation();
               }}
             >
@@ -1660,83 +1665,30 @@ function OrderDetailModal({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Новый статус</label>
-                  {(() => {
-                    // Маппим статус для проверки (PAID -> NEW_PLANNED)
-                    const executorStatus = getExecutorOrderStatus(currentOrder.status);
-                    return executorStatus === 'UNDER_REVIEW' && availableStatuses.length > 1;
-                  })() ? (
-                    <div className="space-y-2">
-                      <label className="flex items-center space-x-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="radio"
-                          name="newStatus"
-                          value="AWAITING_MEASUREMENT"
-                          checked={newStatus === 'AWAITING_MEASUREMENT'}
-                          onChange={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setNewStatus(e.target.value);
-                            setRequireMeasurement(true);
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                        />
-                        <span className="text-sm">{ORDER_STATUSES['AWAITING_MEASUREMENT'].label}</span>
-                      </label>
-                      <label className="flex items-center space-x-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="radio"
-                          name="newStatus"
-                          value="AWAITING_INVOICE"
-                          checked={newStatus === 'AWAITING_INVOICE'}
-                          onChange={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setNewStatus(e.target.value);
-                            setRequireMeasurement(false);
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                        />
-                        <span className="text-sm">{ORDER_STATUSES['AWAITING_INVOICE'].label}</span>
-                      </label>
-                    </div>
-                  ) : (
-                    <select
-                      value={newStatus}
-                      onChange={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setNewStatus(e.target.value);
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      className="w-full border border-gray-300 rounded px-3 py-2"
-                    >
-                      {availableStatuses.map((status, index) => {
-                        // Используем getStatusLabel для правильного отображения всех статусов, включая CANCELLED
-                        const label = getStatusLabel(status, 'order_executor');
-                        // Используем комбинацию status и index для уникального key, чтобы избежать дубликатов
-                        return (
-                          <option key={`${status}-${index}`} value={status}>
-                            {label}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  )}
+                  <div className="space-y-2">
+                    {availableStatuses.map((status) => {
+                      const label = getStatusLabel(status, 'order_executor');
+                      return (
+                        <label key={status} className="flex items-center space-x-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
+                          <input
+                            type="radio"
+                            name="newStatus"
+                            value={status}
+                            checked={newStatus === status}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setNewStatus(e.target.value);
+                              setRequireMeasurement(e.target.value === 'AWAITING_MEASUREMENT');
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span className="text-sm">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-                {(() => {
-                  // Маппим статус для проверки (PAID -> NEW_PLANNED)
-                  const executorStatus = getExecutorOrderStatus(currentOrder.status);
-                  return executorStatus === 'UNDER_REVIEW';
-                })() && (
+                {(newStatus === 'AWAITING_MEASUREMENT' || newStatus === 'AWAITING_INVOICE') && (
                   <div className="text-sm text-gray-600">
                     {newStatus === 'AWAITING_MEASUREMENT' 
                       ? 'Заказ будет направлен на замер'

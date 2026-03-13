@@ -117,18 +117,18 @@ async function getHandler(req: NextRequest): Promise<NextResponse> {
     filtered = filterByFinish(filtered, finish);
     step('6. Тип покрытия', filtered);
   }
+
+  // Кромка: считаем по набору после покрытия, но до фильтра по цвету, чтобы для всех цветов эмали (в т.ч. Телегрей и «Цвет по RAL/NCS») показывать один и тот же выбор кромки.
+  const optionsAfterFinish = collectOptions(filtered);
+  const edge_in_base = filtered.some(
+    (p) => String((p.properties || {})['Domeo_Кромка_в_базе_включена'] ?? '').trim().toLowerCase() === 'да'
+  );
+  const edges = optionsAfterFinish.edges;
+
   if (color) {
     filtered = filterByColor(filtered, color);
     step('7. Цвет', filtered);
   }
-
-  const optionsAfterFinishColor = collectOptions(filtered);
-  // Кромка в базе и список кромок — только по отфильтрованному набору (текущее покрытие/подмодель).
-  // Base 1 объединяет 4 подмодели; при выборе ПЭТ остаётся одна (ДПГ Флекс Эмаль Порта ПТА-50 B) без кромки в базе — не подставляем edges с других покрытий.
-  const edge_in_base = filtered.some(
-    (p) => String((p.properties || {})['Domeo_Кромка_в_базе_включена'] ?? '').trim().toLowerCase() === 'да'
-  );
-  const edges = optionsAfterFinishColor.edges;
 
   return apiSuccess({
     revers_available: optionsAfterSize.revers_available,

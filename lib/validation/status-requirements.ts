@@ -49,18 +49,11 @@ export const ORDER_STATUS_REQUIREMENTS: Record<string, Record<string, StatusTran
             error: 'Для перехода в статус "Ожидает счет" требуется загрузить проект/планировку'
           };
         }
-        // Можно добавить проверку наличия door_dimensions
-        if (!document.door_dimensions || (Array.isArray(document.door_dimensions) && document.door_dimensions.length === 0)) {
-          return {
-            valid: false,
-            error: 'Для перехода в статус "Ожидает счет" требуется указать данные дверей'
-          };
-        }
         return { valid: true };
       }
     },
     'READY_FOR_PRODUCTION': {
-      requiredFields: ['project_file_url', 'door_dimensions'],
+      requiredFields: ['project_file_url'],
       customValidation: (document: any) => {
         if (!document.project_file_url) {
           return {
@@ -68,20 +61,19 @@ export const ORDER_STATUS_REQUIREMENTS: Record<string, Record<string, StatusTran
             error: 'Для перехода в статус "Готов к запуску в производство" требуется загрузить проект/планировку'
           };
         }
-        if (!document.door_dimensions || (Array.isArray(document.door_dimensions) && document.door_dimensions.length === 0)) {
+        const hasDoorDimensions = document.door_dimensions && !(Array.isArray(document.door_dimensions) && document.door_dimensions.length === 0);
+        const hasCartData = !!document.cart_data;
+        if (!hasDoorDimensions && !hasCartData) {
           return {
             valid: false,
             error: 'Для перехода в статус "Готов к запуску в производство" требуется указать данные дверей'
           };
         }
-        // Проверяем наличие оптовых счетов или техзаданий (хотя бы одно)
-        // Это проверяется через наличие wholesale_invoices или technical_specs
-        // Но так как эти поля не передаются в document, проверка будет только на уровне API
         return { valid: true };
       }
     },
     'COMPLETED': {
-      requiredFields: ['project_file_url', 'door_dimensions'],
+      requiredFields: ['project_file_url'],
       customValidation: (document: any) => {
         if (!document.project_file_url) {
           return {
@@ -89,13 +81,14 @@ export const ORDER_STATUS_REQUIREMENTS: Record<string, Record<string, StatusTran
             error: 'Для перехода в статус "Выполнена" требуется загрузить проект/планировку'
           };
         }
-        if (!document.door_dimensions || (Array.isArray(document.door_dimensions) && document.door_dimensions.length === 0)) {
+        const hasDoorDimensions = document.door_dimensions && !(Array.isArray(document.door_dimensions) && document.door_dimensions.length === 0);
+        const hasCartData = !!document.cart_data;
+        if (!hasDoorDimensions && !hasCartData) {
           return {
             valid: false,
             error: 'Для перехода в статус "Выполнена" требуется указать данные дверей'
           };
         }
-        // Можно добавить проверку наличия всех обязательных полей
         return { valid: true };
       }
     }

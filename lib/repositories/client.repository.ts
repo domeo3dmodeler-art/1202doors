@@ -164,6 +164,8 @@ export class ClientRepository {
     limit?: number;
     search?: string;
     isActive?: boolean;
+    /** Для комплектатора: только клиенты, у которых есть заказы с этим complectator_id */
+    clientIds?: string[];
   } = {}): Promise<{
     clients: ClientRecord[];
     total: number;
@@ -171,12 +173,15 @@ export class ClientRepository {
     limit: number;
     totalPages: number;
   }> {
-    const { page = 1, limit = 20, search, isActive } = params;
+    const { page = 1, limit = 20, search, isActive, clientIds } = params;
     const skip = (page - 1) * limit;
 
     try {
       const where: any = {};
       
+      if (clientIds !== undefined && clientIds.length > 0) {
+        where.id = { in: clientIds };
+      }
       if (isActive !== undefined) {
         where.isActive = isActive;
       }

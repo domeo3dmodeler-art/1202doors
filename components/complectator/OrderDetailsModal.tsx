@@ -825,9 +825,9 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
               errorMessage = errorData.error;
             } else if (errorData.error.message) {
               errorMessage = errorData.error.message;
-              // Если ошибка связана с Chromium, показываем понятное сообщение
-              if (errorMessage.includes('Browser was not found') || errorMessage.includes('executablePath')) {
-                errorMessage = 'Ошибка генерации PDF: браузер не найден. Обратитесь к администратору.';
+              // Если ошибка связана с Chromium/Puppeteer, показываем понятное сообщение
+              if (/browser|chromium|executablePath|PUPPETEER|apt install/i.test(errorMessage)) {
+                errorMessage = 'Экспорт PDF: на сервере нужен Chromium (apt install chromium-browser, PUPPETEER_EXECUTABLE_PATH в .env).';
               }
             }
           } else if (errorData.message) {
@@ -976,9 +976,9 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
               errorMessage = errorData.error;
             } else if (errorData.error.message) {
               errorMessage = errorData.error.message;
-              // Если ошибка связана с Chromium, показываем понятное сообщение
-              if (errorMessage.includes('Browser was not found') || errorMessage.includes('executablePath')) {
-                errorMessage = 'Ошибка генерации PDF: браузер не найден. Обратитесь к администратору.';
+              // Если ошибка связана с Chromium/Puppeteer, показываем понятное сообщение
+              if (/browser|chromium|executablePath|PUPPETEER|apt install/i.test(errorMessage)) {
+                errorMessage = 'Экспорт PDF: на сервере нужен Chromium (apt install chromium-browser, PUPPETEER_EXECUTABLE_PATH в .env).';
               }
             }
           } else if (errorData.message) {

@@ -40,9 +40,13 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     const message = exportError instanceof Error ? exportError.message : String(exportError);
     const stack = exportError instanceof Error ? exportError.stack : undefined;
     logger.error('Export failed', 'export/fast', { message, stack, type: validatedBody.type, format: validatedBody.format }, loggingContext);
+    const isChromiumError = /browser|chromium|executable|launch|puppeteer|snap|cgroup/i.test(message);
+    const userMessage = isChromiumError
+      ? 'Для экспорта PDF/Excel на сервере нужен Chromium. Установите: apt install chromium-browser и задайте в .env: PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser'
+      : `Ошибка экспорта документа: ${message}`;
     return apiError(
       ApiErrorCode.INTERNAL_SERVER_ERROR,
-      `Ошибка экспорта документа: ${message}`,
+      userMessage,
       500,
       undefined
     );

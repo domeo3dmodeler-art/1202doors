@@ -134,6 +134,15 @@ async function postHandler(
         total_amount: totalAmount
       }
     });
+
+    await prisma.documentHistory.create({
+      data: {
+        document_id: supplierOrder.id,
+        user_id: user.userId || '',
+        action: 'created',
+        details: JSON.stringify({ document_type: 'supplier_order', number: supplierOrder.number })
+      }
+    }).catch((err) => logger.warn('Failed to create document_history for supplier_order', 'supplier-orders/POST', { error: err?.message }, loggingContext));
     
     logger.debug('Saved supplier order with cart_data', 'supplier-orders/POST', { cartData: supplierOrder.cart_data }, loggingContext);
 

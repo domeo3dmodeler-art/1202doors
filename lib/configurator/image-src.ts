@@ -55,9 +55,11 @@ export function toDisplayUrl(resolvedPath: string): string {
 
 /**
  * Один вызов: путь из API → URL для <img src>.
+ * При отсутствии пути возвращает undefined, чтобы не передавать в src пустую строку (браузер не запрашивает текущую страницу).
  */
-export function getImageSrc(path: string | null | undefined): string {
-  return toDisplayUrl(resolveImagePath(path));
+export function getImageSrc(path: string | null | undefined): string | undefined {
+  const url = toDisplayUrl(resolveImagePath(path));
+  return url || undefined;
 }
 
 /**
@@ -95,7 +97,7 @@ export function getImageSrcWithPlaceholder(
   placeholder: string
 ): string {
   const src = getImageSrc(path);
-  return src || placeholder;
+  return src ?? placeholder;
 }
 
 /** Единый плейсхолдер для ручек без фото (избегаем 404 на ВМ из-за отсутствия /data/mockups/) */
@@ -114,9 +116,9 @@ const HANDLES_UPLOADS_PREFIX = '/uploads/final-filled/04_Ручки_Заверт
  * URL фото ручки: приоритет — путь из API (/uploads/... или /api/uploads/...), иначе mockup по имени.
  * Используем /uploads/... чтобы Nginx отдавал с диска (A); при 404 Nginx проксирует в Node для fallback.
  */
-export function getHandleImageSrc(photoPath: string | undefined, handleName?: string): string {
+export function getHandleImageSrc(photoPath: string | undefined, handleName?: string): string | undefined {
   const fromApi = getImageSrc(photoPath);
-  if (fromApi) {
+  if (fromApi && fromApi.length > 0) {
     if (fromApi.startsWith('/api/uploads/')) return fromApi.replace(/^\/api/, '');
     if (fromApi.startsWith('/api/')) return fromApi;
     if (isHandlePhotoPath(fromApi)) return fromApi;
@@ -138,5 +140,5 @@ export function getHandleImageSrc(photoPath: string | undefined, handleName?: st
     const fileName = photoPath.split('/').pop()?.replace(/\.[^/.]+$/, '');
     if (fileName) return HANDLE_PLACEHOLDER;
   }
-  return '';
+  return undefined;
 }

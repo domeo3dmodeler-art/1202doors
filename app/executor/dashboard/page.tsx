@@ -1065,6 +1065,21 @@ export default function ExecutorDashboard() {
               <h3 className="text-lg font-semibold text-black flex items-center flex-shrink-0">
                 <FileText className="h-5 w-5 mr-2"/>Табло заказов
               </h3>
+              {selectedClient && (() => {
+                const c = clients.find(cl => cl.id === selectedClient);
+                return c ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 text-sm bg-blue-50 text-blue-800 border border-blue-200 rounded-lg">
+                    {c.lastName} {c.firstName}
+                    <button
+                      onClick={() => setSelectedClient(null)}
+                      className="ml-1 text-blue-500 hover:text-blue-800 font-bold"
+                      title="Сбросить фильтр по клиенту"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : null;
+              })()}
               <div className="relative flex-1 min-w-[200px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
@@ -1079,7 +1094,7 @@ export default function ExecutorDashboard() {
 
             <div className="p-4 flex-1 overflow-hidden min-w-0">
               {user?.id ? (
-                <OrdersBoard executorId={user.id} searchQuery={orderSearchQuery} onSearchQueryChange={setOrderSearchQuery} />
+                <OrdersBoard executorId={user.id} searchQuery={orderSearchQuery} onSearchQueryChange={setOrderSearchQuery} clientId={selectedClient} />
               ) : (
                 <div className="flex items-center justify-center h-32 text-gray-600">
                   <Loader2 className="h-6 w-6 animate-spin mr-2" />

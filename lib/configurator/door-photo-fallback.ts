@@ -1,12 +1,29 @@
 /**
  * Поиск файла фото двери в папке final-filled/doors по «запрошенному» имени.
- * Логика совпадает с GET /api/uploads/[...path] (findDoorPhotoFallback), чтобы
- * скрипты сопоставления и API находили один и тот же файл.
+ * Используется в **скриптах** подготовки данных (match-propertyvalue-to-door-photo, rematch-property-photos-from-doors-folder).
+ * В горячем пути (API complete-data, api/uploads) не вызывается — см. docs/AUDIT_UPLOADS_AND_PERFORMANCE.md.
  */
 import { join } from 'path';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 
 const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp|svg)$/i;
+
+/** Кеш списка файлов doors: ключ = doorsDir, значение = { mtime, files }. Сбрасывается при изменении каталога. */
+const doorsFilesCache = new Map<string, { mtime: number; files: { name: string }[] }>();
+
+function getDoorsFiles(doorsDir: string): { name: string }[] {
+  if (!existsSync(doorsDir)) return [];
+  try {
+    const stat = statSync(doorsDir);
+    const cached = doorsFilesCache.get(doorsDir);
+    if (cached && cached.mtime === stat.mtimeMs) return cached.files;
+    const files = readdirSync(doorsDir, { withFileTypes: true }).filter((d) => d.isFile() && IMAGE_EXT.test(d.name));
+    doorsFilesCache.set(doorsDir, { mtime: stat.mtimeMs, files });
+    return files;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Ищет файл в doorsDir по имени (без пути).
@@ -59,8 +76,13 @@ export function findDoorPhotoFile(doorsDir: string, requestedFileName: string): 
 
   let found = tryFile(baseName);
   if (found) return found;
+  // На диске (Linux) имена могут быть в NFD — пробуем до readdirSync
+  found = tryFile(baseName.normalize('NFD'));
+  if (found) return found;
   if (!hasCover) {
     found = tryFile(baseName + '_cover');
+    if (found) return found;
+    found = tryFile((baseName + '_cover').normalize('NFD'));
     if (found) return found;
   }
 
@@ -70,7 +92,7 @@ export function findDoorPhotoFile(doorsDir: string, requestedFileName: string): 
   const withPolotnoPrefix = nameWithoutCover.startsWith('Дверное_полотно_') ? null : tryFile('Дверное_полотно_' + nameWithoutCover + (hasCover ? '_cover' : ''));
   if (withPolotnoPrefix) return withPolotnoPrefix;
 
-  const files = readdirSync(doorsDir, { withFileTypes: true }).filter((d) => d.isFile() && IMAGE_EXT.test(d.name));
+  const files = getDoorsFiles(doorsDir);
   const segments = nameWithoutCover.split('_').filter(Boolean);
   const tail = segments.length >= 2 ? segments.slice(-2).join('_') : nameWithoutCover;
   const tailLong = segments.length >= 3 ? segments.slice(-3).join('_') : tail;
