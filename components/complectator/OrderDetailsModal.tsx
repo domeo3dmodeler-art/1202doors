@@ -5,14 +5,15 @@ import { Modal } from '@/components/ui/Modal';
 import HistoryModal from '@/components/ui/HistoryModal';
 import CommentsModal from '@/components/ui/CommentsModal';
 import { toast } from 'sonner';
-import { Download, FileText, User, MapPin, Clock, Package, Upload, CheckCircle, AlertCircle, Building2, ChevronDown, Trash2 } from 'lucide-react';
+import { Download, FileText, User, MapPin, Clock, Package, Upload, CheckCircle, AlertCircle, Building2, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { getStatusLabel, ORDER_STATUSES_COMPLECTATOR } from '@/lib/utils/document-statuses';
 import { getValidTransitions } from '@/lib/validation/status-transitions';
 import { clientLogger } from '@/lib/logging/client-logger';
 import { fetchWithAuth } from '@/lib/utils/fetch-with-auth';
 import { parseApiResponse } from '@/lib/utils/parse-api-response';
-import { getItemDisplayNameForExport } from '@/lib/export/display-names';
+import { getItemDisplayNameForExport, getItemTypeForExport } from '@/lib/export/display-names';
 import { getImageSrc } from '@/lib/configurator/image-src';
+import { formatModelName, getKitDisplayName, getFillingDisplayName } from '@/lib/utils/format-model-name';
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -163,6 +164,7 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
     wholesale_invoices: []
   });
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [expandedSpecs, setExpandedSpecs] = useState<Set<number>>(new Set());
 
   // Нормализуем роль для проверок (case-insensitive)
   const normalizedRole = userRole?.toLowerCase() || '';
@@ -1044,7 +1046,7 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : order ? (
-          <div className="p-6 space-y-4">
+          <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 40px)' }}>
             {/* Заголовок заказа */}
             <div className="mb-4 pb-4 border-b border-gray-200">
               <div className="flex items-center justify-between mb-2">
@@ -1505,60 +1507,157 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
             )}
 
             {/* Заголовок раздела товаров */}
-            <div className="mb-4 border-b border-gray-200">
+            <div className="mb-3 border-b border-gray-200">
               <h3 className="text-sm font-medium text-gray-900 pb-2">
                 Товары ({items.length})
               </h3>
             </div>
 
             {/* Контент товаров */}
-            <div className="mb-6">
+            <div className="mb-4">
               {items.length > 0 ? (
                 <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr className="text-xs text-gray-500 uppercase tracking-wide">
-                        <th className="px-2 py-3 text-center w-8 text-xs font-medium">№</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium">Наименование</th>
-                        <th className="px-2 py-3 text-center w-16 text-xs font-medium">Кол-во</th>
-                        <th className="px-2 py-3 text-right w-20 text-xs font-medium">Цена</th>
-                        <th className="px-4 py-3 text-right w-24 text-xs font-medium">Сумма</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {items.map((item: any, index: number) => {
-                        const quantity = item.quantity || item.qty || 1;
-                        const unitPrice = item.unit_price || item.price || 0;
-                        const totalPrice = quantity * unitPrice;
-                        // Единое наименование товара заказа для всех ЛК (как в экспорте)
-                        const displayName = getItemDisplayNameForExport(item);
-                        return (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-2 py-3 text-center text-sm text-gray-900 font-medium">
-                              {index + 1}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-gray-900 leading-tight">
-                                <div className="font-semibold text-sm">{displayName}</div>
-                              </div>
-                            </td>
-                            <td className="px-2 py-3 text-center text-sm text-gray-900 font-medium">
-                              {quantity}
-                            </td>
-                            <td className="px-2 py-3 text-right text-sm text-gray-900">
-                              {unitPrice.toLocaleString('ru-RU')} ₽
-                            </td>
-                            <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
-                              {totalPrice.toLocaleString('ru-RU')} ₽
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
+                      <thead className="bg-gray-50 sticky top-0 z-[1]">
+                        <tr className="text-xs text-gray-500 uppercase tracking-wide">
+                          <th className="px-3 py-2.5 text-center w-10 font-medium">№</th>
+                          <th className="px-4 py-2.5 text-left font-medium">Наименование</th>
+                          <th className="px-3 py-2.5 text-center w-16 font-medium">Кол-во</th>
+                          <th className="px-3 py-2.5 text-right w-24 font-medium">Цена</th>
+                          <th className="px-4 py-2.5 text-right w-28 font-medium">Сумма</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item: any, index: number) => {
+                          const quantity = item.quantity || item.qty || 1;
+                          const unitPrice = item.unit_price || item.price || 0;
+                          const totalPrice = quantity * unitPrice;
+                          const itemKind = getItemTypeForExport(item);
+                          const isDoor = itemKind === 'door';
+                          const isExpanded = expandedSpecs.has(index);
+
+                          const modelDisplay = isDoor ? formatModelName(item.model) : null;
+                          const excludeFromDoorSpec = ['Ручка', 'Ограничитель'];
+                          let specRows: { label: string; value: string }[] = [];
+                          if (isDoor) {
+                            if (item.specRows && Array.isArray(item.specRows) && item.specRows.length > 0) {
+                              specRows = (item.specRows as { label: string; value: string }[])
+                                .filter((r: { label: string; value: string }) =>
+                                  r.value && r.value !== '—' && r.value !== 'Не выбран' && r.value !== 'Нет'
+                                  && !excludeFromDoorSpec.includes(r.label)
+                                )
+                                .map((r: { label: string; value: string }) => {
+                                  if (r.label === 'Комплект фурнитуры' && item.hardwareColor && !r.value.includes(item.hardwareColor)) {
+                                    return { ...r, value: `${r.value}, ${item.hardwareColor}` };
+                                  }
+                                  return r;
+                                });
+                            } else {
+                              const finish = item.finish?.trim();
+                              const color = item.color?.trim();
+                              const coatingParts: string[] = [];
+                              if (finish) coatingParts.push(finish);
+                              if (color && color !== finish) coatingParts.push(color);
+                              if (coatingParts.length > 0) specRows.push({ label: 'Покрытие и цвет', value: coatingParts.join('; ') });
+                              if (item.width && item.height) specRows.push({ label: 'Размер', value: `${item.width} × ${item.height} мм` });
+                              if (item.openingDirection) specRows.push({ label: 'Направление', value: item.openingDirection === 'right' ? 'Правая' : 'Левая' });
+                              if (item.reversible) specRows.push({ label: 'Реверс', value: 'Да' });
+                              if (item.filling || item.fillingName) {
+                                specRows.push({ label: 'Наполнение', value: getFillingDisplayName(item.filling || item.fillingName) });
+                              }
+                              if (item.edge === 'да') {
+                                specRows.push({ label: 'Алюминиевая кромка', value: item.edgeColorName || item.edge_color_name || 'Да' });
+                              }
+                              if (item.glassColor || item.glass_color) {
+                                specRows.push({ label: 'Цвет стекла', value: item.glassColor || item.glass_color });
+                              }
+                              const rawKit = (item.hardwareKitName || item.hardware || '').replace(/^Комплект фурнитуры — /, '').trim();
+                              const kitDisplay = getKitDisplayName(rawKit || null);
+                              const kitValue = kitDisplay !== '—' ? kitDisplay : 'Базовый';
+                              specRows.push({ label: 'Комплект фурнитуры', value: item.hardwareColor ? `${kitValue}, ${item.hardwareColor}` : kitValue });
+                              if (item.optionIds?.length) {
+                                const names = item.architraveNames?.length ? item.architraveNames.join(', ') : 'Да';
+                                specRows.push({ label: 'Наличники', value: names });
+                              }
+                              if (item.mirror) {
+                                const mirrorText = item.mirror === 'one' ? 'Одна сторона' : item.mirror === 'both' ? 'Две стороны' : 'Да';
+                                specRows.push({ label: 'Зеркало', value: mirrorText });
+                              }
+                              if (item.threshold) specRows.push({ label: 'Порог', value: 'Да' });
+                            }
+                          }
+
+                          const accessoryName = !isDoor ? getItemDisplayNameForExport(item) : '';
+
+                          return (
+                            <tr
+                              key={index}
+                              className={`border-t ${isDoor ? 'border-gray-200' : 'border-gray-100'} ${isDoor ? 'bg-white' : 'bg-gray-50/60'} hover:bg-blue-50/40 transition-colors`}
+                            >
+                              <td className={`px-3 py-3 text-center align-top font-medium ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-400'}`}>
+                                {index + 1}
+                              </td>
+                              <td className="px-4 py-3">
+                                {isDoor ? (
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm text-gray-900">
+                                        Дверь {modelDisplay}
+                                      </span>
+                                      {specRows.length > 0 && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedSpecs(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(index)) next.delete(index);
+                                              else next.add(index);
+                                              return next;
+                                            });
+                                          }}
+                                          className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 transition-colors shrink-0"
+                                        >
+                                          {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                          <span>Спецификация</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                    {isExpanded && specRows.length > 0 && (
+                                      <div className="mt-2 text-xs text-gray-600 bg-gray-50 rounded px-3 py-2 space-y-1">
+                                        {specRows.map((row, ri) => (
+                                          <div key={ri} className="flex">
+                                            <span className="text-gray-400 w-40 shrink-0">{row.label}:</span>
+                                            <span className="text-gray-700">{row.value}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-600 pl-4">
+                                    {accessoryName}
+                                  </div>
+                                )}
+                              </td>
+                              <td className={`px-3 py-3 text-center align-top font-medium ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-500'}`}>
+                                {quantity}
+                              </td>
+                              <td className={`px-3 py-3 text-right align-top ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-500'}`}>
+                                {unitPrice.toLocaleString('ru-RU')} ₽
+                              </td>
+                              <td className={`px-4 py-3 text-right align-top font-semibold ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-500'}`}>
+                                {totalPrice.toLocaleString('ru-RU')} ₽
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                   
                   {/* Итого */}
-                  <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+                  <div className="bg-gray-50 px-4 py-3 border-t-2 border-gray-300">
                     <div className="flex justify-end">
                       <span className="text-base font-bold text-gray-900">
                         Итого: {(order.total_amount || order.invoice?.total_amount || 0).toLocaleString('ru-RU')} ₽

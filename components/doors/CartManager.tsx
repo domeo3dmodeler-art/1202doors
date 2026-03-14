@@ -8,14 +8,12 @@ import HandleSelectionModal from "../../components/HandleSelectionModal";
 import { OrderDetailsModal } from "@/components/complectator/OrderDetailsModal";
 import { getImageSrc } from '@/lib/configurator/image-src';
 import { fmtInt, findHandleById, findHardwareKitById, formatModelName } from './utils';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
+import { getKitDisplayName as _getKitDisplayName, getFillingDisplayName } from '@/lib/utils/format-model-name';
 function getKitDisplayName(kitName: string | undefined | null): string {
-  if (!kitName) return 'Базовый';
-  const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim().toLowerCase();
-  if (/сильвер|silver|базовый/.test(normalized)) return 'Стандарт';
-  if (/голд|gold/.test(normalized)) return 'Комфорт';
-  if (/платинум|platinum/.test(normalized)) return 'Бизнес';
-  return kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
+  const result = _getKitDisplayName(kitName);
+  return result === '—' ? 'Базовый' : result;
 }
 import type { CartItem, HardwareKit, Handle } from './types';
 
@@ -84,6 +82,12 @@ export function CartManager({
   const [showOrderModal, setShowOrderModal] = useState(false);
   // Спецификация двери: показывать по клику на иконку (inline убрано — только модальное окно)
   const [doorSpecModalId, setDoorSpecModalId] = useState<string | null>(null);
+  const [expandedCartSpecs, setExpandedCartSpecs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
   
   // Проверка существующих заказов при изменении корзины или клиента
   useEffect(() => {
@@ -741,8 +745,8 @@ export function CartManager({
   const canCreateOrder = userRole === 'admin' || userRole === 'complectator' || userRole === 'executor';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onWheel={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-black">Корзина</h2>
@@ -1012,442 +1016,254 @@ export function CartManager({
         </div>
 
 
-        {/* Список товаров */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
+        {/* Список товаров — табличная структура как в заказе */}
+        <div className="overflow-y-auto flex-1 min-h-0" style={{ overscrollBehavior: 'contain' }}>
           {filteredCart.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {cart.length === 0 ? 'Корзина пуста' : 'Товары не найдены'}
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredCart.map((item) => {
-                const delta = getItemDelta(item.id);
-                const isEditing = editingItem === item.id;
-                
-                // Ручка — отдельная строка с редактируемым количеством
-                if (item.itemType === 'handle') {
-                  const handle = getHandleById(item.handleId);
-                  const currentHandleName = handle?.name || item.handleName || "Ручка";
-                  return (
-                  <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
-                        {/* ИСПРАВЛЕНИЕ: Отображаем фото ручки при редактировании */}
-                        {isEditing && handle && handle.photos && handle.photos.length > 0 && (
-                          <div className="mb-2 flex items-center space-x-2">
-                            {handle.photos.slice(0, 3).map((photo, idx) => (
-                              <img
-                                key={idx}
-                                src={getImageSrc(photo) ?? undefined}
-                                alt={`${currentHandleName} фото ${idx + 1}`}
-                                className="w-12 h-12 object-cover rounded border border-gray-200"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <div className="font-medium text-black text-sm truncate">
-                          {currentHandleName ? `Ручка ${currentHandleName}` : "Ручка"}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4 shrink-0">
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
-                            className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                          >
-                            -
-                          </button>
-                          <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
-                          <button
-                            onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
-                            className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold text-black text-sm">
-                            {fmtInt(item.unitPrice * item.qty)} ₽
-                          </div>
-                          {isEditing && delta !== 0 && (
-                            <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
-                            title="Удалить"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                      {isEditing && (
-                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-                          {/* Компактная строка с кнопками */}
-                          <div className="flex items-center space-x-2 mb-4">
-                            {/* Ручка - кнопка для открытия модального окна */}
-                            <div className="flex-shrink-0">
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Ручка</label>
-                              <button
-                                onClick={() => {
-                                  if (item.id) {
-                                    setEditingHandleItemId(item.id);
-                                    setShowHandleModalInCart(true);
-                                  }
-                                }}
-                                className="w-full text-xs border border-gray-300 rounded px-3 py-2 bg-white hover:bg-gray-50 text-left flex items-center justify-between min-w-[200px]"
-                              >
-                                <span>
-                                  {handle && handle.name ? `Ручка ${handle.name}` : 'Выбрать ручку'}
-                                </span>
-                                <span className="text-gray-400 ml-2">→</span>
-                              </button>
-                              {handle && handle.price !== undefined && (
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Цена: {fmtInt(handle.price)} ₽
+            <div className="border border-gray-200 rounded-lg overflow-hidden mx-5 my-4">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[580px]">
+                  <thead className="bg-gray-50 sticky top-0 z-[1]">
+                    <tr className="text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="px-3 py-2.5 text-center w-10 font-medium">№</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Наименование</th>
+                      <th className="px-3 py-2.5 text-center w-20 font-medium">Кол-во</th>
+                      <th className="px-3 py-2.5 text-right w-24 font-medium">Цена</th>
+                      <th className="px-3 py-2.5 text-right w-28 font-medium">Сумма</th>
+                      <th className="px-2 py-2.5 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCart.map((item, index) => {
+                      const delta = getItemDelta(item.id);
+                      const isEditing = editingItem === item.id;
+                      const isDoor = !item.itemType || item.itemType === 'door';
+                      const isExpanded = expandedCartSpecs.has(item.id);
+
+                      let displayName = '';
+                      if (item.itemType === 'handle') {
+                        const handle = getHandleById(item.handleId);
+                        displayName = `Ручка ${(handle?.name || item.handleName || '').replace(/_/g, ' ')}`;
+                      } else if (item.itemType === 'backplate') {
+                        const handle = getHandleById(item.handleId);
+                        displayName = `Завертка ${(handle?.name || item.handleName || '').replace(/_/g, ' ')}`;
+                      } else if (item.itemType === 'limiter') {
+                        displayName = formatLimiterDisplayName(item.limiterName);
+                      }
+
+                      const excludeLabels = ['Ручка', 'Ограничитель'];
+                      let specRows: { label: string; value: string }[] = [];
+                      if (isDoor) {
+                        const kitName = getKitDisplayName(
+                          (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId)
+                            ? item.hardwareKitName
+                            : (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name ?? item.hardwareKitName)
+                        );
+                        if (item.specRows && item.specRows.length > 0) {
+                          specRows = item.specRows
+                            .filter((row) => {
+                              const v = String(row.value ?? '').trim();
+                              return v !== '' && v !== '—' && v !== 'Не выбрано' && v !== 'Не выбран' && v !== 'Нет'
+                                && !excludeLabels.includes(row.label);
+                            })
+                            .map((row) => {
+                              if (row.label === 'Комплект фурнитуры' && item.hardwareColor && !row.value.includes(item.hardwareColor)) {
+                                return { ...row, value: `${row.value}, ${item.hardwareColor}` };
+                              }
+                              return row;
+                            });
+                        } else {
+                          const finishVal = String(item.finish ?? '').trim();
+                          const colorVal = String(item.color ?? '').trim();
+                          const coatingParts: string[] = [];
+                          if (finishVal) coatingParts.push(finishVal);
+                          if (colorVal) {
+                            const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
+                              ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
+                              : colorVal;
+                            if (rest) coatingParts.push(rest);
+                          }
+                          const rows: { label: string; value: string }[] = [
+                            { label: 'Стиль', value: item.style || '' },
+                            { label: 'Полотно', value: formatModelName(item.model) || '' },
+                            { label: 'Размеры', value: item.width != null && item.height != null ? `${item.width} × ${item.height} мм` : '' },
+                            { label: 'Направление открывания', value: item.openingDirection === 'right' ? 'Правая' : item.openingDirection === 'left' ? 'Левая' : '' },
+                            { label: 'Реверсные двери', value: item.reversible ? 'Да' : '' },
+                            { label: 'Наполнение', value: (item.filling || item.fillingName) ? getFillingDisplayName(item.filling || item.fillingName) : '' },
+                            { label: 'Покрытие и цвет', value: coatingParts.join('; ') },
+                            { label: 'Алюминиевая кромка', value: item.edge === 'да' ? (item.edgeColorName || 'Да') : '' },
+                            { label: 'Цвет стекла', value: item.glassColor || '' },
+                            { label: 'Комплект фурнитуры', value: (item as any).hardwareColor ? `${kitName}, ${(item as any).hardwareColor}` : kitName },
+                            { label: 'Наличники', value: (item.optionIds?.length ?? 0) > 0
+                              ? (item.architraveNames?.length ? item.architraveNames.join(', ') : 'Да')
+                              : '' },
+                            { label: 'Зеркало', value: item.mirror === 'one' ? 'Одна сторона' : item.mirror === 'both' ? 'Две стороны' : item.mirror ? 'Да' : '' },
+                            { label: 'Порог', value: item.threshold ? 'Да' : '' },
+                          ];
+                          specRows = rows.filter(r => r.value);
+                        }
+                      }
+
+                      return (
+                        <React.Fragment key={item.id}>
+                          <tr className={`border-t ${isDoor ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/60'} hover:bg-blue-50/40 transition-colors`}>
+                            <td className={`px-3 py-3 text-center align-top font-medium ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-400'}`}>
+                              {index + 1}
+                            </td>
+                            <td className="px-4 py-3">
+                              {isDoor ? (
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-sm text-gray-900">
+                                      Дверь {formatModelName(item.model) || 'Неизвестная модель'}
+                                    </span>
+                                    {specRows.length > 0 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedCartSpecs(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(item.id)) next.delete(item.id);
+                                            else next.add(item.id);
+                                            return next;
+                                          });
+                                        }}
+                                        className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 transition-colors shrink-0"
+                                      >
+                                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                        <span>Спецификация</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                  {isExpanded && specRows.length > 0 && (
+                                    <div className="mt-2 text-xs text-gray-600 bg-gray-50 rounded px-3 py-2 space-y-1">
+                                      {specRows.map((row, ri) => (
+                                        <div key={ri} className="flex">
+                                          <span className="text-gray-400 w-40 shrink-0">{row.label}:</span>
+                                          <span className="text-gray-700">{row.value}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-600 pl-4">
+                                  {displayName}
                                 </div>
                               )}
-                            </div>
-
-                            {/* Кнопки */}
-                            <div className="flex-shrink-0">
-                              <label className="block text-xs font-medium text-gray-700 mb-1">&nbsp;</label>
-                              <div className="flex space-x-1">
+                            </td>
+                            <td className={`px-3 py-3 text-center align-top ${isDoor ? 'text-sm' : 'text-xs text-gray-500'}`}>
+                              <div className="flex items-center justify-center space-x-1">
                                 <button
-                                  onClick={confirmCartChanges}
-                                  className="px-2 py-1 text-xs bg-black text-white rounded hover:bg-gray-800"
-                                >
-                                  Применить
-                                </button>
+                                  onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
+                                  className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                                >-</button>
+                                <span className="min-w-[16px] text-center font-medium">{item.qty}</span>
                                 <button
-                                  onClick={cancelCartChanges}
-                                  className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
-                                >
-                                  Отменить
-                                </button>
+                                  onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
+                                  className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
+                                >+</button>
                               </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                // Завертка — отдельная строка с редактируемым количеством
-                if (item.itemType === 'backplate') {
-                  const handle = getHandleById(item.handleId);
-                  const currentHandleName = handle?.name || item.handleName || "Завертка";
-                  return (
-                    <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
-                          <div className="font-medium text-black text-sm truncate">
-                            Завертка {currentHandleName}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-4 shrink-0">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
-                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                            >
-                              -
-                            </button>
-                            <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
-                            <button
-                              onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
-                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-semibold text-black text-sm">
+                              {isEditing && delta !== 0 && (
+                                <div className={`text-xs mt-0.5 ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
+                                </div>
+                              )}
+                            </td>
+                            <td className={`px-3 py-3 text-right align-top ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-500'}`}>
+                              {fmtInt(item.unitPrice)} ₽
+                            </td>
+                            <td className={`px-3 py-3 text-right align-top font-semibold ${isDoor ? 'text-sm text-gray-900' : 'text-xs text-gray-500'}`}>
                               {fmtInt(item.unitPrice * item.qty)} ₽
-                            </div>
-                            {isEditing && delta !== 0 && (
-                              <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                          <span className="w-5 h-5 shrink-0" aria-hidden />
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
-                            title="Удалить"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Ограничитель — формат «Ограничитель скрытый магнитный SECRET DS Цвет хром» и т.д.
-                if (item.itemType === 'limiter') {
-                  const limiterDisplayName = formatLimiterDisplayName(item.limiterName);
-                  return (
-                    <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
-                          <div className="font-medium text-black text-sm truncate">
-                            {limiterDisplayName}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-4 shrink-0">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
-                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                            >
-                              -
-                            </button>
-                            <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
-                            <button
-                              onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
-                              className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-semibold text-black text-sm">
-                              {fmtInt(item.unitPrice * item.qty)} ₽
-                            </div>
-                            {isEditing && delta !== 0 && (
-                              <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                          <span className="w-5 h-5 shrink-0" aria-hidden />
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
-                            title="Удалить"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                
-                // Дверь (полная конфигурация): название + иконка со спецификацией
-                const doorSpecParts: string[] = [];
-                const finishVal = String(item.finish ?? '').trim();
-                const colorVal = String(item.color ?? '').trim();
-                if (finishVal) doorSpecParts.push(finishVal);
-                if (colorVal) {
-                  const rest = finishVal && (colorVal === finishVal || colorVal.startsWith(finishVal + ';') || colorVal.startsWith(finishVal + ' '))
-                    ? colorVal.replace(new RegExp(`^\\s*${String(finishVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;?\\s*`, 'i'), '').trim()
-                    : colorVal;
-                  if (rest) doorSpecParts.push(rest);
-                }
-                if (item.width != null && item.height != null) doorSpecParts.push(`${item.width} × ${item.height} мм`);
-                if (item.edge === 'да') doorSpecParts.push('Кромка: да');
-                if (item.reversible) doorSpecParts.push('Реверс: да');
-                if (item.mirror) doorSpecParts.push('Зеркало: да');
-                if (item.threshold) doorSpecParts.push('Порог: да');
-                if (item.optionIds?.length) doorSpecParts.push('Наличники: да');
-                const doorKitName = getKitDisplayName(
-                  (!Array.isArray(hardwareKits) || hardwareKits.length === 0 || !item.hardwareKitId)
-                    ? item.hardwareKitName
-                    : (findHardwareKitById(hardwareKits, item.hardwareKitId)?.name ?? item.hardwareKitName)
-                );
-                doorSpecParts.push(`Фурнитура: ${doorKitName}`);
-                return (
-                  <div key={item.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
-                        <div className="font-medium text-black text-sm truncate flex items-center gap-1">
-                          {`Дверь ${formatModelName(item.model) || 'Неизвестная модель'}`}
-                          <button
-                            type="button"
-                            onClick={() => setDoorSpecModalId(item.id)}
-                            className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                            title="Полная спецификация"
-                            aria-label="Показать полную спецификацию"
-                          >
-                            ℹ️
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4 shrink-0">
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
-                            className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                          >
-                            -
-                          </button>
-                          <span className="min-w-[12px] text-center text-xs">{item.qty}</span>
-                          <button
-                            onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
-                            className="w-4 h-4 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold text-black text-sm">
-                            {fmtInt(item.unitPrice * item.qty)} ₽
-                          </div>
-                          {isEditing && delta !== 0 && (
-                            <div className={`text-xs ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {delta > 0 ? '+' : ''}{fmtInt(delta)} ₽
-                            </div>
+                            </td>
+                            <td className="px-2 py-3 align-top">
+                              <button
+                                onClick={() => removeItem(item.id)}
+                                className="w-6 h-6 text-gray-400 hover:text-red-500 rounded flex items-center justify-center transition-colors"
+                                title="Удалить"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                          {isEditing && isDoor && availableParams && (
+                            <tr className="border-t border-blue-200">
+                              <td colSpan={6} className="px-4 py-3 bg-blue-50">
+                                <div className="flex items-end space-x-2 flex-wrap gap-y-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Покрытие</label>
+                                    <select value={item.finish || ''} onChange={(e) => updateCartItem(item.id, { finish: e.target.value })} className="w-24 text-xs border border-gray-300 rounded px-1 py-1.5">
+                                      <option value="">—</option>
+                                      {availableParams.finishes?.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Цвет</label>
+                                    <select value={item.color || ''} onChange={(e) => updateCartItem(item.id, { color: e.target.value })} className="w-24 text-xs border border-gray-300 rounded px-1 py-1.5">
+                                      <option value="">—</option>
+                                      {availableParams.colors?.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Ширина</label>
+                                    <select value={item.width || ''} onChange={(e) => updateCartItem(item.id, { width: Number(e.target.value) })} className="w-16 text-xs border border-gray-300 rounded px-1 py-1.5">
+                                      <option value="">—</option>
+                                      {availableParams.widths?.map((w: number) => <option key={w} value={w}>{w}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Высота</label>
+                                    <select value={item.height || ''} onChange={(e) => updateCartItem(item.id, { height: Number(e.target.value) })} className="w-16 text-xs border border-gray-300 rounded px-1 py-1.5">
+                                      <option value="">—</option>
+                                      {availableParams.heights?.map((h: number) => <option key={h} value={h}>{h}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Фурнитура</label>
+                                    <select value={item.hardwareKitId || ''} onChange={(e) => updateCartItem(item.id, { hardwareKitId: e.target.value })} className="w-24 text-xs border border-gray-300 rounded px-1 py-1.5">
+                                      <option value="">—</option>
+                                      {availableParams.hardwareKits?.map((k: {id: string, name: string}) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="flex space-x-1">
+                                    <button onClick={confirmCartChanges} className="px-3 py-1.5 text-xs bg-black text-white rounded hover:bg-gray-800">Применить</button>
+                                    <button onClick={cancelCartChanges} className="px-3 py-1.5 text-xs bg-gray-500 text-white rounded hover:bg-gray-600">Отменить</button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 shrink-0 min-w-[4.5rem] justify-end">
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="w-5 h-5 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center justify-center text-xs shrink-0"
-                          title="Удалить"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                    {isEditing && availableParams && (
-                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-                        {/* Компактная строка с селектами */}
-                        <div className="flex items-center space-x-2 mb-4">
-                          {/* Покрытие */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Покрытие</label>
-                            <select
-                              value={item.finish || ''}
-                              onChange={(e) => updateCartItem(item.id, { finish: e.target.value })}
-                              className="w-24 text-xs border border-gray-300 rounded px-1 py-1"
-                            >
-                              <option value="">Выберите</option>
-                              {availableParams.finishes?.map((finish: string) => (
-                                <option key={finish} value={finish}>{finish}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Цвет */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Цвет</label>
-                            <select
-                              value={item.color || ''}
-                              onChange={(e) => updateCartItem(item.id, { color: e.target.value })}
-                              className="w-24 text-xs border border-gray-300 rounded px-1 py-1"
-                            >
-                              <option value="">Выберите</option>
-                              {availableParams.colors?.map((color: string) => (
-                                <option key={color} value={color}>{color}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Ширина */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Ширина</label>
-                            <select
-                              value={item.width || ''}
-                              onChange={(e) => updateCartItem(item.id, { width: Number(e.target.value) })}
-                              className="w-16 text-xs border border-gray-300 rounded px-1 py-1"
-                            >
-                              <option value="">Выберите</option>
-                              {availableParams.widths?.map((width: number) => (
-                                <option key={width} value={width}>{width}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Высота */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Высота</label>
-                            <select
-                              value={item.height || ''}
-                              onChange={(e) => updateCartItem(item.id, { height: Number(e.target.value) })}
-                              className="w-16 text-xs border border-gray-300 rounded px-1 py-1"
-                            >
-                              <option value="">Выберите</option>
-                              {availableParams.heights?.map((height: number) => (
-                                <option key={height} value={height}>{height}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Комплект фурнитуры */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Фурнитура</label>
-                            <select
-                              value={item.hardwareKitId || ''}
-                              onChange={(e) => updateCartItem(item.id, { hardwareKitId: e.target.value })}
-                              className="w-24 text-xs border border-gray-300 rounded px-1 py-1"
-                            >
-                              <option value="">Выберите</option>
-                              {availableParams.hardwareKits?.map((kit: {id: string, name: string}) => (
-                                <option key={kit.id} value={kit.id}>{kit.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Количество */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Количество</label>
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => updateCartItem(item.id, { qty: Math.max(1, item.qty - 1) })}
-                                className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                              >
-                                -
-                              </button>
-                              <span className="min-w-[16px] text-center text-xs">{item.qty}</span>
-                              <button
-                                onClick={() => updateCartItem(item.id, { qty: item.qty + 1 })}
-                                className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-xs"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                          {/* Кнопки */}
-                          <div className="flex-shrink-0">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">&nbsp;</label>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={confirmCartChanges}
-                                className="px-2 py-1 text-xs bg-black text-white rounded hover:bg-gray-800"
-                              >
-                                Применить
-                              </button>
-                              <button
-                                onClick={cancelCartChanges}
-                                className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
-                              >
-                                Отменить
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                          {isEditing && item.itemType === 'handle' && (
+                            <tr className="border-t border-blue-200">
+                              <td colSpan={6} className="px-4 py-3 bg-blue-50">
+                                <div className="flex items-end space-x-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Ручка</label>
+                                    <button
+                                      onClick={() => { setEditingHandleItemId(item.id); setShowHandleModalInCart(true); }}
+                                      className="text-xs border border-gray-300 rounded px-3 py-1.5 bg-white hover:bg-gray-50 text-left flex items-center justify-between min-w-[200px]"
+                                    >
+                                      <span>{displayName || 'Выбрать ручку'}</span>
+                                      <span className="text-gray-400 ml-2">→</span>
+                                    </button>
+                                  </div>
+                                  <div className="flex space-x-1">
+                                    <button onClick={confirmCartChanges} className="px-3 py-1.5 text-xs bg-black text-white rounded hover:bg-gray-800">Применить</button>
+                                    <button onClick={cancelCartChanges} className="px-3 py-1.5 text-xs bg-gray-500 text-white rounded hover:bg-gray-600">Отменить</button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -1455,15 +1271,16 @@ export function CartManager({
         {/* Footer */}
         <div className="p-6 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="text-lg font-semibold text-black">
-              Итого: {fmtInt(totalPrice)} ₽
-              {editingItem && getTotalDelta() !== 0 && (
-                <span className={`ml-2 text-sm ${getTotalDelta() > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ({getTotalDelta() > 0 ? '+' : ''}{fmtInt(getTotalDelta())} ₽)
-                </span>
-              )}
-            </div>
             <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setCart([]);
+                  setCreatedOrder(null);
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+              >
+                Очистить корзину
+              </button>
               {cartHistory.length > 0 && (
                 <button
                   onClick={() => setShowHistoryModal(true)}
@@ -1473,20 +1290,19 @@ export function CartManager({
                 </button>
               )}
               <button
-                onClick={() => {
-                  setCart([]);
-                  setCreatedOrder(null); // Сбрасываем созданный заказ при очистке корзины
-                }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-              >
-                Очистить корзину
-              </button>
-              <button
                 onClick={onClose}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
               >
                 Закрыть
               </button>
+            </div>
+            <div className="text-lg font-semibold text-black">
+              Итого: {fmtInt(totalPrice)} ₽
+              {editingItem && getTotalDelta() !== 0 && (
+                <span className={`ml-2 text-sm ${getTotalDelta() > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ({getTotalDelta() > 0 ? '+' : ''}{fmtInt(getTotalDelta())} ₽)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1684,32 +1500,38 @@ export function CartManager({
           coatingText = parts.join('; ');
         }
         const mirrorText = specItem.mirror === 'one' ? 'Одна сторона' : specItem.mirror === 'both' ? 'Две стороны' : specItem.mirror ? 'Да' : 'Нет';
-        // Ограничитель может быть в строке двери или в отдельной позиции корзины
-        const limiterFromCart = cart.find((i) => i.itemType === 'limiter');
-        const limiterDisplay = (specItem.limiterName || limiterFromCart?.limiterName)
-          ? formatLimiterDisplayName(specItem.limiterName || limiterFromCart?.limiterName)
-          : 'Не выбран';
+        const excludeLabels = ['Ручка', 'Ограничитель'];
         const specRows =
           specItem.specRows && specItem.specRows.length > 0
-            ? specItem.specRows.filter((row) => {
-                const v = String(row.value ?? '').trim();
-                return v !== '' && v !== '—' && v !== 'Не выбрано' && v !== 'Не выбран';
-              })
+            ? specItem.specRows
+                .filter((row) => {
+                  const v = String(row.value ?? '').trim();
+                  return v !== '' && v !== '—' && v !== 'Не выбрано' && v !== 'Не выбран' && v !== 'Нет'
+                    && !excludeLabels.includes(row.label);
+                })
+                .map((row) => {
+                  if (row.label === 'Комплект фурнитуры' && specItem.hardwareColor && !row.value.includes(specItem.hardwareColor)) {
+                    return { ...row, value: `${row.value}, ${specItem.hardwareColor}` };
+                  }
+                  return row;
+                })
             : [
-                { label: 'Стиль', value: specItem.style || '—' },
-                { label: 'Полотно', value: formatModelName(specItem.model) || '—' },
-                { label: 'Размеры', value: specItem.width != null && specItem.height != null ? `${specItem.width} × ${specItem.height} мм` : '—' },
-                { label: 'Направление открывания', value: specItem.openingDirection === 'right' ? 'Правая' : specItem.openingDirection === 'left' ? 'Левая' : '—' },
-                { label: 'Реверсные двери', value: specItem.reversible ? 'Да' : 'Нет' },
-                { label: 'Покрытие и цвет', value: coatingText },
-                { label: 'Алюминиевая кромка', value: specItem.edge === 'да' ? 'Да' : 'Нет' },
+                { label: 'Стиль', value: specItem.style || '' },
+                { label: 'Полотно', value: formatModelName(specItem.model) || '' },
+                { label: 'Размеры', value: specItem.width != null && specItem.height != null ? `${specItem.width} × ${specItem.height} мм` : '' },
+                { label: 'Направление открывания', value: specItem.openingDirection === 'right' ? 'Правая' : specItem.openingDirection === 'left' ? 'Левая' : '' },
+                { label: 'Реверсные двери', value: specItem.reversible ? 'Да' : '' },
+                { label: 'Наполнение', value: (specItem.filling || specItem.fillingName) ? getFillingDisplayName(specItem.filling || specItem.fillingName) : '' },
+                { label: 'Покрытие и цвет', value: coatingText !== '—' ? coatingText : '' },
+                { label: 'Алюминиевая кромка', value: specItem.edge === 'да' ? (specItem.edgeColorName || 'Да') : '' },
+                { label: 'Цвет стекла', value: specItem.glassColor || '' },
                 { label: 'Комплект фурнитуры', value: (specItem as any).hardwareColor ? `${kitName}, ${(specItem as any).hardwareColor}` : kitName },
-                { label: 'Ручка', value: specItem.handleName || '—' },
-                { label: 'Наличник', value: (specItem.optionIds?.length ?? 0) > 0 ? 'Да' : 'Не выбран' },
-                { label: 'Ограничитель', value: limiterDisplay },
-                { label: 'Зеркало', value: mirrorText },
-                { label: 'Порог', value: specItem.threshold ? 'Да' : 'Нет' },
-              ];
+                { label: 'Наличники', value: (specItem.optionIds?.length ?? 0) > 0
+                  ? (specItem.architraveNames?.length ? specItem.architraveNames.join(', ') : 'Да')
+                  : '' },
+                { label: 'Зеркало', value: mirrorText !== 'Нет' ? mirrorText : '' },
+                { label: 'Порог', value: specItem.threshold ? 'Да' : '' },
+              ].filter(r => r.value);
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={() => setDoorSpecModalId(null)}>
             <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>

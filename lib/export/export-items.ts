@@ -4,7 +4,7 @@
  * Сохранённый в БД type/itemType не используется для вывода — тип выводится по форме позиции (model, width, limiterId и т.д.).
  */
 
-import { formatModelName } from '@/lib/utils/format-model-name';
+import { formatModelName, getKitDisplayName } from '@/lib/utils/format-model-name';
 
 export type ExportItemType = 'door' | 'handle' | 'backplate' | 'limiter';
 
@@ -64,7 +64,7 @@ export function getItemType(item: ExportItemShape): ExportItemType {
 }
 
 function formatLimiterName(limiterName: string | undefined, fallbackName?: string): string {
-  const raw = (limiterName || fallbackName || '').trim();
+  const raw = (limiterName || fallbackName || '').replace(/_/g, ' ').trim();
   if (!raw) return 'Ограничитель';
   const suffix = String(raw)
     .replace(/^Дверной ограничитель\s*/i, '')
@@ -109,12 +109,14 @@ function buildDoorName(item: ExportItemShape): string {
   if (item.mirror) specParts.push('Зеркало: да');
   if (item.threshold) specParts.push('Порог: да');
   if (item.optionIds?.length) specParts.push('Наличники: да');
-  const kitName = sanitizeSpec(
-    (item.hardwareKitName || item.hardware || 'Базовый').replace(/^Комплект фурнитуры — /, '')
+  const rawKit = sanitizeSpec(
+    (item.hardwareKitName || item.hardware || '').replace(/^Комплект фурнитуры — /, '')
   );
-  specParts.push(`Фурнитура: ${kitName || 'Базовый'}`);
+  const kitDisplay = getKitDisplayName(rawKit || null) !== '—' ? getKitDisplayName(rawKit || null) : 'Базовый';
+  specParts.push(`Фурнитура: ${kitDisplay}`);
   const specStr = specParts.filter((x) => x !== '—' && x !== '').join('; ');
-  return specStr ? `Дверь DomeoDoors ${modelName}; ${specStr}` : `Дверь DomeoDoors ${modelName}`;
+  const prefix = modelName.startsWith('DomeoDoors') ? `Дверь ${modelName}` : `Дверь DomeoDoors ${modelName}`;
+  return specStr ? `${prefix}; ${specStr}` : prefix;
 }
 
 /**
@@ -123,13 +125,14 @@ function buildDoorName(item: ExportItemShape): string {
 export function getItemDisplayName(item: ExportItemShape): string {
   const kind = getItemType(item);
 
+  const cleanName = (s: string) => s.replace(/_/g, ' ');
   switch (kind) {
     case 'limiter':
       return formatLimiterName(item.limiterName, item.name as string | undefined);
     case 'backplate':
-      return `Завертка ${item.handleName || item.handleId || 'Неизвестная завертка'}`;
+      return `Завертка ${cleanName(item.handleName || item.handleId || 'Неизвестная завертка')}`;
     case 'handle':
-      return `Ручка ${item.handleName || item.handleId || 'Неизвестная ручка'}`;
+      return `Ручка ${cleanName(item.handleName || item.handleId || 'Неизвестная ручка')}`;
     case 'door':
     default:
       return buildDoorName(item);

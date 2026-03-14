@@ -11,6 +11,7 @@ import type { DoorModel, DoorCoating, DoorEdge, DoorOption, DoorHandle, DoorLimi
 import { CartManager } from '@/components/doors';
 import type { CartItem, HardwareKit } from '@/components/doors';
 import { formatModelName, formatModelNameForCard } from '@/components/doors/utils';
+import { getKitDisplayName as sharedGetKitDisplayName, getFillingDisplayName as sharedGetFillingDisplayName } from '@/lib/utils/format-model-name';
 import {
   getImageSrc,
   getImageSrcWithPlaceholder,
@@ -103,24 +104,9 @@ const HARDWARE_KIT_DESCRIPTIONS: Record<string, { specs: string[]; note: string 
   },
 };
 
-/** Пользовательские названия наполнений: Стандарт / Комфорт / Бизнес */
-function getFillingDisplayName(filling: string | null | undefined): string {
-  if (!filling) return '—';
-  const lower = filling.toLowerCase();
-  if (/сильвер|silver/.test(lower)) return 'Стандарт';
-  if (/голд|gold/.test(lower)) return 'Комфорт';
-  if (/платинум|platinum/.test(lower)) return 'Бизнес';
-  return filling;
-}
+const getFillingDisplayName = sharedGetFillingDisplayName;
 
-/** Пользовательские названия комплектов: Стандарт / Комфорт / Бизнес */
-function getKitDisplayName(kitName: string): string {
-  const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim().toLowerCase();
-  if (/сильвер|silver|базовый/.test(normalized)) return 'Стандарт';
-  if (/голд|gold/.test(normalized)) return 'Комфорт';
-  if (/платинум|platinum/.test(normalized)) return 'Бизнес';
-  return kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
-}
+const getKitDisplayName = sharedGetKitDisplayName;
 
 function getKitDescription(kitName: string): { specs: string[]; note: string } | null {
   const normalized = kitName.replace(/^Комплект фурнитуры\s*[—\-]\s*/i, '').trim();
