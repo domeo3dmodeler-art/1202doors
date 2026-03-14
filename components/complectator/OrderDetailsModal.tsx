@@ -1048,36 +1048,39 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
         ) : order ? (
           <div className="p-5 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 40px)' }}>
             {/* Заголовок заказа */}
-            <div className="mb-4 pb-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <Package className="h-5 w-5 text-gray-600" />
-                  <span className="font-semibold text-lg text-gray-900">
-                    {order.number}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(order.created_at).toLocaleDateString('ru-RU')}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  {displayStatus && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${displayStatus.color}`}>
+            <div className="mb-5 pb-4 border-b-2 border-gray-300">
+              <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-2">
+                <span className="text-base font-semibold text-gray-900">
+                  {order.number} от {new Date(order.created_at).toLocaleDateString('ru-RU')}
+                </span>
+                {displayStatus && (
+                  <>
+                    <span className="text-base text-gray-400">—</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium border ${displayStatus.color}`}>
                       {displayStatus.label}
                       {!displayStatus.canManage && (
                         <span className="ml-1 text-xs opacity-75">(только просмотр)</span>
                       )}
                     </span>
-                  )}
-                  {(order.total_amount || order.invoice?.total_amount) && (
-                    <span className="font-bold text-gray-900 text-base">
-                      {(order.total_amount || order.invoice?.total_amount)?.toLocaleString('ru-RU')} ₽
-                    </span>
-                  )}
-                </div>
+                  </>
+                )}
+                {isComplectator && displayStatus?.canManage && availableStatuses.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setNewStatus(availableStatuses[0]);
+                      setShowStatusChangeModal(true);
+                    }}
+                    className="px-3 py-1 text-sm font-medium border border-gray-300 rounded hover:bg-gray-100 text-gray-700 transition-colors"
+                  >
+                    Изменить статус
+                  </button>
+                )}
               </div>
               
               {/* Действия */}
-              <div className="flex items-center space-x-4 mt-2 flex-wrap gap-2">
+              <div className="flex items-center space-x-4 flex-wrap gap-2">
                 <button 
                   onClick={() => setIsCommentsModalOpen(true)}
                   className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 transition-colors"
@@ -1097,7 +1100,6 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                   <span className="text-xs">История</span>
                 </button>
                 
-                {/* Кнопка экспорта счета - всегда доступна для заказа */}
                 <button
                   onClick={handleExportInvoice}
                   disabled={exportingInvoice || !order || items.length === 0}
@@ -1109,7 +1111,6 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                   </span>
                 </button>
                 
-                {/* Кнопка экспорта КП - всегда доступна для заказа */}
                 <button
                   onClick={handleExportQuote}
                   disabled={exportingQuote !== null || !order || items.length === 0}
@@ -1120,58 +1121,11 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
                     {exportingQuote ? 'Экспорт...' : 'Экспорт КП'}
                   </span>
                 </button>
-                
-                {/* Кнопка изменения статуса для комплектатора */}
-                {isComplectator && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      clientLogger.debug('🔘 Кнопка "Изменить статус" нажата', {
-                        availableStatuses,
-                        currentStatus: order?.status,
-                        displayStatus,
-                        canManage: displayStatus?.canManage,
-                        firstStatus: availableStatuses.length > 0 ? availableStatuses[0] : null
-                      });
-                      if (availableStatuses.length > 0) {
-                        setNewStatus(availableStatuses[0]);
-                        setShowStatusChangeModal(true);
-                        clientLogger.debug('🔘 Модальное окно смены статуса открыто', {
-                          newStatus: availableStatuses[0],
-                          showStatusChangeModal: true
-                        });
-                      } else {
-                        clientLogger.warn('🔘 Нет доступных статусов для перехода', {
-                          currentStatus: order?.status,
-                          availableStatuses
-                        });
-                        toast.error('Нет доступных статусов для перехода');
-                      }
-                    }}
-                    disabled={!displayStatus?.canManage || availableStatuses.length === 0}
-                    className={`flex items-center space-x-1 transition-colors ${
-                      displayStatus?.canManage && availableStatuses.length > 0
-                        ? 'text-gray-600 hover:text-gray-800 cursor-pointer'
-                        : 'text-gray-400 cursor-not-allowed opacity-50'
-                    }`}
-                    title={
-                      !displayStatus?.canManage
-                        ? 'Статус не может быть изменен'
-                        : availableStatuses.length === 0
-                        ? 'Нет доступных статусов для перехода'
-                        : 'Изменить статус заказа'
-                    }
-                  >
-                    <ChevronDown className="h-3 w-3" />
-                    <span className="text-xs">Изменить статус</span>
-                  </button>
-                )}
               </div>
             </div>
 
             {/* Информация о клиенте */}
-            <div className="mb-4 pb-4 border-b border-gray-200">
+            <div className="mb-5 pb-4 border-b-2 border-gray-300">
               {order.client ? (
                 <>
                   <div className="flex items-center space-x-2">
@@ -1225,36 +1179,34 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
 
             {/* План открывания и закрывания дверей для Комплектатора */}
             {isComplectator && (
-              <div className="mb-4 pb-4 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-3">
+              <div className="mb-5 pb-4 border-b-2 border-gray-300">
+                <div className="flex items-center gap-3 mb-3">
                   <h3 className="text-sm font-medium text-gray-900">План открывания и закрывания дверей</h3>
-                  <div className="flex items-center space-x-2">
-                    {order.project_file_url && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleDeleteProject();
-                        }}
-                        disabled={deletingProject}
-                        className="text-red-600 hover:text-red-700 text-sm flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1.5"
-                        title="Удалить файл проекта"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowProjectUpload(true);
+                    }}
+                    className="flex items-center space-x-1 px-3 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Загрузить</span>
+                  </button>
+                  {order.project_file_url && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        setShowProjectUpload(true);
+                        handleDeleteProject();
                       }}
-                      className="flex items-center space-x-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      disabled={deletingProject}
+                      className="text-red-500 hover:text-red-700 flex items-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1"
+                      title="Удалить файл проекта"
                     >
-                      <Upload className="h-4 w-4" />
-                      <span>Загрузить</span>
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  </div>
+                  )}
                 </div>
                 {order.project_file_url ? (
                   <div className="flex items-center space-x-2">
@@ -1279,8 +1231,8 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
 
             {/* План открывания и закрывания дверей для Исполнителя (только просмотр, без загрузки) */}
             {isExecutor && (
-              <div className="mb-4 pb-4 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-3">
+              <div className="mb-5 pb-4 border-b-2 border-gray-300">
+                <div className="flex items-center gap-3 mb-3">
                   <h3 className="text-sm font-medium text-gray-900">План открывания и закрывания дверей</h3>
                 </div>
                 {order.project_file_url ? (
@@ -1307,7 +1259,7 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
             {/* Тех. задания и Оптовые счета только для Исполнителя */}
             {/* Явно скрываем для комплектатора и других ролей */}
             {isExecutor && !isComplectator && (
-              <div className="mb-4 pb-4 border-b border-gray-200 space-y-3">
+              <div className="mb-5 pb-4 border-b-2 border-gray-300 space-y-3">
                 {/* Тех. задания */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1507,8 +1459,8 @@ export function OrderDetailsModal({ isOpen, onClose, orderId, userRole, onOrderU
             )}
 
             {/* Заголовок раздела товаров */}
-            <div className="mb-3 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 pb-2">
+            <div className="mb-3 pb-2 border-b-2 border-gray-300">
+              <h3 className="text-sm font-semibold text-gray-900">
                 Товары ({items.length})
               </h3>
             </div>

@@ -158,6 +158,15 @@ async function postHandler(
           cart_data: JSON.stringify(cartItems)
         }
       });
+      await prisma.documentHistory.create({
+        data: {
+          document_id: document.id,
+          user_id: user.userId,
+          action: 'created',
+          new_value: 'NEW_PLANNED',
+          details: JSON.stringify({ document_type: 'order' })
+        }
+      }).catch(() => {});
       break;
 
     default:

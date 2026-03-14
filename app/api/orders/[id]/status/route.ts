@@ -164,6 +164,18 @@ async function handler(
     }
   });
 
+  // Записываем в историю изменений
+  await prisma.documentHistory.create({
+    data: {
+      document_id: id,
+      user_id: user.userId,
+      action: 'status_change',
+      old_value: oldStatus,
+      new_value: targetStatus,
+      details: JSON.stringify({ document_type: 'order' })
+    }
+  }).catch((err) => logger.warn('Failed to create document_history for order status', 'orders/[id]/status', { error: err?.message }, loggingContext));
+
   // Отправляем уведомления о смене статуса
   try {
     const { sendStatusNotification } = await import('@/lib/notifications/status-notifications');

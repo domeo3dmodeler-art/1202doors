@@ -113,6 +113,16 @@ async function postHandler(
 
   logger.info(`Заказ создан: ${orderNumber}`, 'orders/create-with-invoice', { orderId: order.id, orderNumber }, loggingContext);
 
+  await prisma.documentHistory.create({
+    data: {
+      document_id: order.id,
+      user_id: user.userId,
+      action: 'created',
+      new_value: 'NEW_PLANNED',
+      details: JSON.stringify({ document_type: 'order' })
+    }
+  }).catch((err) => logger.warn('Failed to create document_history for order creation', 'orders/create-with-invoice', { error: err?.message }, loggingContext));
+
   // Возвращаем только созданный Order
   // Invoice создается отдельно через POST /api/invoices или /api/documents/create
   // с parent_document_id = order.id

@@ -104,9 +104,14 @@ export default function HistoryModal({
   };
 
   const getActionDescription = (entry: HistoryEntry) => {
+    if (entry.action === 'created') {
+      if (documentType === 'order') return 'Создание заказа';
+      if (documentType === 'invoice') return 'Создание счета';
+      if (documentType === 'quote') return 'Создание КП';
+      return 'Создание документа';
+    }
     const actionMap: Record<string, string> = {
       'status_change': 'Изменение статуса',
-      'created': 'Создание документа',
       'updated': 'Обновление документа',
       'comment_added': 'Добавлен комментарий',
       'comment_edited': 'Изменен комментарий',
@@ -141,15 +146,22 @@ export default function HistoryModal({
 
   const getStatusDisplayName = (status: string) => {
     const statusMap: Record<string, string> = {
-      'DRAFT': 'Черновик',
-      'SENT': 'Отправлен',
+      'DRAFT': 'Новый заказ',
+      'SENT': 'Счет выставлен',
       'ACCEPTED': 'Согласован',
       'REJECTED': 'Отказ',
       'PAID': 'Оплачен',
       'CANCELLED': 'Отменен',
+      'NEW_PLANNED': 'Счет оплачен (Заказываем)',
+      'UNDER_REVIEW': 'На проверке',
+      'AWAITING_MEASUREMENT': 'Ждет замер',
+      'AWAITING_INVOICE': 'Ожидает опт. счет',
+      'READY_FOR_PRODUCTION': 'Готов к запуску в производство',
       'IN_PRODUCTION': 'В производстве',
       'RECEIVED_FROM_SUPPLIER': 'Получен от поставщика',
-      'COMPLETED': 'Исполнен'
+      'COMPLETED': 'Выполнен',
+      'RETURNED_TO_COMPLECTATION': 'Вернуть в комплектацию',
+      'ORDERED': 'Заказ размещен'
     };
     return statusMap[status] || status;
   };
@@ -231,6 +243,16 @@ export default function HistoryModal({
                           {getStatusDisplayName(entry.old_value)}
                         </span>
                         <ArrowRight className="h-4 w-4 text-gray-400" />
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                          {getStatusDisplayName(entry.new_value)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Created with initial status */}
+                    {entry.action === 'created' && entry.new_value && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <span className="text-gray-500">Начальный статус:</span>
                         <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
                           {getStatusDisplayName(entry.new_value)}
                         </span>

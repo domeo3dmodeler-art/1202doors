@@ -272,6 +272,16 @@ export class DocumentRepository {
         orderNumber: order.number
       });
 
+      await prisma.documentHistory.create({
+        data: {
+          document_id: order.id,
+          user_id: data.created_by,
+          action: 'created',
+          new_value: 'DRAFT',
+          details: JSON.stringify({ document_type: 'order' })
+        }
+      }).catch((err) => logger.warn('Failed to create document_history for order creation', 'DOCUMENT_REPOSITORY', { error: err?.message }));
+
       // Инвалидируем кеш
       simpleCache.deleteByPrefix('order:');
 
