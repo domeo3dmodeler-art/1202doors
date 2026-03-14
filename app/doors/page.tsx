@@ -150,7 +150,7 @@ function getKitDescription(kitName: string): { specs: string[]; note: string } |
 
 export default function FigmaExactReplicaPage() {
   // Аутентификация
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const userRole = user?.role || 'guest';
 
   // Загружаем данные через хуки
@@ -297,6 +297,8 @@ export default function FigmaExactReplicaPage() {
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
   const [cartHistory, setCartHistory] = useState<Array<{timestamp: Date, changes: Record<string, any>, totalDelta: number}>>([]);
   const [showCartManager, setShowCartManager] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [cartManagerBasePrices, setCartManagerBasePrices] = useState<Record<string, number>>({});
   const lastAddedCartIdsRef = useRef<string[]>([]);
 
@@ -450,6 +452,16 @@ export default function FigmaExactReplicaPage() {
       })));
     }
   }, [configKits]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    if (showUserMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   // Фильтруем модели по стилю и наполнению (название наполнения из листа «Опции»)
   const filteredModels = useMemo(() => {
@@ -1497,47 +1509,34 @@ export default function FigmaExactReplicaPage() {
         <div className="max-w-[1600px] mx-auto px-6 py-4">
           <div className="flex items-center">
             <div className="flex items-baseline space-x-3 flex-1 min-w-0">
-              <Link href="/" className="text-2xl font-bold text-black">
+              <Link href="/doors" className="text-2xl font-bold text-black">
                 Domeo
               </Link>
               <span className="text-black text-lg font-bold">•</span>
               <span className="text-lg font-semibold text-black">Doors</span>
             </div>
-            <nav className="flex items-center space-x-4 justify-end flex-shrink-0 ml-auto">
+            <nav className="flex items-center space-x-3 justify-end flex-shrink-0 ml-auto">
               {isAuthenticated && <NotificationBell userRole={user?.role || "executor"} />}
-              <Link 
-                href="/" 
-                className="px-3 py-1 border border-black text-black hover:bg-black hover:text-white transition-all duration-200 text-sm"
-              >
-                ← Категории
-              </Link>
               {isAuthenticated && (
                 <button
                   onClick={() => setShowClientManager(true)}
                   className="px-3 py-1 border border-black text-black hover:bg-black hover:text-white transition-all duration-200 text-sm"
                 >
-                  👤 {selectedClientName || 'Заказчик'}
+                  {selectedClientName || 'Заказчик'}
                 </button>
               )}
               {tab === "admin" && (
                 <button
                   onClick={() => setTab("admin")}
-                  className={`px-3 py-1 border transition-all duration-200 text-sm ${
-                    tab === "admin" 
-                      ? "bg-black text-white border-black" 
-                      : "border-black text-black hover:bg-black hover:text-white"
-                  }`}
+                  className="px-3 py-1 border bg-black text-white border-black transition-all duration-200 text-sm"
                 >
                   Админ
                 </button>
               )}
               <button
                 onClick={() => {
-                  // Сохраняем текущие цены как базовые для расчета дельты
                   const basePrices: Record<string, number> = {};
-                  cart.forEach(item => {
-                    basePrices[item.id] = item.unitPrice;
-                  });
+                  cart.forEach(item => { basePrices[item.id] = item.unitPrice; });
                   setCartManagerBasePrices(basePrices);
                   setShowCartManager(true);
                 }}
@@ -1546,11 +1545,58 @@ export default function FigmaExactReplicaPage() {
                 <span>🛒</span>
                 <span>Корзина</span>
                 {cart.length > 0 && (
-                  <span className="border border-black text-black text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                    {cart.length}
+                  <span className="border border-black text-black text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {cart.filter(i => !i.itemType || i.itemType === 'door').reduce((s, i) => s + i.qty, 0)}
                   </span>
                 )}
               </button>
+              {isAuthenticated ? (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setShowUserMenu(prev => !prev)}
+                    className="flex items-center space-x-1.5 px-3 py-1 border border-black text-black hover:bg-black hover:text-white transition-all duration-200 text-sm"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                    <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                      <path d="M2 4l4 4 4-4" />
+                    </svg>
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 shadow-lg z-50">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <div className="text-sm font-medium text-black">
+                          {user?.lastName} {user?.firstName}{user?.middleName?.trim() ? ` ${user.middleName}` : ''}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {{ admin: 'Администратор', complectator: 'Комплектатор', executor: 'Исполнитель' }[user?.role || ''] || 'Пользователь'}
+                        </div>
+                      </div>
+                      <Link
+                        href="/dashboard"
+                        onClick={() => setShowUserMenu(false)}
+                        className="block px-4 py-2.5 text-sm text-black hover:bg-gray-50 transition-colors"
+                      >
+                        {user?.role === 'admin' ? 'Панель управления' : 'Личный кабинет'}
+                      </Link>
+                      <button
+                        onClick={() => { setShowUserMenu(false); logout(); window.location.href = '/login'; }}
+                        className="block w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 transition-colors"
+                      >
+                        Выход
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="px-4 py-1.5 border border-black text-black hover:bg-black hover:text-white transition-all duration-200 text-sm"
+                >
+                  Вход
+                </Link>
+              )}
             </nav>
           </div>
         </div>
@@ -3088,29 +3134,29 @@ export default function FigmaExactReplicaPage() {
                         fontWeight: designTokens.typography.fontWeight.semibold,
                         letterSpacing: '0.01em',
                         padding: `${designTokens.spacing[3]} ${designTokens.spacing[4]}`,
-                        backgroundColor: (!canCalculatePrice || !priceData) ? designTokens.colors.gray[400] : designTokens.colors.black[950],
+                        backgroundColor: (!canCalculatePrice || !priceData || !hardwareColor.trim()) ? designTokens.colors.gray[400] : designTokens.colors.black[950],
                         color: '#FFFFFF',
                         borderRadius: designTokens.borderRadius.lg,
                         boxShadow: designTokens.boxShadow.md,
                         border: 'none',
-                        cursor: (!canCalculatePrice || !priceData) ? 'not-allowed' : 'pointer'
+                        cursor: (!canCalculatePrice || !priceData || !hardwareColor.trim()) ? 'not-allowed' : 'pointer'
                       }}
 onMouseEnter={(e) => {
-                          if (canCalculatePrice && priceData) {
+                          if (canCalculatePrice && priceData && hardwareColor.trim()) {
                           e.currentTarget.style.backgroundColor = designTokens.colors.gray[800];
                           e.currentTarget.style.boxShadow = designTokens.boxShadow.lg;
                           e.currentTarget.style.transform = 'translateY(-1px)';
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (canCalculatePrice && priceData) {
+                        if (canCalculatePrice && priceData && hardwareColor.trim()) {
                           e.currentTarget.style.backgroundColor = designTokens.colors.black[950];
                           e.currentTarget.style.boxShadow = designTokens.boxShadow.md;
                           e.currentTarget.style.transform = 'translateY(0)';
                         }
                       }}
                     >
-                      В корзину {cart.length > 0 ? `(${cart.length})` : null}
+                      В корзину {cart.length > 0 ? `(${cart.filter(i => !i.itemType || i.itemType === 'door').reduce((s, i) => s + i.qty, 0)})` : null}
                     </button>
                     {cart.length > 0 ? (
                         <button

@@ -9,6 +9,7 @@ interface User {
   role: string;
   firstName?: string;
   lastName?: string;
+  middleName?: string;
 }
 
 interface AuthContextType {
@@ -49,8 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    // Очищаем токен из cookies
     document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'domeo-auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    const keys = ['authToken', 'userRole', 'userId', 'userEmail', 'userFirstName', 'userLastName', 'userMiddleName', 'userPermissions'];
+    keys.forEach(k => localStorage.removeItem(k));
   };
 
   const value = {

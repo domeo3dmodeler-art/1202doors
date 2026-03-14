@@ -38,7 +38,7 @@ export default function GlobalHeader({
         <div className="flex justify-between items-center py-4">
           <div className="flex items-center space-x-3">
             <div 
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/doors')}
               className="cursor-pointer hover:opacity-70 transition-opacity duration-200"
             >
               <h1 className="text-2xl font-bold text-black">{customTitle}</h1>
