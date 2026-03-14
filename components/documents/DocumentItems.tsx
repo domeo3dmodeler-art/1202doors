@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Package, Eye, EyeOff } from 'lucide-react';
+import { formatModelName } from '@/lib/utils/format-model-name';
 
 interface DocumentItemsProps {
   document: any;
@@ -26,7 +27,7 @@ export function DocumentItems({ document }: DocumentItemsProps) {
 
   const formatItemName = (item: any) => {
     if (item.type === 'door') {
-      return `Дверь ${item.model?.replace(/DomeoDoors_/g, 'DomeoDoors ').replace(/_/g, ' ')} (${item.finish}, ${item.color}, ${item.width} × ${item.height} мм)`;
+      return `Дверь ${formatModelName(item.model)} (${item.finish}, ${item.color}, ${item.width} × ${item.height} мм)`;
     } else if (item.type === 'handle') {
       return item.handleName || item.name || 'Ручка';
     }

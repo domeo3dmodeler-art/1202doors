@@ -4,6 +4,8 @@
  * Сохранённый в БД type/itemType не используется для вывода — тип выводится по форме позиции (model, width, limiterId и т.д.).
  */
 
+import { formatModelName } from '@/lib/utils/format-model-name';
+
 export type ExportItemType = 'door' | 'handle' | 'backplate' | 'limiter';
 
 export interface ExportItemShape {
@@ -28,6 +30,7 @@ export interface ExportItemShape {
   glassColor?: string;
   glass_color?: string;
   openingDirection?: 'left' | 'right';
+  hardwareColor?: string;
   reversible?: boolean;
   mirror?: string;
   threshold?: boolean;
@@ -78,7 +81,7 @@ function sanitizeSpec(s: string): string {
 }
 
 function buildDoorName(item: ExportItemShape): string {
-  const modelName = (item.model || 'Unknown').replace(/DomeoDoors_/g, '').replace(/_/g, ' ');
+  const modelName = formatModelName(item.model) || 'Unknown';
   const finishVal = sanitizeSpec(String(item.finish ?? '').trim());
   const colorVal = sanitizeSpec(String(item.color ?? '').trim());
   const specParts: string[] = [];

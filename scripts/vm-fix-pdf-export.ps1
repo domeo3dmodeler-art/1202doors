@@ -1,11 +1,11 @@
 # Установка Chromium из apt на ВМ и настройка .env для экспорта PDF/Excel.
 # Альтернатива setup-vm-chromium.ps1 (тот ставит Chrome .deb — тяжелее). Этот скрипт — лёгкий apt install chromium-browser.
 # Запуск: .\scripts\vm-fix-pdf-export.ps1
-# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 
 $ErrorActionPreference = "Stop"
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
 $RemotePath = if ($env:1002DOORS_STAGING_REMOTE_PATH) { $env:1002DOORS_STAGING_REMOTE_PATH } else { "~/domeo-app" }
 $SshOpts = @("-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=30")
 

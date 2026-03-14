@@ -10,7 +10,7 @@ import { useModelOptions } from '@/lib/configurator/useModelOptions';
 import type { DoorModel, DoorCoating, DoorEdge, DoorOption, DoorHandle, DoorLimiter } from '@/lib/configurator/api';
 import { CartManager } from '@/components/doors';
 import type { CartItem, HardwareKit } from '@/components/doors';
-import { formatModelNameForCard } from '@/components/doors/utils';
+import { formatModelName, formatModelNameForCard } from '@/components/doors/utils';
 import {
   getImageSrc,
   getImageSrcWithPlaceholder,
@@ -235,6 +235,7 @@ export default function FigmaExactReplicaPage() {
   }, [selectedFinish]);
 
   // Состояние для фурнитуры
+  const [hardwareColor, setHardwareColor] = useState<string>('');
   const [selectedHardwareKit, setSelectedHardwareKit] = useState<string | null>(null);
   const [selectedHandleId, setSelectedHandleId] = useState<string | null>(null);
   const [showHandleModal, setShowHandleModal] = useState(false);
@@ -782,6 +783,15 @@ export default function FigmaExactReplicaPage() {
   const invisibleDoorColorPhotoPath = '/uploads/final-filled/doors/Invisible_black.png';
   const isInvisibleModel = selectedModelId?.toLowerCase().includes('invisible') ?? false;
 
+  // Invisible: сбрасываем комплект «Стандарт» если он выбран
+  useEffect(() => {
+    if (!isInvisibleModel || !selectedHardwareKit) return;
+    const kit = (configKits || []).find(k => k.id === selectedHardwareKit);
+    if (kit && getKitDisplayName(kit.name) === 'Стандарт') {
+      setSelectedHardwareKit(null);
+    }
+  }, [isInvisibleModel, selectedHardwareKit, configKits]);
+
   // Монохромная палитра: цвета выбранного типа ПЭТ/ПВХ/Эмаль и «Под отделку» (у Invisible только он)
   const monochromeColors = useMemo(() => {
     if (!selectedFinish || !['ПЭТ', 'ПВХ', 'Эмаль', 'Под отделку'].includes(selectedFinish)) return [];
@@ -1060,7 +1070,9 @@ export default function FigmaExactReplicaPage() {
 
   const getHandleText = () => {
     if (!selectedHandleId || !selectedHandleIdObj) return 'Не выбрано';
-    return selectedHandleIdObj.name || 'Не выбрано';
+    const name = selectedHandleIdObj.name || 'Не выбрано';
+    const color = (selectedHandleIdObj.color || '').trim();
+    return color ? `${name}, ${color}` : name;
   };
 
   const getHardwareKitText = () => {
@@ -1127,7 +1139,7 @@ export default function FigmaExactReplicaPage() {
     const architraveName = selectedArchitraveId ? architraveOptions.find(a => a.id === selectedArchitraveId)?.name : null;
     const specRowsFromCalculator: Array<{ label: string; value: string }> = [
       { label: 'Стиль', value: selectedStyle || '—' },
-      { label: 'Полотно', value: selectedModel || '—' },
+      { label: 'Полотно', value: formatModelName(selectedModel) || '—' },
       { label: 'Размеры', value: `${width} × ${height} мм` },
       { label: 'Направление открывания', value: openingDirection === 'right' ? 'Правая' : 'Левая' },
       { label: 'Реверсные двери', value: reversible ? 'Да' : 'Нет' },
@@ -1135,7 +1147,7 @@ export default function FigmaExactReplicaPage() {
       { label: 'Покрытие и цвет', value: getCoatingText() },
       { label: 'Алюминиевая кромка', value: getEdgeText() },
       { label: 'Цвет стекла', value: selectedGlassColor ?? ((selectedModelData?.glassColors?.length ?? 0) > 0 ? 'Не выбран' : '—') },
-      { label: 'Комплект фурнитуры', value: getKitDisplayName(getHardwareKitText()) },
+      { label: 'Комплект фурнитуры', value: hardwareColor.trim() ? `${getKitDisplayName(getHardwareKitText())}, ${hardwareColor.trim()}` : getKitDisplayName(getHardwareKitText()) },
       { label: 'Ручка', value: getHandleText() },
       { label: 'Наличник', value: architraveName || 'Не выбран' },
       { label: 'Ограничитель', value: getStopperText() },
@@ -1174,6 +1186,7 @@ export default function FigmaExactReplicaPage() {
       optionNames: doorOptionLabels.length > 0 ? doorOptionLabels : (architraveNames.length > 0 ? architraveNames : undefined),
       sku_1c: priceData.sku || undefined,
       openingDirection,
+      hardwareColor: hardwareColor.trim() || undefined,
       reversible,
       mirror: selectedMirrorId && selectedMirrorId !== 'none' ? selectedMirrorId : undefined,
       threshold: selectedThresholdId != null,
@@ -1313,6 +1326,7 @@ export default function FigmaExactReplicaPage() {
             hardwareKitId: item.hardwareKitId,
             hardwareKitName: item.hardwareKitName,
             openingDirection: item.openingDirection,
+            hardwareColor: item.hardwareColor,
             reversible: item.reversible,
             mirror: item.mirror,
             threshold: item.threshold,
@@ -1631,6 +1645,7 @@ export default function FigmaExactReplicaPage() {
                             setSelectedMirrorId(null);
                             setSelectedThresholdId(null);
                             setOpeningDirection('left');
+                            setHardwareColor('');
                             setReversible(false);
                             setSelectedFilling(null);
                             setHasLock(null);
@@ -2281,15 +2296,22 @@ export default function FigmaExactReplicaPage() {
                           {(configKits || []).map((kit) => {
                             const selected = selectedHardwareKit === kit.id;
                             const desc = getKitDescription(kit.name);
+                            const displayName = getKitDisplayName(kit.name);
+                            const isStandardKit = displayName === 'Стандарт';
+                            const disabled = isInvisibleModel && isStandardKit;
                             return (
                               <button
                                 key={kit.id}
                                 type="button"
-                                onClick={() => setSelectedHardwareKit(selected ? null : kit.id)}
+                                disabled={disabled}
+                                onClick={() => !disabled && setSelectedHardwareKit(selected ? null : kit.id)}
+                                title={disabled ? 'Недоступно для модели Invisible' : undefined}
                                 className={`relative rounded-lg border-2 p-3 text-left transition ${
-                                  selected
-                                    ? 'border-gray-900 ring-1 ring-gray-100 shadow-md bg-gray-50'
-                                    : 'border-gray-300 hover:border-gray-400 cursor-pointer bg-white'
+                                  disabled
+                                    ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                                    : selected
+                                      ? 'border-gray-900 ring-1 ring-gray-100 shadow-md bg-gray-50'
+                                      : 'border-gray-300 hover:border-gray-400 cursor-pointer bg-white'
                                 }`}
                               >
                                 {selected && (
@@ -2319,6 +2341,24 @@ export default function FigmaExactReplicaPage() {
                             );
                           })}
                         </div>
+                      </div>
+
+                      {/* Цвет фурнитуры (обязательное) */}
+                      <div>
+                        <h3 className="section-heading">ЦВЕТ ФУРНИТУРЫ <span className="text-red-500">*</span></h3>
+                        <input
+                          type="text"
+                          placeholder="Укажите цвет фурнитуры"
+                          value={hardwareColor}
+                          onChange={(e) => setHardwareColor(e.target.value)}
+                          required
+                          className={`w-full px-4 py-2.5 rounded-lg border-2 text-sm font-medium text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-400 outline-none transition-all ${
+                            !hardwareColor.trim() && priceData ? 'border-red-400' : 'border-gray-300'
+                          }`}
+                        />
+                        {!hardwareColor.trim() && priceData && (
+                          <p className="mt-1 text-xs text-red-500 font-medium">Обязательное поле</p>
+                        )}
                       </div>
 
                       {/* Ручка */}
@@ -2822,17 +2862,17 @@ export default function FigmaExactReplicaPage() {
                         const modelPhoto = selectedModelData?.photo ?? (selectedModelId && selectedStyle ? allModels.find((m: { id?: string; style?: string }) => m.id === selectedModelId && (m.style || '') === selectedStyle)?.photo : null);
                         const effectiveCoatingPhoto = isInvisibleModel ? invisibleDoorColorPhotoPath : coatingPhoto;
                         const previewSrc = getImageSrc(effectiveCoatingPhoto) || getImageSrc(modelPhoto);
-                        const previewPlaceholder = createPlaceholderSvgDataUrl(338, 676, '#E2E8F0', '#4A5568', selectedModel || 'Выберите модель');
+                        const previewPlaceholder = createPlaceholderSvgDataUrl(338, 676, '#E2E8F0', '#4A5568', formatModelName(selectedModel) || 'Выберите модель');
                         return (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={previewSrc || previewPlaceholder}
-                            alt={selectedModel || 'Модель двери'}
+                            alt={formatModelName(selectedModel) || 'Модель двери'}
                             className="w-full h-auto block bg-white cursor-zoom-in"
                             onClick={() => {
                               if (previewSrc) {
                                 setZoomPreviewSrc(previewSrc);
-                                setZoomPreviewAlt(selectedModel || 'Модель двери');
+                                setZoomPreviewAlt(formatModelName(selectedModel) || 'Модель двери');
                               }
                             }}
                             onError={(e) => {
@@ -2921,7 +2961,7 @@ export default function FigmaExactReplicaPage() {
                       <span 
                         className="font-medium"
                         style={{ 
-                          fontSize: designTokens.typography.fontSize.xs,
+                          fontSize: designTokens.typography.fontSize.sm,
                           color: designTokens.colors.gray[600],
                           letterSpacing: '0.01em'
                         }}
@@ -2931,7 +2971,7 @@ export default function FigmaExactReplicaPage() {
                       <span 
                         className="font-semibold"
                         style={{ 
-                          fontSize: designTokens.typography.fontSize.sm,
+                          fontSize: designTokens.typography.fontSize.base,
                           color: designTokens.colors.gray[900]
                         }}
                       >
@@ -2939,7 +2979,7 @@ export default function FigmaExactReplicaPage() {
                       </span>
                     </div>
                     {[
-                      { label: 'Полотно', value: selectedModel },
+                      { label: 'Полотно', value: formatModelName(selectedModel) },
                       { label: 'Размеры', value: `${width} × ${height} мм` },
                       { label: 'Направление открывания', value: openingDirection === 'right' ? 'Правая' : 'Левая' },
                       { label: 'Реверсные двери', value: reversible ? 'Да' : 'Нет' },
@@ -2947,7 +2987,7 @@ export default function FigmaExactReplicaPage() {
                       { label: 'Покрытие и цвет', value: getCoatingText() },
                       { label: 'Алюминиевая кромка', value: getEdgeText() },
                       { label: 'Цвет стекла', value: selectedGlassColor ?? ((selectedModelData?.glassColors?.length ?? 0) > 0 ? 'Не выбран' : '—') },
-                      { label: 'Комплект фурнитуры', value: getKitDisplayName(getHardwareKitText()) },
+                      { label: 'Комплект фурнитуры', value: hardwareColor.trim() ? `${getKitDisplayName(getHardwareKitText())}, ${hardwareColor.trim()}` : getKitDisplayName(getHardwareKitText()) },
                       { label: 'Ручка', value: getHandleText() },
                       { label: 'Наличник', value: (selectedArchitraveId ? architraveOptions.find(a => a.id === selectedArchitraveId)?.name : null) || 'Не выбран' },
                       { label: 'Ограничитель', value: getStopperText() },
@@ -2970,7 +3010,7 @@ export default function FigmaExactReplicaPage() {
                         <span 
                           className="font-medium"
                           style={{ 
-                            fontSize: designTokens.typography.fontSize.xs,
+                            fontSize: designTokens.typography.fontSize.sm,
                             color: designTokens.colors.gray[600],
                             letterSpacing: '0.01em'
                           }}
@@ -2980,7 +3020,7 @@ export default function FigmaExactReplicaPage() {
                         <span 
                           className="font-semibold"
                           style={{ 
-                            fontSize: designTokens.typography.fontSize.sm,
+                            fontSize: designTokens.typography.fontSize.base,
                             color: designTokens.colors.gray[900]
                           }}
                         >
@@ -3040,7 +3080,7 @@ export default function FigmaExactReplicaPage() {
                   <div className="mb-4">
                     <button 
                       onClick={addToCart}
-                      disabled={!canCalculatePrice || !priceData}
+                      disabled={!canCalculatePrice || !priceData || !hardwareColor.trim()}
                       className="w-full font-semibold transition-all duration-200 flex items-center justify-center gap-2"
                       style={{ 
                         fontFamily: designTokens.typography.fontFamily.sans.join(', '),

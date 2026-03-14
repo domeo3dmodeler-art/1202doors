@@ -1,6 +1,6 @@
 # Dev-режим на ВМ: настройка и быстрые правки
 
-Цель: на ВМ запущен `next dev`, вы правите код локально, копируете один файл скриптом — Next пересобирает за секунды. Доступ по http://89.169.181.191 (рабочая машина) через Nginx.
+Цель: на ВМ запущен `next dev`, вы правите код локально, копируете один файл скриптом — Next пересобирает за секунды. Доступ по http://178.154.244.83 (рабочая машина) через Nginx.
 
 **Краткий workflow:** см. **[SYNC_LOCAL_TO_VM.md](SYNC_LOCAL_TO_VM.md)** — один скрипт `.\scripts\sync-and-run-vm.ps1` (или `npm run vm:sync`) для синхронизации и запуска dev на ВМ, затем `push-one-file-to-vm.ps1` для правок.
 
@@ -12,7 +12,7 @@
 - Каталог приложения: по умолчанию **~/domeo-app** (или задайте `1002DOORS_STAGING_REMOTE_PATH`)
 - **.env** в этом каталоге (DATABASE_URL, NODE_ENV, JWT_SECRET). В архив синхронизации .env не входит — не перезаписывается.
 - **Nginx** с конфигом из `scripts/output/domeo-nginx.conf` (отдельные location для `/_next/static/`, `/_next/webpack-hmr`, `/uploads/`). Применить: `.\scripts\apply-nginx-to-vm.ps1`
-- В **next.config.mjs** уже указано: `allowedDevOrigins: ['http://89.169.181.191', ...]` — без этого запросы с публичного IP к dev-серверу блокируются и UI остаётся скелетоном.
+- В **next.config.mjs** уже указано: `allowedDevOrigins: ['http://178.154.244.83', ...]` — без этого запросы с публичного IP к dev-серверу блокируются и UI остаётся скелетоном.
 
 ---
 
@@ -51,7 +51,7 @@
 **Важно:** `npm install` может долго выполняться и обрываться по SSH. Надёжнее запускать его **на ВМ в screen/tmux**:
 
 ```bash
-ssh -i <ключ> ubuntu@89.169.181.191
+ssh -i <ключ> ubuntu@178.154.244.83
 screen -S dev
 cd ~/domeo-app
 npm install
@@ -87,7 +87,7 @@ nohup npx next dev -p 3000 -H 0.0.0.0 >> logs/next-dev.log 2>&1 &
 
 ### 5. Проверить
 
-- В браузере: http://89.169.181.191 (страница должна открываться, не 502).
+- В браузере: http://178.154.244.83 (страница должна открываться, не 502).
 - Логи на ВМ: `tail -f ~/domeo-app/logs/next-dev.log` — должно быть сообщение Ready.
 
 ---
@@ -118,12 +118,12 @@ nohup npx next dev -p 3000 -H 0.0.0.0 >> logs/next-dev.log 2>&1 &
 ### Страница открывается, но «скелет» / нет стилей / не грузятся _next/static
 
 - **Причина:** Next.js dev отклоняет запросы с чужого origin (публичный IP).
-- **Проверить:** в `next.config.mjs` есть `allowedDevOrigins: ['http://89.169.181.191', 'http://89.169.181.191:80', '89.169.181.191']`. После изменения конфига перезапустить next dev и при необходимости заново синхронизировать next.config.mjs на ВМ.
+- **Проверить:** в `next.config.mjs` есть `allowedDevOrigins: ['http://178.154.244.83', 'http://178.154.244.83:80', '178.154.244.83']`. После изменения конфига перезапустить next dev и при необходимости заново синхронизировать next.config.mjs на ВМ.
 
 ### HMR не работает (изменения не подхватываются без перезагрузки)
 
 - Nginx должен проксировать WebSocket `/_next/webpack-hmr` (в `domeo-nginx.conf` есть отдельный location с Upgrade/Connection). Применить конфиг: `.\scripts\apply-nginx-to-vm.ps1`.
-- Убедиться, что в браузере открываете сайт по http://89.169.181.191, а не по localhost.
+- Убедиться, что в браузере открываете сайт по http://178.154.244.83, а не по localhost.
 
 ### npm install на ВМ падает по памяти (OOM)
 
@@ -149,7 +149,7 @@ nohup npx next dev -p 3000 -H 0.0.0.0 >> logs/next-dev.log 2>&1 &
 | 2 | `.\scripts\sync-full-sources-to-vm.ps1` (или sync-to-vm.ps1 при наличии rsync) |
 | 3 | На ВМ в screen: `cd ~/domeo-app && npm install` |
 | 4 | `.\scripts\start-vm-dev.ps1` |
-| 5 | Открыть http://89.169.181.191, проверить логи при необходимости: `tail -f ~/domeo-app/logs/next-dev.log` |
+| 5 | Открыть http://178.154.244.83, проверить логи при необходимости: `tail -f ~/domeo-app/logs/next-dev.log` |
 | 6 | Правки: `.\scripts\push-one-file-to-vm.ps1 <путь\к\файлу>` |
 
-Все скрипты используют по умолчанию хост **89.169.181.191** и каталог **~/domeo-app**. Переопределение: переменные окружения `1002DOORS_SSH_KEY`, `1002DOORS_STAGING_HOST`, `1002DOORS_STAGING_REMOTE_PATH`.
+Все скрипты используют по умолчанию хост **178.154.244.83** и каталог **~/domeo-app**. Переопределение: переменные окружения `1002DOORS_SSH_KEY`, `1002DOORS_STAGING_HOST`, `1002DOORS_STAGING_REMOTE_PATH`.

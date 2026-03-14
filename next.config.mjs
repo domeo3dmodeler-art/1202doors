@@ -33,11 +33,11 @@ const nextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
-  // Доступ к dev-серверу по публичному IP (Nginx проксирует на localhost). Рабочая: 89.169.181.191; тестовая: 130.193.62.116
-  allowedDevOrigins: ['http://89.169.181.191', 'http://89.169.181.191:80', '89.169.181.191', 'http://130.193.62.116', 'http://130.193.62.116:80', '130.193.62.116'],
-  // Оптимизация сборки
-  // Пакеты не бандлить на сервере — резолв из node_modules в рантайме (избегаем "Can't resolve" при сборке)
-  serverExternalPackages: ['bcryptjs', 'lodash.isboolean', 'lodash.isnil', 'lodash.escaperegexp'],
+  // Доступ к dev-серверу по публичному IP (Nginx → localhost:3000). Тестовая: 178.154.244.83; Рабочая: 158.160.69.237
+  allowedDevOrigins: ['http://178.154.244.83', 'http://178.154.244.83:80', '178.154.244.83', 'http://158.160.69.237', 'http://158.160.69.237:80', '158.160.69.237'],
+  // Пакеты, которые не бандлить на сервере (нативные модули, крупные зависимости).
+  // bcryptjs, jose, lodash.* — чистый JS, бандлятся корректно, не добавлять сюда.
+  serverExternalPackages: [],
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ['lucide-react'],

@@ -4,9 +4,9 @@
 # Важно: на ВМ должна быть уже развёрнута production-сборка (.\scripts\deploy-standalone-to-vm.ps1), иначе server.js упадёт с "no production build".
 
 $ErrorActionPreference = "Stop"
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
-# По умолчанию — рабочая машина 89.169.181.191
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
+# По умолчанию — тестовая ВМ 178.154.244.83. Для рабочей: .\scripts\set-prod-vm-env.ps1
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
 $RemotePath = if ($env:1002DOORS_STAGING_REMOTE_PATH) { $env:1002DOORS_STAGING_REMOTE_PATH } else { "~/domeo-app" }
 $SshOpts = @("-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=15")
 

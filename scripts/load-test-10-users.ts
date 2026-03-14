@@ -1,7 +1,7 @@
 /**
  * Нагрузочный тест: 10 пользователей одновременно, активное использование.
  * Запросы: главная, complete-data, uploads (фото дверей).
- * Запуск: BASE_URL=http://89.169.181.191 npx tsx scripts/load-test-10-users.ts
+ * Запуск: BASE_URL=http://178.154.244.83 npx tsx scripts/load-test-10-users.ts
  *        или: npx tsx scripts/load-test-10-users.ts  (по умолчанию localhost:3000)
  */
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';

@@ -1,7 +1,7 @@
 # Проверка staging после sync: health, страницы, фото.
 # Запуск: .\scripts\verify-staging.ps1
 
-$Base = "http://158.160.72.3:3000"
+$Base = "http://178.154.244.83:3000"
 $checks = @()
 
 # Health

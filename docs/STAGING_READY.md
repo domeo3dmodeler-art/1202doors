@@ -2,7 +2,7 @@
 
 ## Что сделано по шагам (автоматически)
 
-1. **ВМ** — создана ранее (158.160.72.3), пользователь `petr`, SSH по ключу.
+1. **ВМ** — создана ранее (178.154.244.83), пользователь `petr`, SSH по ключу.
 2. **PostgreSQL** — установлен, БД `domeo`, пользователь `domeo_user`, пароль в `.env` на сервере.
 3. **Node.js 20** — установлен.
 4. **Приложение** — клон репо в `~/1002doors`, `npm ci`, в `prisma/schema.prisma` заменён `sqlite` → `postgresql`, `prisma db push`, сборка Next.js, запуск в фоне.
@@ -15,13 +15,13 @@
 
 ## Доступ
 
-- **URL:** http://158.160.72.3:3000
-- **Health:** http://158.160.72.3:3000/api/health — `database.status === 'ok'`
+- **URL:** http://178.154.244.83:3000
+- **Health:** http://178.154.244.83:3000/api/health — `database.status === 'ok'`
 
 ## Подключение по SSH
 
 ```bash
-ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" petr@158.160.72.3
+ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" petr@178.154.244.83
 ```
 
 Либо, если в `~/.ssh/config` добавлен хост `domeo-staging` (пользователь `petr`):
@@ -56,7 +56,7 @@ NODE_ENV=production
 JWT_SECRET=ваш-секрет-не-короче-32-символов-для-jwt-токенов
 ```
 
-После изменения `.env` перезапустите приложение (см. блок «Если http://158.160.72.3:3000 не открывается»).
+После изменения `.env` перезапустите приложение (см. блок «Если http://178.154.244.83:3000 не открывается»).
 
 ## Синхронизация БД с staging
 
@@ -72,13 +72,13 @@ JWT_SECRET=ваш-секрет-не-короче-32-символов-для-jwt-
    - создаёт дамп из `domeo_production` (localhost:6432), загружает его на ВМ, восстанавливает в БД `domeo` и перезапускает приложение.
    Чтобы не загружать фото (только БД): `.\scripts\sync-staging-full.ps1 -SkipPhotos`.
 
-После выполнения откройте http://158.160.72.3:3000 — каталог и фото должны отображаться.
+После выполнения откройте http://178.154.244.83:3000 — каталог и фото должны отображаться.
 
 **Фото уже загружены на ВМ** (папка `public/uploads` с final-filled, placeholders, products). Чтобы подтянуть **все товары из БД**, запустите локально PostgreSQL (domeo_production) и снова выполните `npm run sync:staging` — скрипт создаст дамп, загрузит его на ВМ и восстановит.
 
 **Обновление только товаров дверей на ВМ (откат к «старым» ~2204):** если на ВМ в БД тоже есть раздутый набор (~12k товаров дверей) и нужно оставить только старые (created_at до 13.02), выполните **на ВМ** скрипт удаления по дате. Подробно: раздел «Обновление БД на ВМ (товары двери)» в `docs/DEPLOY_YANDEX_CLOUD.md`. Кратко:
 ```bash
-ssh petr@158.160.72.3
+ssh petr@178.154.244.83
 cd ~/1002doors && git pull
 npx tsx scripts/delete-door-products-by-date.ts --dry-run   # отчёт
 npx tsx scripts/delete-door-products-by-date.ts              # удаление
@@ -92,12 +92,12 @@ cd ~/1002doors/public/uploads/final-filled
 [ -d "04 Ручки Завертки" ] && [ ! -d "04_Ручки_Завертки" ] && mv "04 Ручки Завертки" "04_Ручки_Завертки"
 ```
 
-### Если http://158.160.72.3:3000 не открывается
+### Если http://178.154.244.83:3000 не открывается
 
 1. **Группа безопасности (Yandex Cloud):** откройте входящий TCP порт **3000** (источник 0.0.0.0/0 или ваш IP). Консоль → ВМ → Сеть → группа безопасности → правило входящего трафика.
 2. **Приложение не запущено или упало** — перезапуск (на ВМ процесс мог завершиться, тогда страница не откроется):
    ```bash
-   ssh petr@158.160.72.3
+   ssh petr@178.154.244.83
    cd ~/1002doors && pkill -f 'node.*next' 2>/dev/null; pkill -f 'standalone/server' 2>/dev/null; sleep 2
    NODE_ENV=production nohup npx next start -H 0.0.0.0 -p 3000 >> /tmp/domeo.log 2>&1 &
    sleep 5 && curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health
@@ -246,7 +246,7 @@ CREATE DATABASE domeo_production OWNER domeo_user;
 ```powershell
 $env:PGPASSWORD = "gmjRp3auQiBJ4hqlFHv9toOVnScCXYyD"
 & "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe" -h 127.0.0.1 -p 6432 -U domeo_user -d domeo_production -F c -f "C:\01_conf\1002doors\scripts\output\full_backup.dump"
-scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" "C:\01_conf\1002doors\scripts\output\full_backup.dump" petr@158.160.72.3:~/1002doors/
+scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" "C:\01_conf\1002doors\scripts\output\full_backup.dump" petr@178.154.244.83:~/1002doors/
 ```
 
 Затем на ВМ восстановите дамп и перезапустите приложение (или один раз запустите `npm run sync:staging` — дамп уже будет на сервере, скрипт его восстановит и перезапустит приложение).
@@ -256,7 +256,7 @@ scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" "C:\01_c
 1. **Восстановить дамп** (если есть бэкап с данными каталога/пользователей):
    ```bash
    # С вашей машины (если дамп локально):
-   scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" backup.dump petr@158.160.72.3:~/1002doors/
+   scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" backup.dump petr@178.154.244.83:~/1002doors/
    # На сервере:
    pg_restore -h localhost -U domeo_user -d domeo --no-owner --no-acl ~/1002doors/backup.dump
    ```
@@ -265,7 +265,7 @@ scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" "C:\01_c
 
 3. **Перезапуск приложения** (после смены .env или кода):
    ```bash
-   ssh petr@158.160.72.3
+   ssh petr@178.154.244.83
    pkill -f "node.*next start"   # или найти PID и kill
    cd ~/1002doors && NODE_ENV=production nohup npm run start > /tmp/domeo.log 2>&1 &
    ```

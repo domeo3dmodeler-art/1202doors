@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { BasicState, CartItem, Domain, HardwareKit, Handle } from './types';
-import { formatModelNameForCard, fmtInt, findHandleById, findHardwareKitById } from './utils';
+import { formatModelName, formatModelNameForCard, fmtInt, findHandleById, findHardwareKitById } from './utils';
 
 interface ModelItem {
   model: string;
@@ -152,7 +152,7 @@ export function DoorSidebar({
                                 const displayHandle = i.handleId ? findHandleById(handles, i.handleId) : null;
                                 return `Ручка ${displayHandle?.name || i.handleName || 'Неизвестная ручка'}`;
                               })()
-                            : `Дверь DomeoDoors ${i.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель'}`}
+                            : `Дверь ${formatModelName(i.model) || 'Неизвестная модель'}`}
                         </div>
                         <div className="text-gray-600 text-xs font-normal">
                           {i.type === 'handle' 

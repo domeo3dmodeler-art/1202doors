@@ -19,8 +19,8 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
 
 # Цель — тестовая ВМ
-if (-not $env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST = "ubuntu@130.193.62.116" }
-if (-not $env:1002DOORS_SSH_KEY)      { $env:1002DOORS_SSH_KEY      = "C:\Users\petr2\testdoors\ssh-key-1773299302859\ssh-key-1773299302859" }
+if (-not $env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST = "ubuntu@178.154.244.83" }
+if (-not $env:1002DOORS_SSH_KEY)      { $env:1002DOORS_SSH_KEY      = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
 $env:1002DOORS_REMOTE_APP_PATH = "~/domeo-app"
 
 if (-not (Test-Path $env:1002DOORS_SSH_KEY)) {

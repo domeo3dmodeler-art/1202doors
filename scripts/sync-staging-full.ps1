@@ -8,10 +8,10 @@ param([switch]$SkipPhotos = $false)
 $ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
 $StagingHostOnly = if ($StagingHost -match '@') { $StagingHost.Split('@')[1] } else { $StagingHost }
-$RemoteAppPath = if ($env:1002DOORS_REMOTE_APP_PATH) { $env:1002DOORS_REMOTE_APP_PATH } else { "~/1002doors" }
+$RemoteAppPath = if ($env:1002DOORS_REMOTE_APP_PATH) { $env:1002DOORS_REMOTE_APP_PATH } else { "~/domeo-app" }
 $PgDump = "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"
 $OutputDir = Join-Path $ProjectRoot "scripts\output"
 $DumpFile = Join-Path $OutputDir "full_backup.dump"
@@ -93,8 +93,10 @@ for envf in .env ~/domeo-app/.env; do
 done
 if [ -f full_backup.dump ]; then
   echo 'Restoring database...'
-  PGPASSWORD=`$PGPASSWORD pg_restore -h localhost -U domeo_user -d domeo --no-owner --no-acl --clean --if-exists full_backup.dump 2>/dev/null || true
-  PGPASSWORD=`$PGPASSWORD pg_restore -h localhost -U domeo_user -d domeo --no-owner --no-acl full_backup.dump 2>&1 | tail -5
+  DB_USER=`$(grep DATABASE_URL "`$envf" 2>/dev/null | sed -n 's|.*postgresql://\([^:]*\):.*|\1|p')
+  [ -z "`$DB_USER" ] && DB_USER=domeo
+  PGPASSWORD=`$PGPASSWORD pg_restore -h localhost -U `$DB_USER -d domeo --no-owner --no-acl --clean --if-exists full_backup.dump 2>/dev/null || true
+  PGPASSWORD=`$PGPASSWORD pg_restore -h localhost -U `$DB_USER -d domeo --no-owner --no-acl full_backup.dump 2>&1 | tail -5
   rm -f full_backup.dump
   echo 'Database restored.'
 fi

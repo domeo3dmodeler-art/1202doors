@@ -11,6 +11,7 @@ import { NotFoundError } from '@/lib/api/errors';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/auth/request-helpers';
 import { generateDocumentFromDoorsSchema } from '@/lib/validation/document.schemas';
+import { formatModelName } from '@/lib/utils/format-model-name';
 
 interface ClientData {
   firstName: string;
@@ -416,7 +417,7 @@ function buildProductName(item: DocumentItem): string {
     return formatLimiterName(item.limiterName) || item.description || 'Ограничитель';
   }
   // door: полная спецификация без дублирования покрытия
-  const modelName = (item.model || 'Unknown').replace(/DomeoDoors_/g, '').replace(/_/g, ' ');
+  const modelName = formatModelName(item.model) || 'Unknown';
   const finishVal = String(item.finish ?? '').trim();
   const colorVal = String(item.color ?? '').trim();
   const specParts: string[] = [];

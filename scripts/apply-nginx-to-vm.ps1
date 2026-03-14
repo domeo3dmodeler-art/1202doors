@@ -1,14 +1,14 @@
 # Применение конфига Nginx (scripts/output/domeo-nginx.conf) на ВМ.
 # Запуск: .\scripts\apply-nginx-to-vm.ps1
-# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 
 $KeyPath = $env:1002DOORS_SSH_KEY
-if (-not $KeyPath) { $KeyPath = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
+if (-not $KeyPath) { $KeyPath = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
 $StagingHost = $env:1002DOORS_STAGING_HOST
-if (-not $StagingHost) { $StagingHost = "ubuntu@89.169.181.191" }
+if (-not $StagingHost) { $StagingHost = "ubuntu@178.154.244.83" }
 
 $SshOpts = @("-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=15")
 

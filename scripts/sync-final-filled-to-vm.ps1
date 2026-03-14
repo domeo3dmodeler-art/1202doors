@@ -1,6 +1,6 @@
 # Перенос всей папки public/uploads/final-filled/ на ВМ (doors, ручки, наличники и т.д.).
 # Запуск: .\scripts\sync-final-filled-to-vm.ps1
-# Требует: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Требует: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path $PSScriptRoot -Parent

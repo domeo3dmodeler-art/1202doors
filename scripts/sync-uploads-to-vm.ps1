@@ -1,8 +1,8 @@
-# Sync public/uploads (final-filled, doors, handles) to VM. По умолчанию — рабочая машина 89.169.181.191
+# Sync public/uploads (final-filled, doors, handles) to VM. По умолчанию — тестовая ВМ 178.154.244.83
 # Run: .\scripts\sync-uploads-to-vm.ps1  [ -Subfolder "final-filled/doors" ] [ -Rsync ] [ -ChunkFiles 50 ]
 # -Rsync: sync via rsync (incremental; better for unstable network). Requires rsync in PATH.
 # -ChunkFiles N: when using scp, upload subfolder in chunks of N files (smaller archives, fewer Broken pipe).
-# Env: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (default ubuntu@89.169.181.191)
+# Env: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (default ubuntu@178.154.244.83)
 # Source: 1002DOORS_UPLOADS_PATH if set, else public/uploads
 
 param([string]$Subfolder = "", [switch]$Rsync = $false, [int]$ChunkFiles = 0)
@@ -11,8 +11,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
 $RemoteAppPath = "~/domeo-app"
 $OutputDir = Join-Path $ProjectRoot "scripts\output"
 $ArchivePath = Join-Path $OutputDir "uploads_staging.tar.gz"

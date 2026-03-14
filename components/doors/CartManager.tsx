@@ -7,7 +7,7 @@ import { fetchWithAuth } from "@/lib/utils/fetch-with-auth";
 import HandleSelectionModal from "../../components/HandleSelectionModal";
 import { OrderDetailsModal } from "@/components/complectator/OrderDetailsModal";
 import { getImageSrc } from '@/lib/configurator/image-src';
-import { fmtInt, findHandleById, findHardwareKitById } from './utils';
+import { fmtInt, findHandleById, findHardwareKitById, formatModelName } from './utils';
 
 function getKitDisplayName(kitName: string | undefined | null): string {
   if (!kitName) return 'Базовый';
@@ -826,7 +826,7 @@ export function CartManager({
                         fullName = formatLimiterDisplayName(item.limiterName);
                       } else {
                         // Дверь — полная спецификация
-                        const modelName = item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель';
+                        const modelName = formatModelName(item.model) || 'Неизвестная модель';
                         const doorSpecParts: string[] = [];
                         const finishVal = String(item.finish ?? '').trim();
                         const colorVal = String(item.color ?? '').trim();
@@ -886,6 +886,7 @@ export function CartManager({
                         architraveNames: item.architraveNames,
                         optionNames: item.optionNames,
                         openingDirection: item.openingDirection,
+                        hardwareColor: item.hardwareColor,
                         reversible: item.reversible,
                         mirror: item.mirror,
                         glassColor: item.glassColor,
@@ -1276,7 +1277,7 @@ export function CartManager({
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0 min-h-[2.25rem] flex flex-col justify-center">
                         <div className="font-medium text-black text-sm truncate flex items-center gap-1">
-                          {`Дверь DomeoDoors ${item.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || 'Неизвестная модель'}`}
+                          {`Дверь ${formatModelName(item.model) || 'Неизвестная модель'}`}
                           <button
                             type="button"
                             onClick={() => setDoorSpecModalId(item.id)}
@@ -1547,7 +1548,7 @@ export function CartManager({
                                             const displayHandle = findHandleById(handles, item?.handleId);
                                             return `Ручка ${displayHandle?.name || item?.handleName || itemId}`;
                                           })()
-                                        : `Дверь ${item?.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || itemId}`}
+                                        : `Дверь ${formatModelName(item?.model) || itemId}`}
                                     </span>
                                     {' - Цена: '}
                                     {change?.oldPrice && (
@@ -1696,13 +1697,13 @@ export function CartManager({
               })
             : [
                 { label: 'Стиль', value: specItem.style || '—' },
-                { label: 'Полотно', value: specItem.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || '—' },
+                { label: 'Полотно', value: formatModelName(specItem.model) || '—' },
                 { label: 'Размеры', value: specItem.width != null && specItem.height != null ? `${specItem.width} × ${specItem.height} мм` : '—' },
                 { label: 'Направление открывания', value: specItem.openingDirection === 'right' ? 'Правая' : specItem.openingDirection === 'left' ? 'Левая' : '—' },
                 { label: 'Реверсные двери', value: specItem.reversible ? 'Да' : 'Нет' },
                 { label: 'Покрытие и цвет', value: coatingText },
                 { label: 'Алюминиевая кромка', value: specItem.edge === 'да' ? 'Да' : 'Нет' },
-                { label: 'Комплект фурнитуры', value: kitName },
+                { label: 'Комплект фурнитуры', value: (specItem as any).hardwareColor ? `${kitName}, ${(specItem as any).hardwareColor}` : kitName },
                 { label: 'Ручка', value: specItem.handleName || '—' },
                 { label: 'Наличник', value: (specItem.optionIds?.length ?? 0) > 0 ? 'Да' : 'Не выбран' },
                 { label: 'Ограничитель', value: limiterDisplay },
@@ -1718,7 +1719,7 @@ export function CartManager({
               </div>
               <div className="p-5 overflow-auto flex-1">
                 <div className="text-sm font-medium text-gray-800 mb-3">
-                  {`DomeoDoors ${specItem.model?.replace(/DomeoDoors_/g, '').replace(/_/g, ' ') || '—'}`}
+                  {formatModelName(specItem.model) || '—'}
                 </div>
                 <div className="space-y-0 rounded-lg border border-gray-200 bg-gray-50 p-4">
                   {specRows.map((row, index) => (

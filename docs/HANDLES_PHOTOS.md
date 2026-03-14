@@ -39,7 +39,7 @@
 
 1. Откройте туннель к PostgreSQL на ВМ (в отдельном терминале не закрывать):
    ```powershell
-   ssh -i "$env:USERPROFILE\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" -L 5433:localhost:5432 -o StrictHostKeyChecking=no ubuntu@89.169.181.191 -N
+   ssh -i "$env:USERPROFILE\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" -L 5433:localhost:5432 -o StrictHostKeyChecking=no ubuntu@178.154.244.83 -N
    ```
 2. В другом терминале, в корне проекта:
    ```powershell
@@ -62,8 +62,8 @@
 
 Чтобы на ВМ работали ускорение complete-data, раздача фото с кириллицей и fallback для ручек:
 ```powershell
-$env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
-$env:1002DOORS_STAGING_HOST = "ubuntu@89.169.181.191"
+$env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
+$env:1002DOORS_STAGING_HOST = "ubuntu@178.154.244.83"
 .\scripts\deploy-standalone-to-vm.ps1 -AppOnly
 ```
 

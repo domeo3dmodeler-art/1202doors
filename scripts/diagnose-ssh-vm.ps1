@@ -2,9 +2,9 @@
 # Запуск: .\scripts\diagnose-ssh-vm.ps1
 # См. docs/SSH_VM_CONNECTION_CLOSED.md
 
-$KeyPath = "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042"
-$Host = "158.160.72.3"
-$User = "petr"
+$KeyPath = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
+$Host = "178.154.244.83"
+$User = "ubuntu"
 
 if (-not (Test-Path $KeyPath)) {
     Write-Host "SSH key not found: $KeyPath" -ForegroundColor Red
@@ -31,7 +31,7 @@ Write-Host ""
 # 2) Попытка вывести конец .bashrc (если 1 сработал)
 if ($exit1 -eq 0 -and $out1 -match "OK") {
     Write-Host "2. Fetching last 25 lines of ~/.bashrc on VM..." -ForegroundColor Yellow
-    $cmd2 = 'bash --norc --noprofile -c "tail -25 /home/petr/.bashrc 2>/dev/null || tail -25 ~/.bashrc 2>/dev/null || echo no-bashrc"'
+    $cmd2 = 'bash --norc --noprofile -c "tail -25 /home/ubuntu/.bashrc 2>/dev/null || tail -25 ~/.bashrc 2>/dev/null || echo no-bashrc"'
     $out2 = ssh -i $KeyPath -T -o ConnectTimeout=10 -o StrictHostKeyChecking=no "${User}@${Host}" $cmd2 2>&1
     Write-Host $out2
     if ($out2 -match "exit|^\s*exit\s") {

@@ -9,7 +9,7 @@
 Скрипты подключаются к ВМ по SSH. Нужны:
 
 - **1002DOORS_SSH_KEY** — путь к приватному ключу (например `C:\Users\...\.ssh\ssh-key-...\ssh-key-...`)
-- **1002DOORS_STAGING_HOST** — пользователь и хост ВМ (например `ubuntu@89.169.181.191`)
+- **1002DOORS_STAGING_HOST** — пользователь и хост ВМ (например `ubuntu@178.154.244.83`)
 
 В PowerShell один раз (или добавьте в профиль):
 
@@ -164,7 +164,7 @@ cd C:\01_conf\1002doors
 Подставьте ваш URL (через Nginx или напрямую :3000):
 
 ```powershell
-$base = "http://89.169.181.191"   # замените на IP/домен вашей ВМ
+$base = "http://178.154.244.83"   # замените на IP/домен вашей ВМ
 Invoke-WebRequest -Uri "$base/api/health" -UseBasicParsing | Select-Object StatusCode, Content
 ```
 

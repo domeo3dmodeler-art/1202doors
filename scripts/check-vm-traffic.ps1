@@ -1,7 +1,7 @@
 # Проверка трафика на ВМ. Запуск: .\scripts\check-vm-traffic.ps1
-# Ключ по умолчанию: C:\Users\petr2\.ssh\1 (файл или папка с id_rsa/id_ed25519)
+# Ключ по умолчанию: C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319 (тестовая ВМ)
 
-param([string]$KeyPath = "C:\Users\petr2\.ssh\1", [string]$User = "petr", [string]$VmHost = "158.160.72.3")
+param([string]$KeyPath = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319", [string]$User = "ubuntu", [string]$VmHost = "178.154.244.83")
 
 $key = $KeyPath
 if (Test-Path "$KeyPath\id_rsa") { $key = "$KeyPath\id_rsa" }

@@ -35,6 +35,7 @@ export const EXCEL_DOOR_FIELDS = [
   'Стиль',
   'Комплект фурнитуры',
   'Комплект фурнитуры, цена',
+  'Цвет фурнитуры',
 ] as const;
 
 export type ExcelDoorFieldName = (typeof EXCEL_DOOR_FIELDS)[number];
@@ -106,6 +107,7 @@ export interface DoorExcelRowSource {
     glassColor?: string;
     glass_color?: string;
     openingDirection?: 'left' | 'right';
+    hardwareColor?: string;
     reversible?: boolean;
     mirror?: string;
     threshold?: boolean;
@@ -201,6 +203,8 @@ export function getDoorFieldValue(
       return (props['Domeo_Стиль Web'] ?? item.style ?? '').toString().trim();
     case 'Комплект фурнитуры':
       return (item.hardwareKitName ?? item.hardware ?? '').toString().trim();
+    case 'Цвет фурнитуры':
+      return isDoor ? ((item as any).hardwareColor ?? '').toString().trim() : '';
     default:
       return (props[fieldName] ?? '').toString().trim();
   }

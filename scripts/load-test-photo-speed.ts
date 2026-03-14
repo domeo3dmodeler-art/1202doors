@@ -5,7 +5,7 @@
  * 3) Загружает все фото параллельно (до 50 одновременных)
  * 4) Замер: время от старта до загрузки последнего фото.
  *
- * Запуск: BASE_URL=http://89.169.181.191 npx tsx scripts/load-test-photo-speed.ts
+ * Запуск: BASE_URL=http://178.154.244.83 npx tsx scripts/load-test-photo-speed.ts
  */
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TARGET_MS = 3000;

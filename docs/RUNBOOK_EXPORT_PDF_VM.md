@@ -21,7 +21,7 @@
 С ПК (PowerShell из корня репозитория):
 
 ```powershell
-$env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
+$env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
 .\scripts\setup-vm-chromium.ps1
 ```
 

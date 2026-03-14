@@ -1,6 +1,6 @@
-# Безопасный деплой на ВМ. По умолчанию — рабочая машина 89.169.181.191.
+# Безопасный деплой на ВМ. По умолчанию — тестовая машина 178.154.244.83.
 # Запуск: .\scripts\deploy-to-new-vm.ps1
-# По умолчанию: ключ ssh-key-1771526730154, хост ubuntu@89.169.181.191
+# По умолчанию: ключ ssh-key-1773410153319, хост ubuntu@178.154.244.83
 #
 # Параметры:
 #   -SkipSetup    ВМ уже настроена (Node, PostgreSQL, .env, systemd), только деплой и безопасность
@@ -12,9 +12,9 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
-# Рабочая машина 89.169.181.191, ключ ssh-key-1771526730154. Тестовая ВМ: .\scripts\set-test-vm-env.ps1
-$DefaultKey = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
-$DefaultHost = "ubuntu@89.169.181.191"
+# Тестовая ВМ 178.154.244.83, ключ ssh-key-1773410153319. Prod ВМ: 158.160.69.237
+$DefaultKey = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
+$DefaultHost = "ubuntu@178.154.244.83"
 
 $KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { $DefaultKey }
 $StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { $DefaultHost }

@@ -1,14 +1,14 @@
 # Полная настройка раздачи фото: локальные шаги + ВМ (Nginx + sync uploads).
 # Запуск: .\scripts\run-photo-setup-full.ps1
-# Переменные: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Переменные: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 # Если SSH не работает: добавьте ключ на ВМ (Serial Console или fix-vm-authorized-keys.ps1 с рабочим ключом), задайте 1002DOORS_SSH_KEY и запустите снова.
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
-$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
-$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@89.169.181.191" }
+$KeyPath = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "$env:USERPROFILE\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
+$StagingHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
 # Чтобы дочерние скрипты (apply-nginx, sync-uploads) использовали тот же ключ
 $env:1002DOORS_SSH_KEY = $KeyPath
 $env:1002DOORS_STAGING_HOST = $StagingHost

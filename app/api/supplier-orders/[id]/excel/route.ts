@@ -10,6 +10,7 @@ import { NotFoundError } from '@/lib/api/errors';
 import { getDisplayNameForExport, formatMirrorForExcel, formatArchitraveDisplay } from '@/lib/export/puppeteer-generator';
 import { getMatchingProducts, getModelNameByCode, getFirstProductPropsByModelCode } from '@/lib/catalog/product-match';
 import { EXCEL_DOOR_FIELDS, getDoorFieldValue, type ExcelDoorFieldName } from '@/lib/export/excel-door-fields';
+import { formatModelName } from '@/lib/utils/format-model-name';
 
 // GET /api/supplier-orders/[id]/excel - Экспорт заказа у поставщика в Excel
 async function handler(
@@ -331,7 +332,7 @@ async function generateExcel(data: any): Promise<Buffer> {
         row.getCell(5).numFmt = '#,##0';
         
         const isDoor = !!(item.model || item.width != null || (item.finish != null && item.finish !== ''));
-        const modelNameFallback = (item.model || '').toString().replace(/DomeoDoors_/g, '').replace(/_/g, ' ').trim() || '';
+        const modelNameFallback = formatModelName(item.model);
         const fallbackModelName = isDoor ? (await getModelNameByCode(item.model)) || modelNameFallback : '';
         // Подставляем данные из БД по коду модели, чтобы заполнить Цена РРЦ, Поставщик, Покрытие, Толщина и т.д.
         const fallbackProps = isDoor ? await getFirstProductPropsByModelCode(item.model) : null;

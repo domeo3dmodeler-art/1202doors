@@ -2,10 +2,10 @@
 # Run: .\scripts\setup-ssh-staging.ps1
 # Enter VM password when prompted
 
-$keyDir = "C:\02_conf\ssh1702\ssh-key-1771306236042"
-$pubKey = Join-Path $keyDir "ssh-key-1771306236042.pub"
-$stagingHost = "158.160.72.3"
-$user = "petr"
+$keyDir = "C:\Users\petr2\.ssh\ssh-key-1773410153319"
+$pubKey = Join-Path $keyDir "ssh-key-1773410153319.pub"
+$stagingHost = "178.154.244.83"
+$user = "ubuntu"
 
 if (-not (Test-Path $pubKey)) {
     Write-Error "Public key not found: $pubKey"
@@ -16,7 +16,7 @@ Write-Host "Copying public key to $user@${stagingHost}..."
 Get-Content $pubKey | ssh "${user}@${stagingHost}" "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Key added. Testing key login..."
-    ssh -i (Join-Path $keyDir "ssh-key-1771306236042") "${user}@${stagingHost}" "echo OK"
+    ssh -i (Join-Path $keyDir "ssh-key-1773410153319") "${user}@${stagingHost}" "echo OK"
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Key login OK."
     }
@@ -24,7 +24,7 @@ if ($LASTEXITCODE -eq 0) {
 
 $sshConfigDir = Join-Path $env:USERPROFILE ".ssh"
 $sshConfigPath = Join-Path $sshConfigDir "config"
-$privateKeyPath = Join-Path $keyDir "ssh-key-1771306236042"
+$privateKeyPath = Join-Path $keyDir "ssh-key-1773410153319"
 $configBlock = @"
 Host domeo-staging
     HostName $stagingHost

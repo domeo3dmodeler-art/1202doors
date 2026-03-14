@@ -1,6 +1,6 @@
 #!/bin/bash
 # Диагностика фото ручек на ВМ. Запуск на ВМ: bash vm-diagnose-handle-photos.sh
-# Или с хоста: ssh ubuntu@89.169.181.191 'bash -s' < scripts/vm-diagnose-handle-photos.sh
+# Или с хоста: ssh ubuntu@178.154.244.83 'bash -s' < scripts/vm-diagnose-handle-photos.sh
 
 set -e
 APP_DIR="${1:-$HOME/domeo-app}"

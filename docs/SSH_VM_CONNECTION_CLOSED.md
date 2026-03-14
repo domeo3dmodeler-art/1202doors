@@ -12,7 +12,7 @@
 ## Симптом 1: обрыв сразу после входа
 
 - Подключение по ключу успешно: виден приветственный баннер Ubuntu (motd).
-- Сразу после этого сессия обрывается: `Connection to 158.160.72.3 closed by remote host`.
+- Сразу после этого сессия обрывается: `Connection to 178.154.244.83 closed by remote host`.
 - Раньше интерактивный вход работал.
 
 ## Возможные причины (по приоритету)
@@ -56,7 +56,7 @@
 ### Вариант A: Консоль в Yandex Cloud
 
 1. Откройте [консоль Yandex Cloud](https://console.yandex.cloud/) → Compute Cloud → Виртуальные машины.
-2. Выберите ВМ с IP `158.160.72.3`.
+2. Выберите ВМ с IP `178.154.244.83`.
 3. Нажмите **«Подключиться»** (или аналог) и выберите способ: **Serial console** / **Консоль** / **VNC** (как называется в интерфейсе).
 4. Войдите под пользователем `petr` (логин и пароль, если задан) или под `root`, если есть доступ.
 5. Дальше выполняйте команды из раздела «Что проверить на ВМ».
@@ -66,7 +66,7 @@
 Иногда при проблемах в `.bashrc` неинтерактивный запуск команды даёт сессию без выполнения `.bashrc` (зависит от того, как именно настроен bash). С вашей машины:
 
 ```powershell
-ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -T petr@158.160.72.3 "bash --norc --noprofile -c 'echo OK && cat ~/.bashrc | tail -20'"
+ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -T petr@178.154.244.83 "bash --norc --noprofile -c 'echo OK && cat ~/.bashrc | tail -20'"
 ```
 
 - Если в выводе будет `OK` и содержимое конца `~/.bashrc` — подключение по ключу и bash работают, проблема скорее в интерактивном `.bashrc`/`.profile`.
@@ -165,7 +165,7 @@ nano /home/petr/.ssh/authorized_keys
 С вашего ПК:
 
 ```powershell
-ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" petr@158.160.72.3
+ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" petr@178.154.244.83
 ```
 
 Должен открыться интерактивный шелл без немедленного обрыва.
@@ -202,7 +202,7 @@ ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" petr@158
 С вашего ПК откройте сессию и не трогайте её 1–2 минуты:
 
 ```powershell
-ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 petr@158.160.72.3
+ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 petr@178.154.244.83
 ```
 
 - Если сессия **сразу** закрывается — сначала устраните причину из раздела [Симптом 1](#симптом-1-обрыв-сразу-после-входа) (через консоль Yandex).
@@ -252,8 +252,8 @@ MaxSessions 20
 В скриптах уже используются опции `ServerAliveInterval=15` и `ServerAliveCountMax=6`. Для ручных команд добавляйте их явно:
 
 ```powershell
-ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 petr@158.160.72.3
-scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 .\file.txt petr@158.160.72.3:~/1002doors/
+ssh -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 petr@178.154.244.83
+scp -i "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 .\file.txt petr@178.154.244.83:~/1002doors/
 ```
 
 #### 5. Если ничего не помогло: деплой через Git

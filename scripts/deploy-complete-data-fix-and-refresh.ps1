@@ -5,8 +5,8 @@ param([switch]$SkipBuild = $false)
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
-$KeyPath = "C:\02_conf\ssh1702\ssh-key-1771306236042\ssh-key-1771306236042"
-$StagingHost = "petr@158.160.72.3"
+$KeyPath = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
+$StagingHost = "ubuntu@178.154.244.83"
 $RemotePath = "~/1002doors"
 
 if (-not (Test-Path $KeyPath)) {
@@ -42,4 +42,4 @@ Write-Host "4. Clearing complete-data cache..." -ForegroundColor Cyan
 $refreshOut = ssh -i $KeyPath -T -o StrictHostKeyChecking=no -o ConnectTimeout=15 $StagingHost "bash --norc --noprofile -c 'curl -s http://localhost:3000/api/catalog/doors/complete-data/refresh'" 2>&1
 Write-Host $refreshOut
 
-Write-Host "Done. Open http://158.160.72.3:3000/doors (with ?refresh=1 to bypass browser cache)" -ForegroundColor Green
+Write-Host "Done. Open http://178.154.244.83:3000/doors (with ?refresh=1 to bypass browser cache)" -ForegroundColor Green

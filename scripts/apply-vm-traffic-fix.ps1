@@ -2,16 +2,16 @@
 # Запуск: .\scripts\apply-vm-traffic-fix.ps1
 #        .\scripts\apply-vm-traffic-fix.ps1 -MyIp "ваш.и.п"   # чтобы Fail2ban не банил ваш IP
 #
-# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 
 param([string]$MyIp = "")
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 
 $KeyPath = $env:1002DOORS_SSH_KEY
-if (-not $KeyPath) { $KeyPath = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
+if (-not $KeyPath) { $KeyPath = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
 $StagingHost = $env:1002DOORS_STAGING_HOST
-if (-not $StagingHost) { $StagingHost = "ubuntu@89.169.181.191" }
+if (-not $StagingHost) { $StagingHost = "ubuntu@178.154.244.83" }
 
 $SshOpts = @("-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=15")
 

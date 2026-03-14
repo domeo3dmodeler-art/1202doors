@@ -1,5 +1,6 @@
 // lib/pdf/quote-pdf.ts
 // Сервис для экспорта КП в PDF формат
+import { formatModelName } from '@/lib/utils/format-model-name';
 
 type Quote = {
   id: string;
@@ -264,7 +265,7 @@ function generateQuoteHTML(quote: Quote): string {
                 ${quote.items.map((item: any) => `
                     <tr>
                         <td>
-                            <div class="item-name">${item.model}</div>
+                            <div class="item-name">${formatModelName(item.model)}</div>
                             <div class="item-sku">${item.sku}</div>
                         </td>
                         <td>${item.width}×${item.height}мм</td>

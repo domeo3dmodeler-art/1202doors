@@ -1,7 +1,7 @@
 # Применение правок фото на ВМ: деплой приложения, Nginx, синхронизация uploads.
 # Запуск: .\scripts\vm-apply-photo-fix.ps1
 # Опции: -SkipBuild — не собирать, использовать существующий .next/standalone (если уже собран).
-# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@89.169.181.191)
+# Требуется: 1002DOORS_SSH_KEY, 1002DOORS_STAGING_HOST (по умолчанию ubuntu@178.154.244.83)
 
 param([switch]$SkipBuild = $false)
 $ErrorActionPreference = "Stop"

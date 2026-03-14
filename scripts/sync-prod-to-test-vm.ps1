@@ -1,15 +1,15 @@
-# Перенос полной БД и фото с рабочей ВМ (89.169.181.191) на тестовую (130.193.62.116).
+# Перенос полной БД и фото с рабочей ВМ (158.160.69.237) на тестовую (178.154.244.83).
 # Товары, пользователи, заказы, фото товаров — всё копируется на тестовую ВМ.
 #
 # Запуск:
-#   .\scripts\set-test-vm-env.ps1
 #   .\scripts\sync-prod-to-test-vm.ps1
+#   .\scripts\sync-prod-to-test-vm.ps1 -SkipPhotos   # только БД
 #
 # Или вручную задать:
-#   $env:1002DOORS_STAGING_HOST = "ubuntu@130.193.62.116"   # тестовая (куда копируем)
-#   $env:1002DOORS_SSH_KEY = "C:\Users\petr2\testdoors\ssh-key-1773299302859\ssh-key-1773299302859"
-#   $env:1002DOORS_PROD_HOST = "ubuntu@89.169.181.191"      # рабочая (откуда берём)
-#   $env:1002DOORS_PROD_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154"
+#   $env:1002DOORS_STAGING_HOST = "ubuntu@178.154.244.83"   # тестовая (куда копируем)
+#   $env:1002DOORS_SSH_KEY = "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319"
+#   $env:1002DOORS_PROD_HOST = "ubuntu@158.160.69.237"      # рабочая (откуда берём)
+#   $env:1002DOORS_PROD_SSH_KEY = "C:\Users\petr2\.ssh\1\id_ed25519"
 #   .\scripts\sync-prod-to-test-vm.ps1
 
 param([switch]$SkipPhotos = $false)
@@ -19,12 +19,12 @@ $ProjectRoot = Split-Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) { $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..") }
 
 # Тестовая ВМ (назначение)
-$TestHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@130.193.62.116" }
-$TestKey = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\testdoors\ssh-key-1773299302859\ssh-key-1773299302859" }
+$TestHost = if ($env:1002DOORS_STAGING_HOST) { $env:1002DOORS_STAGING_HOST } else { "ubuntu@178.154.244.83" }
+$TestKey = if ($env:1002DOORS_SSH_KEY) { $env:1002DOORS_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1773410153319\ssh-key-1773410153319" }
 
 # Рабочая ВМ (источник БД и фото)
-$ProdHost = if ($env:1002DOORS_PROD_HOST) { $env:1002DOORS_PROD_HOST } else { "ubuntu@89.169.181.191" }
-$ProdKey = if ($env:1002DOORS_PROD_SSH_KEY) { $env:1002DOORS_PROD_SSH_KEY } else { "C:\Users\petr2\.ssh\ssh-key-1771526730154\ssh-key-1771526730154" }
+$ProdHost = if ($env:1002DOORS_PROD_HOST) { $env:1002DOORS_PROD_HOST } else { "ubuntu@158.160.69.237" }
+$ProdKey = if ($env:1002DOORS_PROD_SSH_KEY) { $env:1002DOORS_PROD_SSH_KEY } else { "C:\Users\petr2\.ssh\1\id_ed25519" }
 
 $RemotePath = "~/domeo-app"
 $OutputDir = Join-Path $ProjectRoot "scripts\output"

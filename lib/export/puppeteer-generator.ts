@@ -10,6 +10,7 @@ import {
   compareCartContent 
 } from '@/lib/documents/deduplication';
 import { logger } from '@/lib/logging/logger';
+import { formatModelName } from '@/lib/utils/format-model-name';
 import { getItemDisplayName, getItemType, normalizeItemForExport } from '@/lib/export/export-items';
 import { runInPdfQueue } from '@/lib/export/pdf-export-queue';
 import { getMatchingProducts, getModelNameByCode, getFirstProductPropsByModelCode } from '@/lib/catalog/product-match';
@@ -526,7 +527,7 @@ export async function generateExcelOrder(data: any): Promise<Buffer> {
         row.getCell(4).numFmt = '#,##0';
         row.getCell(5).numFmt = '#,##0';
 
-        const fallbackModelName = (item.model || '').toString().replace(/DomeoDoors_/g, '').replace(/_/g, ' ').trim() || '';
+        const fallbackModelName = formatModelName(item.model);
         const fallbackProps = isDoor ? await getFirstProductPropsByModelCode(item.model) : null;
         const mergedProps = fallbackProps
           ? {
@@ -898,6 +899,7 @@ export async function exportDocumentWithPDF(
         edge_color_name: item.edge_color_name ?? item.edgeColorName,
         glassColor: item.glassColor ?? item.glass_color,
         openingDirection: item.openingDirection ?? item.opening_direction,
+        hardwareColor: item.hardwareColor ?? item.hardware_color,
         reversible: item.reversible,
         mirror: item.mirror,
         threshold: normalizeThreshold(item.threshold),

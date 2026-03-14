@@ -97,28 +97,17 @@ export const resetDependentParams = (currentSel: Partial<BasicState>, changedPar
   return newSel;
 };
 
-// Форматирование кода модели Domeo (Web) для отображения в UI (DomeoDoors_Base_1 → Base 1)
+export { formatModelName } from '@/lib/utils/format-model-name';
+
+// DomeoDoors_Diamond_1 → DomeoDoors Diamond 1 (для карточек и превью)
 export const formatModelNameForCard = (modelName: string): string => {
   if (!modelName || typeof modelName !== 'string') return '';
-  return modelName
-    .replace(/^DomeoDoors_/i, '')
-    .replace(/^Domeodoors_/i, '')
-    .replace(/^DomeoDoors\s*/i, '')
-    .replace(/^Domeodoors\s*/i, '')
-    .replace(/_/g, ' ')
-    .trim() || modelName;
+  return modelName.replace(/_/g, ' ').trim();
 };
 
-// То же для превью
 export const formatModelNameForPreview = (modelName: string): string => {
   if (!modelName || typeof modelName !== 'string') return '';
-  return modelName
-    .replace(/^DomeoDoors_/i, '')
-    .replace(/^Domeodoors_/i, '')
-    .replace(/^DomeoDoors\s*/i, '')
-    .replace(/^Domeodoors\s*/i, '')
-    .replace(/_/g, ' ')
-    .trim() || modelName;
+  return modelName.replace(/_/g, ' ').trim();
 };
 
 export const imageCandidates = (obj: { sku_1c?: string | number | null; model?: string | null }): string[] => {
